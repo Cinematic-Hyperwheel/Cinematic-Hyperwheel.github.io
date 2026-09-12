@@ -83,7 +83,7 @@
     "license": {
       "heading": "Лицензия",
       "text": "Исходный код распространяется по лицензии GNU Affero General Public License v3.0 или более поздней (AGPL-3.0-or-later).",
-      "copyright": "© 2026 Cinematic Hyperwheel project"
+      "copyright": "© {{year}} Cinematic Hyperwheel project"
     },
     "source": {
       "heading": "Исходный код",

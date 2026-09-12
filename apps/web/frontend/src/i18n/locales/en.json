@@ -39,7 +39,6 @@
     "locate": "Locate on wheel",
     "previous": "Previous",
     "next": "Next"
-    
   },
   "errors": {
     "wheelLookup": "Could not fetch the movie's coordinates in PCA space."
@@ -84,7 +83,7 @@
     "license": {
       "heading": "License",
       "text": "Source code is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).",
-      "copyright": "© 2026 Cinematic Hyperwheel project"
+      "copyright": "© {{year}} Cinematic Hyperwheel project"
     },
     "source": {
       "heading": "Source code",
