@@ -714,7 +714,7 @@ The project is being developed with reproducibility and experimentation in mind.
 Cinematic-Hyperwheel/
 │
 ├── packages/
-│   └── cinematic-hyperwheel/   ← reusable research / recommendation engine
+│   └── hyperwheel-recommender/   ← reusable research / recommendation engine
 │       ├── docs/               ← packlage documentation
 │       ├── src/
 │       └── tests/
