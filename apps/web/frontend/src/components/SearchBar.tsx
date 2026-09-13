@@ -134,14 +134,14 @@ export default function SearchBar({ onSelect, selectedTitle = null, selectedMovi
   // poster available" (see utils/poster.ts).
   const [posterUrl, setPosterUrl] = useState<string | null | undefined>(undefined);
   const debounceRef = useRef<number | undefined>(undefined);
-  // FIX: monotonically increasing id per fired request, so that when
+  // Monotonically increasing id per fired request, so that when
   // several searches are in flight at once (typing faster than the
   // debounce window lets them settle), a late-arriving response for an
   // OLDER keystroke can be detected and dropped instead of clobbering
   // the results of a newer one that already resolved - this is what was
   // causing the "flicker" of stale result sets while typing fast.
   const requestIdRef = useRef(0);
-  // FIX: sentinel query value we just set programmatically (on select),
+  // Sentinel query value we just set programmatically (on select),
   // so the search effect can recognize "this change came from picking a
   // result, not from typing" and skip re-searching/reopening for it.
   const suppressNextSearchRef = useRef<string | null>(null);
@@ -197,7 +197,7 @@ export default function SearchBar({ onSelect, selectedTitle = null, selectedMovi
   useEffect(() => {
     window.clearTimeout(debounceRef.current);
 
-    // FIX: if this exact query value was just set by handleSelect below,
+    // If this exact query value was just set by handleSelect below,
     // consume the flag and skip firing a search for it - otherwise the
     // debounced search resolves ~250ms+ after selection and calls
     // setOpen(true) again, making the dropdown pop back open on its own.
@@ -214,7 +214,7 @@ export default function SearchBar({ onSelect, selectedTitle = null, selectedMovi
       const myRequestId = ++requestIdRef.current;
       try {
         const hits = await searchMovies(query);
-        // FIX: a newer request was fired (and possibly already resolved)
+        // A newer request was fired (and possibly already resolved)
         // while this one was in flight - discard this stale response.
         if (myRequestId !== requestIdRef.current) return;
         setResults(hits);
@@ -229,7 +229,7 @@ export default function SearchBar({ onSelect, selectedTitle = null, selectedMovi
 
   const handleSelect = (r: MovieHit) => {
     onSelect(r);
-    // FIX: mark the upcoming query change as "programmatic" before
+    // Mark the upcoming query change as "programmatic" before
     // triggering it, so the effect above ignores it.
     suppressNextSearchRef.current = r.title;
     setQuery(r.title);
