@@ -12,6 +12,7 @@ import { useHeaderMode, ENTER_COMPACT_PX, EXIT_TO_HERO_PX } from "./hooks/useHea
 import { HighlightProvider } from "./contexts/HighlightContext";
 import { ActiveCardProvider } from "./contexts/ActiveCardContext";
 import ActiveRecommendationCard from "./components/ActiveRecommendationCard";
+import BrandTitle from "./components/BrandTitle";
 import {
   MovieHit,
   RecommendCircle,
@@ -169,6 +170,11 @@ export default function App() {
   // wheel (see WheelLegend's own populated-angles check) - the sizing
   // effect below only reserves column width for it when it will.
   const hasLegend = !isWheelWrapHidden && (primaryOverlays?.some((a) => a.items.length > 0) ?? false);
+  // True until a reference movie is picked - the very first thing a
+  // visitor sees. In this state the header sheds its search bar and the
+  // scheme selector entirely; a single, larger search bar takes over as
+  // the page's primary call to action (see .wheel-empty-state below).
+  const isEmpty = !selected;
 
   // Sizes the big wheel to fill the available space on BOTH axes while
   // staying fully within the visible viewport, readout text and legend
@@ -374,17 +380,20 @@ export default function App() {
                 </div>
 
                 <header className="app__header">
-                  <img className="app__header-logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
                   <div className="app__header-text">
-                    <h1>{t("app.title")}</h1>
+                    <h1><BrandTitle text={t("app.title")} /></h1>
                     <p>{t("app.tagline")}</p>
                     <p className="app__header-poweredby">{t("app.poweredBy")}</p>
                   </div>
                 </header>
 
                 <div className="sticky-controls" ref={stickyControlsRef}>
-                  <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
-                  {schemeSelect}
+                  {!isEmpty && (
+                    <>
+                      <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
+                      {schemeSelect}
+                    </>
+                  )}
                 </div>
               </>
             ) : (
@@ -397,13 +406,15 @@ export default function App() {
                   onAboutClick={() => setAboutOpen(true)}
                   onHeightChange={setHeaderHeight}
                   searchSlot={
-                    <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
+                    isEmpty ? undefined : (
+                      <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
+                    )
                   }
-                  schemeSlot={headerMode === "compact" ? schemeSelect : undefined}
+                  schemeSlot={!isEmpty && headerMode === "compact" ? schemeSelect : undefined}
                 />
 
                 <div className="sticky-controls" ref={stickyControlsRef}>
-                  {headerMode !== "compact" && schemeSelect}
+                  {!isEmpty && headerMode !== "compact" && schemeSelect}
                 </div>
               </>
             )}
@@ -449,8 +460,13 @@ export default function App() {
               independent of the desktop/mobile layout split above, shown
               on both until a reference movie is selected. */}
           {!primary && (
-            <div className="wheel-empty-state" aria-hidden="true">
-              <img className="wheel-empty-state__logo" src="/logo-mark.svg" alt="" />
+            <div className="wheel-empty-state">
+              <img className="wheel-empty-state__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
+              {isEmpty && (
+                <div className="wheel-empty-state__search">
+                  <SearchBar onSelect={handleSelect} selectedTitle={null} selectedMovie={null} />
+                </div>
+              )}
             </div>
           )}
           <ActiveRecommendationCard />

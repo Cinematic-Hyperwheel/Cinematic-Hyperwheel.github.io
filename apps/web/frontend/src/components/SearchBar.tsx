@@ -335,11 +335,17 @@ export default function SearchBar({ onSelect, selectedTitle = null, selectedMovi
     <div className="search__selected">
       {editing ? (
         <div className="search__editor">
+          {!selectedMovie && (
+            <span className="search__leading-icon" aria-hidden="true">
+              <SearchIcon />
+            </span>
+          )}
           <input
             id="reference-search-input"
             className={
               "search__input search__selected-input" +
-              (spinning ? " search__selected-input--spinning" : "")
+              (spinning ? " search__selected-input--spinning" : "") +
+              (!selectedMovie ? " search__selected-input--with-icon" : "")
             }
             placeholder={t("search.placeholder")}
             value={query}

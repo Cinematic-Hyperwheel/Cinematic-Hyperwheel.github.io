@@ -116,8 +116,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* no need a gap since logo is tall shape in square box */
-  gap: 0px;
 }
 .app__header-logo {
   flex: 0 0 auto;
@@ -134,13 +132,14 @@ body {
 }
 .app__header-text h1 {
   margin: 0;
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
   /* Scales with viewport width so the title stays on a single line
      next to the logo across phone sizes, instead of wrapping to two
      lines and visually detaching from the logo above it. */
   font-size: clamp(16px, 5.8vw, 28px);
   white-space: nowrap;
   letter-spacing: 0.02em;
-  background: linear-gradient(90deg, #6ee7ff, #b46bff);
+  background: linear-gradient(90deg, #D95A36, #7560B6);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -159,6 +158,13 @@ body {
   font-size: 9px !important;
   letter-spacing: 0.06em !important;
   opacity: 0.6 !important;
+}
+.appheader__title-cap {
+  /* Color is set inline per letter (see BrandTitle.tsx) - a brightened
+     sample of the title's own brand gradient at that letter's position. */
+  font-weight: 800;
+  font-size: 1.05em;
+  text-shadow: 0 0 3px currentColor ! important;
 }
 
 .app__error { color: #ff7a7a; font-size: 13px; }
@@ -334,26 +340,66 @@ body {
   display: flex;
   justify-content: center;
 }
+/* Fixed to the viewport, independent of the desktop/mobile layout split
+   above - shown whenever no reference movie's wheel data has resolved
+   yet. The logo itself is purely decorative (dimmed, no pointer
+   events); while no movie is selected yet, this block also hosts the
+   reference search bar, enlarged and centered here as the page's
+   primary call to action - see .wheel-empty-state__search below, which
+   re-enables pointer events for itself. */
 .wheel-empty-state {
-  /* Fixed to the viewport, entirely out of document flow - a purely
-     decorative placeholder has no business affecting layout (pushing
-     the footer, competing with column widths, etc.), and this also
-     centers it on the whole screen rather than within whichever column
-     happens to render it. */
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   pointer-events: none;
-  /* Stays behind the sticky header/controls (z-index 30/20 - see
-     header.css/sticky-layout.css) in case they ever overlap. */
   z-index: 0;
-  opacity: 0.16;
+}
+/* Logo and search stack in the same grid cell, centered - search sits
+   visually on top of the logo simply by being later in the DOM, no
+   z-index needed (see WheelStack.tsx / HeroBackdrop.tsx for the same
+   layering technique used elsewhere in the app). */
+.wheel-empty-state > * {
+  grid-column: 1;
+  grid-row: 1;
 }
 .wheel-empty-state__logo {
-  width: min(220px, 60%);
+  width: min(920px, 60%);
   height: auto;
+  opacity: 0.06;
+}
+.wheel-empty-state__search {
+  pointer-events: auto;
+  width: min(760px, 90vw);
+}
+.wheel-empty-state__search .search {
+  max-width: none;
+}
+.wheel-empty-state__search .search__input {
+  padding: 24px 28px;
+  border-radius: 18px;
+  font-size: 20px;
+}
+.wheel-empty-state__search .search__editor {
+  gap: 10px;
+}
+.wheel-empty-state__search .search__leading-icon {
+  left: 22px;
+}
+.wheel-empty-state__search .search__leading-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.wheel-empty-state__search .search__selected-input--with-icon {
+  padding-left: 58px;
+}
+.wheel-empty-state__search .search__random {
+  width: 48px;
+  height: 48px;
+}
+.wheel-empty-state__search .search__random svg {
+  width: 24px;
+  height: 24px;
 }
 
 /* Crossfade container for the big central wheel - see WheelStack.tsx.

@@ -1,7 +1,7 @@
 /** Small color-interpolation helpers for coloring a point to match the
  * wheel's conic-gradient background underneath it. */
 
-function hexToRgb(hex: string): [number, number, number] {
+export function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace("#", "");
   const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
   const n = parseInt(full, 16);

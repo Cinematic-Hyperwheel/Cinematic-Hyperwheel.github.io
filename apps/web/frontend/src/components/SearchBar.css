@@ -246,3 +246,15 @@
     flex: 0 0 28px;
   }
 }
+.search__leading-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  color: var(--muted);
+  pointer-events: none;
+}
+.search__selected-input--with-icon {
+  padding-left: 38px;
+}

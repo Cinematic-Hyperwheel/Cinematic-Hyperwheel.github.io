@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import LanguageSwitcher from "./LanguageSwitcher";
 import type { HeaderMode } from "../hooks/useHeaderMode";
+import BrandTitle from "./BrandTitle";
 
 interface Props {
   mode: HeaderMode;
@@ -53,15 +54,16 @@ export default function AppHeader({ mode, searchSlot, schemeSlot, onAboutClick, 
       className={"appheader" + (mode === "compact" ? " appheader--compact" : "")}
     >
       <div className="appheader__brand vt-brand">
-        <img className="appheader__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
         <div className="appheader__brand-text">
-          <h1 className="appheader__title">{t("app.title")}</h1>
+          <h1 className="appheader__title">
+            <BrandTitle text={t("app.title")} />
+          </h1>
           <p className="appheader__tagline">{t("app.tagline")}</p>
           <p className="appheader__poweredby">{t("app.poweredBy")}</p>
         </div>
       </div>
 
-      <div className="appheader__search vt-search">{searchSlot}</div>
+      {searchSlot && <div className="appheader__search vt-search">{searchSlot}</div>}
 
       <div className="appheader__actions">
         {schemeSlot && <div className="appheader__scheme">{schemeSlot}</div>}

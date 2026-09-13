@@ -42,30 +42,88 @@
 .appheader__brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-.appheader__logo {
-  flex: 0 0 auto;
-  width: 77px;
-  height: 77px;
-  display: block;
+  gap: 16px;
 }
 .appheader__brand-text {
-  text-align: center;
+  /* Positioned ancestor for .appheader__poweredby's corner placement
+     below - width shrinks to its widest child (the title), so the
+     corner label and the stretched tagline both align to the title's
+     own edges. */
+  position: relative;
+  text-align: left;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
 }
 .appheader__title {
   margin: 0;
-  font-size: 28px;
-  letter-spacing: 0.02em;
-  background: linear-gradient(90deg, #6ee7ff, #b46bff);
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-weight: 650;
+  font-size: clamp(34px, 4.4vw, 58px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  background: linear-gradient(90deg, #D95A36, #7560B6 );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
+.appheader__title-cap {
+  /* var(--text) rather than var(--accent) - the accent color equals
+     the title gradient's own starting stop, so it disappears on the
+     first word's initial; a near-white tone contrasts against both
+     ends of the gradient regardless of a letter's position in it. */
+  color: var(--text);
+  font-weight: 800;
+  font-size: 1.05em;
+  text-shadow: 0 0 8px currentColor;
+}
+
+.appheader__title > span:nth-child(2) .appheader__title-cap {
+  /* Heterogeneous, non-multiple timings to achieve chaotic behavior */
+  animation-name: neon-pulse, neon-flicker;
+  animation-duration: 3.7s, 5.3s;
+  animation-timing-function: ease-in-out, linear;
+  animation-iteration-count: infinite, infinite;
+  animation-direction: alternate, normal;
+}
+
+/* Effect 1: Soft breathing effect of the neon cloud  */
+@keyframes neon-pulse {
+  0% {
+    text-shadow: 
+      0 0 4px currentColor,
+      0 0 10px currentColor,
+      0 0 15px rgba(255, 255, 255, 0.1);
+  }
+  100% {
+    text-shadow: 
+      0 0 6px currentColor,
+      0 0 16px currentColor,
+      0 0 35px currentColor;
+  }
+}
+
+/* Layer 2: Chaotic, non-rhythmic voltage drops (micro-flickers)  */
+@keyframes neon-flicker {
+  0%, 14%, 15.5%, 17%, 43%, 44.5%, 67%, 68.2%, 69.5%, 85%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0px transparent) saturate(1);
+  }
+  /* The letter suddenly drops into a half-flash, half-fade state at random moments  */
+  14.5%, 16.5% {
+    opacity: 0.6;
+    filter: saturate(0.8) blur(0.3px);
+  }
+  43.8% {
+    opacity: 0.3;
+  }
+  67.5%, 69% {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+  }
+}
+
 .appheader__tagline {
   margin: 0;
   color: var(--muted);
@@ -74,11 +132,18 @@
   letter-spacing: 0.18em;
 }
 .appheader__poweredby {
+  /* Small "eyebrow" label above the title's top-right corner, instead
+     of a third stacked line under the tagline - keeps the big title as
+     the single dominant element. */
+  position: absolute;
+  top: -10px;
+  right: 0;
   margin: 0;
   color: var(--muted);
   font-size: 9px;
   letter-spacing: 0.08em;
   opacity: 0.6;
+  white-space: nowrap;
 }
 .appheader__search {
   width: 100%;
@@ -159,10 +224,6 @@
     flex: 0 0 auto;
     gap: 8px;
   }
-  .appheader--compact .appheader__logo {
-    width: 50px;
-    height: 50px;
-  }
   .appheader--compact .appheader__brand-text {
     text-align: left;
     align-items: flex-start;
@@ -171,6 +232,7 @@
   .appheader--compact .appheader__title {
     font-size: 21px;
     line-height: 1.2;
+    letter-spacing: 0;
   }
   .appheader--compact .appheader__tagline {
     font-size: 9px;
@@ -179,6 +241,13 @@
   }
   /* Compact bar has no room for a third line under the tagline. */
   .appheader--compact .appheader__poweredby {
+    display: none;
+    /* Same corner placement as hero mode (see .appheader__poweredby's
+      base rule) - just closer to the title's own top edge, matching the
+      bar's tighter vertical rhythm. */
+    position: absolute;
+    top: -8px;
+    right: 0;
     font-size: 8px;
     letter-spacing: 0.06em;
   }
