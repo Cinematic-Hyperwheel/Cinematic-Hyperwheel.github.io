@@ -163,7 +163,20 @@ back to a random per-process secret (see `.env.example`), which is fine for
 local development but means a restart or a multi-worker deployment
 invalidates/desyncs challenges issued right before it.
 
+`POST /api/pow/solve` is necessarily reachable without a ticket (it's
+what issues one), so it's additionally hardened on its own: every
+request body over 8 KB is rejected before it's read, and the
+`challenge`/`nonce` fields each have a fixed max length - both meant to
+stop an oversized body from being hashed/buffered in memory on an
+endpoint that isn't behind the proof-of-work gate itself.
+
 ## API
+
+Interactive docs (Swagger UI at `/docs`, ReDoc at `/redoc`, the raw
+schema at `/openapi.json`) are disabled by default, since this isn't a
+public API product - the endpoints below are the documented surface.
+Set `HYPERWHEEL_ENABLE_API_DOCS=true/1/yes/on` (see `.env.example`) to turn them on
+for local development.
 
 All endpoints below require a proof-of-work ticket (`X-Pow-Ticket` header) -
 see "Proof-of-work request gating" above; the frontend's `api.ts` attaches
@@ -186,8 +199,10 @@ API call.
   token present as a substring, in any order) - see
   `apps/web/backend/app/search.py` for the full tiering rationale. No
   typo tolerance: unlike the previous rapidfuzz-based version, a
-  misspelled query will not match. Results do not include
-  `imdb_id`/`tmdb_id` (see `/api/movie/{item_id}` for those).
+  misspelled query will not match. `q` is capped at 200 characters and
+  `limit` at 25 results (both enforced server-side regardless of what's
+  passed). Results do not include `imdb_id`/`tmdb_id` (see
+  `/api/movie/{item_id}` for those).
 - `GET /api/movie/{item_id}/recommend?scheme=...` — color-wheel
   recommendations (complementary/triadic/analogous/split-complementary/tetradic),
   computed **independently for each circle** shown on `/wheel` for this

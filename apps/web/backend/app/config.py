@@ -55,3 +55,11 @@ TMDB_BACKDROP_SIZE = os.environ.get("TMDB_BACKDROP_SIZE", "w1280")
 # phone screen, small enough to load instantly on hover. TMDB also
 # offers w92/w154/w342/w500/w780/original if this needs tuning.
 TMDB_POSTER_SIZE = os.environ.get("TMDB_POSTER_SIZE", "w185")
+
+# Interactive API docs (Swagger UI at /docs, ReDoc at /redoc, raw schema
+# at /openapi.json). Off by default: this isn't a public API product -
+# the supported surface is documented in apps/web/README.md - so there's
+# no reason to expose the schema/try-it-out UI to the internet. Set to
+# "true"/"1"/"yes" to turn it on for local development; unset, empty, or
+# any other value (including "false") keeps it off.
+ENABLE_API_DOCS = os.environ.get("HYPERWHEEL_ENABLE_API_DOCS", "").strip().lower() in ("1", "true", "yes", "on")

@@ -4,23 +4,31 @@ import math
 import random
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from fastapi import Depends, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from . import pow as pow_gate
 
-from .config import METADATA_PATH
+from .config import ENABLE_API_DOCS, METADATA_PATH
 from .search import MovieIndex, load_metadata
 from .tmdb import fetch_backdrop_url, fetch_poster_url
 from hyperwheel_recommender import SCHEMES, recommend_many_planes
 
 from .wheel import build_engine
 
-app = FastAPI(title="Cinematic Hyperwheel API")
+app = FastAPI(
+    title="Cinematic Hyperwheel API",
+    # Swagger/ReDoc/raw schema are opt-in only (see config.py) - this
+    # isn't a public API product, and the supported surface is already
+    # documented in apps/web/README.md.
+    docs_url="/docs" if ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if ENABLE_API_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_API_DOCS else None,
+)
 
 # Only relevant for local dev (Vite dev server on a different port). In
 # production the frontend is served by this same app on the same origin.
@@ -31,6 +39,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Every current endpoint expects either no body or a small JSON object
+# (in practice just POST /api/pow/solve, which - unlike every other
+# endpoint - is deliberately reachable WITHOUT a proof-of-work ticket,
+# since it's what issues one). Reject an oversized body up front, before
+# it's read into memory, rather than relying solely on per-field
+# validation (which only runs after the body has already been buffered
+# and JSON-parsed).
+_MAX_REQUEST_BODY_BYTES = 8 * 1024
+
+
+@app.middleware("http")
+async def _limit_request_body_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            oversized = int(content_length) > _MAX_REQUEST_BODY_BYTES
+        except ValueError:
+            oversized = True  # malformed header - fail closed
+        if oversized:
+            return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+    return await call_next(request)
+
 _records = load_metadata(METADATA_PATH)
 _records_by_id = {r.item_id: r for r in _records}
 _index = MovieIndex(_records)
@@ -38,8 +68,14 @@ _engine = build_engine()
 _titles = {r.item_id: r.title for r in _records}
 
 class PowSolveRequest(BaseModel):
-    challenge: str
-    nonce: str
+    # Bounds are generous relative to the real shapes produced by pow.py
+    # (challenge is "scope:ts:salt:signature" - well under 128 chars;
+    # nonce is a short hex/decimal string the client found by brute
+    # force) - just enough to stop a client from forcing a large
+    # string into hashlib.sha256() on this endpoint, which is reachable
+    # without a proof-of-work ticket by design.
+    challenge: str = Field(..., max_length=256)
+    nonce: str = Field(..., max_length=128)
 
 @app.get("/api/pow/challenge")
 def pow_challenge(scope: str = Query(...)):
@@ -68,9 +104,12 @@ def require_pow(scope: str):
             )
     return _dependency
 
+_MAX_SEARCH_LIMIT = 25
+
+
 @app.get("/api/search", dependencies=[Depends(require_pow("light"))])
-def search(q: str = Query(..., min_length=1), limit: int = 8):
-    return {"results": _index.search(q, limit=limit)}
+def search(q: str = Query(..., min_length=1, max_length=200), limit: int = 8):
+    return {"results": _index.search(q, limit=min(limit, _MAX_SEARCH_LIMIT))}
 
 @app.get("/api/movie/random", dependencies=[Depends(require_pow("light"))])
 def get_random_movie():
