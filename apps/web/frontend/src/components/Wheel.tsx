@@ -251,10 +251,7 @@ export default function Wheel({
   // outlier) reads as visually "hotter" than one that naturally landed
   // near the edge with a small radius.
   const glowBase = compact ? 3 : 5;
-  // Temporary switch off glowScale because actual rendering in the browser
-  // looks bad for shadows with big raduis > 10
-  const glowScale = compact ? 0 : 0;
-  const glowPx = glowBase + Math.min(rawR, 5) * glowScale;
+  const glowPx = glowBase;
 
   // Recommendation overlay points - one per recommendation item (all top-k
   // per scheme angle), drawn on the same disc with the same vector-magnitude
@@ -402,7 +399,6 @@ export default function Wheel({
       </div>
       {!compact && showReadout && (
         <div className="wheel__readout" ref={readoutRef}>
-          {/* no need title here? {title && <div className="wheel__readout-title">{title}</div>} */}
           <div className="wheel__readout-axis">
             PC{circle.axis_x.pc}/PC{circle.axis_y.pc}
           </div>
