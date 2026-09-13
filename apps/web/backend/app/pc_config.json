@@ -139,7 +139,7 @@
     "labels": {
       "en": {
         "negative": "Atmospheric Horror",
-        "positive": "Superhero / comic-book / martial Arts"
+        "positive": "Superhero / Сomic-Book / Martial Arts"
       },
       "ru": {
         "negative": "Камерный хоррор",
@@ -155,7 +155,7 @@
     "labels": {
       "en": {
         "negative": "Love & Relationships",
-        "positive": "Brutal movie"
+        "positive": "Brutal Movie"
       },
       "ru": {
         "negative": "Любовная драма",
@@ -177,57 +177,6 @@
       "ru": {
         "negative": "Романтика",
         "positive": "Концептуальное кино"
-      }
-    }
-  },
-  "12": {
-    "excluded_from_hue": true,
-    "colors": {
-      "negative": "#764156",
-      "positive": "#B2462D"
-    },
-    "labels": {
-      "en": {
-        "negative": "Family Film",
-        "positive": "Historical Epic"
-      },
-      "ru": {
-        "negative": "Семейное кино",
-        "positive": "Исторический эпос"
-      }
-    }
-  },
-  "13": {
-    "excluded_from_hue": true,
-    "colors": {
-      "negative": "#764156",
-      "positive": "#B2462D"
-    },
-    "labels": {
-      "en": {
-        "negative": "Corporate Franchises",
-        "positive": "Minimalist & Visceral Cinema"
-      },
-      "ru": {
-        "negative": "Корпоративная франшиза",
-        "positive": "Минималистичное кино"
-      }
-    }
-  },
-  "14": {
-    "excluded_from_hue": true,
-    "colors": {
-      "negative": "#764156",
-      "positive": "#B2462D"
-    },
-    "labels": {
-      "en": {
-        "negative": "Retro Coming-of-Age",
-        "positive": "Superhero Cinema"
-      },
-      "ru": {
-        "negative": "Ретро-драмеди о взрослении",
-        "positive": "Супергерои"
       }
     }
   }
