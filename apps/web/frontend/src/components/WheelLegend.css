@@ -2,7 +2,6 @@
    below and WheelStack.tsx). */
 .wheel-stack__row {
   display: flex;
-  align-items: center;
   gap: 24px;
 }
 
@@ -16,8 +15,7 @@
 
 .wheel-stack__legend {
   flex: 0 0 auto;
-  width: min(300px, 28vw);
-  max-height: min(640px, calc(100vh - 48px));
+  width: min(600px, 28vw);
   overflow-y: auto;
   padding: 8px 4px 8px 0;
   text-align: left;
@@ -158,7 +156,7 @@
 
 .wheel-legend__tiles {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 8px;
 }
 

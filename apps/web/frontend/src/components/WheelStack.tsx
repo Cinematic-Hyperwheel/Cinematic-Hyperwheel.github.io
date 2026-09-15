@@ -322,7 +322,7 @@ export default function WheelStack({ circle, size, title, overlays, onReadoutHei
   // Shared across every layer (see the crossfade below) so switching
   // list<->grid doesn't reset itself the moment the displayed circle
   // changes.
-  const [legendLayout, setLegendLayout] = useState<LegendLayoutMode>("list");
+  const [legendLayout, setLegendLayout] = useState<LegendLayoutMode>("grid");
 
   useEffect(() => {
     if (!circle) return;

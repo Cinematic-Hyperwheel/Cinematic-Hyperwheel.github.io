@@ -269,7 +269,10 @@ body {
   justify-content: center;
   width: 100%;
 }
-/* Recommendations (left) keeps a comfortable, capped reading width.
+/* Left column now holds only the small per-circle wheels (desktop
+   dropped the per-angle text list beside them - see
+   RecommendationsPanel.tsx), so its min/max width are sized to fit
+   those wheels rather than a block of reading text.
    The big wheel column (right) has NO max-width in this stylesheet -
    its cap is computed and applied dynamically in JS instead (see
    App.tsx's sizing effect), because the correct cap is "whatever a
@@ -282,8 +285,8 @@ body {
    budget anyway. */
 .layout3__left {
   flex: 1 1 0;
-  min-width: 360px;
-  max-width: 640px;
+  min-width: 220px;
+  max-width: 260px;
   display: flex;
   justify-content: center;
 }
@@ -645,25 +648,19 @@ body {
 }
 
 /* Desktop only (see !isNarrow branch in RecommendationsPanel.tsx) -
-   fixed small wheel beside the list. */
+   just the small wheel, shrink-wrapped to its own width now that the
+   per-angle text list no longer sits beside it on desktop. */
 .rec-circle__layout {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  /* The whole section is clickable to make its circle the active one
-     (see RecommendationsPanel.tsx) - interactive controls inside (links,
-     buttons) already show their own pointer cursor regardless. */
   cursor: pointer;
+  width: fit-content;
 }
 .rec-circle__wheel {
   flex: 0 0 auto;
   /* Positioned ancestor for WheelPointLabels' absolutely-positioned
      overlay svg - same pattern as WheelStack.tsx's disc-wrap. */
   position: relative;
-}
-.rec-circle__content {
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 /* Wraps just the per-section wheel (not the list below it) in the

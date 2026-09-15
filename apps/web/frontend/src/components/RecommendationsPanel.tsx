@@ -593,9 +593,10 @@ export default function RecommendationsPanel({
             />
           );
 
-          // Desktop: fixed small wheel beside the list, with the same
+          // Desktop: just the small wheel itself, with the same
           // point-label/highlight overlay as the big wheel (see
-          // WheelPointLabels).
+          // WheelPointLabels) - the per-angle text list is mobile-only
+          // (see the stacked branch below).
           if (!isNarrow) {
             return (
               <section
@@ -616,7 +617,6 @@ export default function RecommendationsPanel({
                       />
                     </div>
                   )}
-                  <div className="rec-circle__content">{angleSections}</div>
                 </div>
               </section>
             );
