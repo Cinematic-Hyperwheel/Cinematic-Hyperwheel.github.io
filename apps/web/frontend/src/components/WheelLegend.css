@@ -118,3 +118,158 @@
     display: none;
   }
 }
+
+/* --- Legend layout toggle (list <-> grid, see WheelStack.tsx) --- */
+.wheel-legend__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  background: linear-gradient(to bottom, rgba(10, 13, 20, 0.92) 70%, transparent);
+}
+
+.wheel-legend__layout-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  transition: color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.wheel-legend__layout-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+}
+
+/* --- Legend grid layout: poster tiles instead of text rows --- */
+.rec-angle--grid + .rec-angle--grid {
+  margin-top: 10px;
+}
+
+.wheel-legend__tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.wheel-legend__tile {
+  position: relative;
+  cursor: default;
+}
+
+.wheel-legend__tile-poster-wrap {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #10141d;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+.wheel-legend__tile:hover .wheel-legend__tile-poster-wrap {
+  border-color: rgba(110, 231, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.wheel-legend__tile-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wheel-legend__tile-poster--loading {
+  background: #1a2130;
+  animation: wheel-legend-tile-pulse 1.1s ease-in-out infinite;
+}
+.wheel-legend__tile-poster--empty {
+  background: radial-gradient(circle at 50% 30%, #1c2333, #10141d 75%);
+}
+@keyframes wheel-legend-tile-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.65; }
+}
+
+.wheel-legend__tile-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(6, 8, 14, 0.92) 0%, rgba(6, 8, 14, 0.35) 45%, transparent 75%);
+  pointer-events: none;
+}
+
+.wheel-legend__tile-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  background: rgba(10, 13, 20, 0.75);
+  backdrop-filter: blur(2px);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  box-shadow: 0 0 8px currentColor;
+  white-space: nowrap;
+}
+
+.wheel-legend__tile-swatch {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.wheel-legend__tile-title {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 7px;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* Same glow language as MovieHighlight.css's row highlight, adapted to
+   the tile's own poster frame. */
+.wheel-legend__tile--highlighted .wheel-legend__tile-poster-wrap {
+  border-color: rgba(232, 236, 244, 0.85);
+  animation: wheel-legend-tile-glow 1.4s ease-in-out infinite;
+}
+@keyframes wheel-legend-tile-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(232, 236, 244, 0.35), 0 0 16px rgba(232, 236, 244, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(232, 236, 244, 0.7), 0 0 26px rgba(232, 236, 244, 0.36);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel-legend__tile--highlighted .wheel-legend__tile-poster-wrap {
+    animation: none;
+  }
+}

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Wheel from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
-import { RecAngle, WheelCircle } from "../api";
+import { RecAngle, RecItem, WheelCircle } from "../api";
 import { circleKey } from "../utils/circleKey";
 import { colorOnWheel } from "../utils/color";
+import { resolvePoster } from "../utils/poster";
 import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
 import "./WheelLegend.css";
@@ -38,9 +40,114 @@ function refCompassBearing(refX: number, refY: number): number {
   return ((Math.atan2(refY, refX) * 180) / Math.PI + 90 + 360) % 360;
 }
 
+/** How the big wheel's legend displays its recommendations: a compact
+ * text list (default), or a poster grid. Desktop only - the legend
+ * itself is hidden below the mobile breakpoint (see WheelLegend.css). */
+type LegendLayoutMode = "list" | "grid";
+
+function ListIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+// Shows the icon/label for the mode a click would switch TO - same
+// "describe the destination state" convention as RecommendationsPanel's
+// stack/unstack toggle.
+function LegendLayoutToggle({ layout, onToggle }: { layout: LegendLayoutMode; onToggle: () => void }) {
+  const { t } = useTranslation();
+  const label = layout === "grid" ? t("recommendations.legendViewList") : t("recommendations.legendViewGrid");
+  return (
+    <button
+      type="button"
+      className="wheel-legend__layout-toggle"
+      onClick={onToggle}
+      title={label}
+      aria-label={label}
+    >
+      {layout === "grid" ? <ListIcon /> : <GridIcon />}
+    </button>
+  );
+}
+
+interface LegendTileProps {
+  item: RecItem;
+  /** Only set on the first tile of a scheme-angle group - see the row
+   * variant's own angle badge for the same convention. */
+  angleLabel?: string;
+  swatch: string;
+  isHighlighted: boolean;
+  onEnter: (el: HTMLElement) => void;
+  onLeave: () => void;
+}
+
+// Poster tile for the legend's grid layout - same hover/highlight wiring
+// as a list row (see LegendTile's callers in WheelLegend), just a
+// different visual: a lazily-resolved poster (see utils/poster.ts) with
+// a bottom scrim for the title and a corner badge/swatch for the scheme
+// angle, instead of a text row.
+function LegendTile({ item, angleLabel, swatch, isHighlighted, onEnter, onLeave }: LegendTileProps) {
+  const [posterUrl, setPosterUrl] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPosterUrl(undefined);
+    resolvePoster(item.item_id).then((url) => {
+      if (!cancelled) setPosterUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.item_id]);
+
+  return (
+    <div
+      className={"wheel-legend__tile" + (isHighlighted ? " wheel-legend__tile--highlighted" : "")}
+      onMouseEnter={(e) => onEnter(e.currentTarget)}
+      onMouseLeave={onLeave}
+    >
+      <div className="wheel-legend__tile-poster-wrap">
+        {posterUrl === undefined && (
+          <div className="wheel-legend__tile-poster wheel-legend__tile-poster--loading" aria-hidden="true" />
+        )}
+        {posterUrl && <img className="wheel-legend__tile-poster" src={posterUrl} alt="" loading="lazy" />}
+        {posterUrl === null && (
+          <div className="wheel-legend__tile-poster wheel-legend__tile-poster--empty" aria-hidden="true" />
+        )}
+        <div className="wheel-legend__tile-scrim" aria-hidden="true" />
+        {angleLabel ? (
+          <span className="wheel-legend__tile-badge" style={{ borderColor: swatch, color: swatch }}>
+            {angleLabel}
+          </span>
+        ) : (
+          <span className="wheel-legend__tile-swatch" style={{ background: swatch, color: swatch }} aria-hidden="true" />
+        )}
+        <span className="wheel-legend__tile-title">{item.title}</span>
+      </div>
+    </div>
+  );
+}
+
 interface WheelLegendProps {
   circle: WheelCircle;
   overlays?: RecAngle[];
+  layout: LegendLayoutMode;
+  onToggleLayout: () => void;
 }
 
 // Legend rows for the big/primary wheel. Hovering a row cross-highlights
@@ -51,7 +158,7 @@ interface WheelLegendProps {
 // ever reacts to THIS row's own hover, never to a highlight that
 // originated elsewhere, so it can't end up open at the same time as a
 // card triggered by a different surface (a list row, a wheel point).
-function WheelLegend({ circle, overlays }: WheelLegendProps) {
+function WheelLegend({ circle, overlays, layout, onToggleLayout }: WheelLegendProps) {
   const cKey = circleKey(circle);
   const { setHighlighted, clearHighlighted } = useHighlight();
   const activeItemId = useHighlightedItem(cKey);
@@ -77,6 +184,9 @@ function WheelLegend({ circle, overlays }: WheelLegendProps) {
 
   return (
     <div className="wheel-stack__legend" aria-label="Recommendations">
+      <div className="wheel-legend__header">
+        <LegendLayoutToggle layout={layout} onToggle={onToggleLayout} />
+      </div>
       {populated.map((angle) => {
         const swatch = colorOnWheel(
           bearing + angle.angle_deg,
@@ -85,67 +195,93 @@ function WheelLegend({ circle, overlays }: WheelLegendProps) {
           circle.axis_y.colors.positive,
           circle.axis_y.colors.negative
         );
+        const angleText = `${Math.round(angle.angle_deg) > 0 ? "+" : ""}${Math.round(angle.angle_deg)}°`;
 
         return (
-          <div className="rec-angle" key={angle.angle_deg}>
-            {angle.items.map((item, index) => {
-              const cardKey = `${cKey}:legend:${item.item_id}`;
-              return (
-                <div
-                  className={
-                    "rec-row" +
-                    (index > 0 ? " rec-row--compact" : "") +
-                    (activeItemId === item.item_id ? " rec-row--highlighted" : "")
-                  }
-                  key={item.item_id}
-                  onMouseEnter={(e) => {
-                    setHighlighted(cKey, item.item_id);
-                    const pointEl = e.currentTarget
-                      .closest<HTMLElement>(".wheel-stack__row")
-                      ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
-                    showCard({
-                      key: cardKey,
-                      item,
-                      source: "legend",
-                      rect: e.currentTarget.getBoundingClientRect(),
-                      avoidRect: pointEl?.getBoundingClientRect(),
-                    });
-                    openCardKeyRef.current = cardKey;
-                  }}
-                  onMouseLeave={() => {
-                    clearHighlighted(cKey, item.item_id);
-                    hideCard(cardKey);
-                  }}
-                >
-                  {index === 0 ? (
-                    <span
-                      className="rec-row__anglebadge"
-                      style={{ borderColor: swatch, color: swatch }}
-                      aria-hidden="true"
-                    >
-                      {`${Math.round(angle.angle_deg) > 0 ? "+" : ""}${Math.round(angle.angle_deg)}°`}
-                    </span>
-                  ) : (
-                    <span
-                      className="rec-row__swatch"
-                      style={{ background: swatch, color: swatch }}
-                      aria-hidden="true"
+          <div className={"rec-angle" + (layout === "grid" ? " rec-angle--grid" : "")} key={angle.angle_deg}>
+            <div className={layout === "grid" ? "wheel-legend__tiles" : undefined}>
+              {angle.items.map((item, index) => {
+                const cardKey = `${cKey}:legend:${item.item_id}`;
+                const isHighlighted = activeItemId === item.item_id;
+
+                // Shared by both the list row and the grid tile below -
+                // the only thing that actually differs between the two
+                // layouts is what's rendered, not the hover/highlight
+                // wiring itself.
+                const handleEnter = (el: HTMLElement) => {
+                  setHighlighted(cKey, item.item_id);
+                  const pointEl = el
+                    .closest<HTMLElement>(".wheel-stack__row")
+                    ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
+                  showCard({
+                    key: cardKey,
+                    item,
+                    source: "legend",
+                    rect: el.getBoundingClientRect(),
+                    avoidRect: pointEl?.getBoundingClientRect(),
+                  });
+                  openCardKeyRef.current = cardKey;
+                };
+                const handleLeave = () => {
+                  clearHighlighted(cKey, item.item_id);
+                  hideCard(cardKey);
+                };
+
+                if (layout === "grid") {
+                  return (
+                    <LegendTile
+                      key={item.item_id}
+                      item={item}
+                      angleLabel={index === 0 ? angleText : undefined}
+                      swatch={swatch}
+                      isHighlighted={isHighlighted}
+                      onEnter={handleEnter}
+                      onLeave={handleLeave}
                     />
-                  )}
-                  <div className="rec-row__body">
-                    <span className="rec-row__title">{item.title}</span>
-                    {item.angular_error_deg != null && (
-                      <span className="rec-row__meta">
-                        Δangle: {item.angular_error_deg.toFixed(1)}°
-                        {item.radius_ratio != null && ` · r-ratio: ${item.radius_ratio.toFixed(2)}`}
+                  );
+                }
+
+                return (
+                  <div
+                    className={
+                      "rec-row" +
+                      (index > 0 ? " rec-row--compact" : "") +
+                      (isHighlighted ? " rec-row--highlighted" : "")
+                    }
+                    key={item.item_id}
+                    onMouseEnter={(e) => handleEnter(e.currentTarget)}
+                    onMouseLeave={handleLeave}
+                  >
+                    {index === 0 ? (
+                      <span
+                        className="rec-row__anglebadge"
+                        style={{ borderColor: swatch, color: swatch }}
+                        aria-hidden="true"
+                      >
+                        {angleText}
                       </span>
+                    ) : (
+                      <span
+                        className="rec-row__swatch"
+                        style={{ background: swatch, color: swatch }}
+                        aria-hidden="true"
+                      />
                     )}
+                    <div className="rec-row__body">
+                      <span className="rec-row__title">{item.title}</span>
+                      {item.angular_error_deg != null && (
+                        <span className="rec-row__meta">
+                          Δangle: {item.angular_error_deg.toFixed(1)}°
+                          {item.radius_ratio != null && ` · r-ratio: ${item.radius_ratio.toFixed(2)}`}
+                        </span>
+                      )}
+                    </div>
+                    <span />
+                    <span />
                   </div>
-                  <span />
-                  <span />
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         );
       })}
@@ -183,6 +319,10 @@ function WheelLegend({ circle, overlays }: WheelLegendProps) {
 export default function WheelStack({ circle, size, title, overlays, onReadoutHeight }: Props) {
   const [layers, setLayers] = useState<Layer[]>([]);
   const nextId = useRef(0);
+  // Shared across every layer (see the crossfade below) so switching
+  // list<->grid doesn't reset itself the moment the displayed circle
+  // changes.
+  const [legendLayout, setLegendLayout] = useState<LegendLayoutMode>("list");
 
   useEffect(() => {
     if (!circle) return;
@@ -266,7 +406,12 @@ export default function WheelStack({ circle, size, title, overlays, onReadoutHei
                 circleKey={l.key}
               />
             </div>
-            <WheelLegend circle={l.circle} overlays={l.overlays} />
+            <WheelLegend
+              circle={l.circle}
+              overlays={l.overlays}
+              layout={legendLayout}
+              onToggleLayout={() => setLegendLayout((m) => (m === "list" ? "grid" : "list"))}
+            />
           </div>
         </div>
       ))}

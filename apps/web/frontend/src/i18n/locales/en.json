@@ -38,7 +38,9 @@
     "close": "Close",
     "locate": "Locate on wheel",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "legendViewGrid": "Grid view",
+    "legendViewList": "List view"
   },
   "errors": {
     "wheelLookup": "Could not fetch the movie's coordinates in PCA space."
