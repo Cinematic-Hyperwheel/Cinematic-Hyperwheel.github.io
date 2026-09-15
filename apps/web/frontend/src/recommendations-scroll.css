@@ -1,4 +1,11 @@
-.rec-panel__list {
-  max-height: none;
-  overflow-y: visible;
+/* Mobile only: lets the panel's list grow with the page instead of
+   scrolling internally, so RecommendationsPanel's mobile stacked layout
+   (wheel + list per section) can be as tall as it needs. Desktop uses a
+   fixed-height, horizontally self-scrolling strip instead - see
+   index.css's own (min-width: 641px) override of .rec-panel__list. */
+@media (max-width: 640px) {
+  .rec-panel__list {
+    max-height: none;
+    overflow-y: visible;
+  }
 }

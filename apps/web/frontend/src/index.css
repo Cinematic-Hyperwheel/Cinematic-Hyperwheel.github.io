@@ -269,26 +269,47 @@ body {
   justify-content: center;
   width: 100%;
 }
-/* Left column now holds only the small per-circle wheels (desktop
-   dropped the per-angle text list beside them - see
-   RecommendationsPanel.tsx), so its min/max width are sized to fit
-   those wheels rather than a block of reading text.
-   The big wheel column (right) has NO max-width in this stylesheet -
-   its cap is computed and applied dynamically in JS instead (see
-   App.tsx's sizing effect), because the correct cap is "whatever a
-   round disc could ever use given the available viewport HEIGHT", a
-   number CSS alone has no way to know. Without that JS-applied cap this
-   column would behave like a plain flex:1 item and soak up literally
-   all leftover row width once .layout3__left hits ITS cap - which
-   pushes .layout3__left off toward the left edge for no visual benefit,
-   since a circular disc can't actually use width beyond its own height
-   budget anyway. */
-.layout3__left {
-  flex: 1 1 0;
-  min-width: 220px;
-  max-width: 260px;
-  display: flex;
-  justify-content: center;
+/* Base sizing for the small per-circle wheels list - the vertical
+   column beside the main wheel, used below the desktop breakpoint (see
+   the (min-width: 641px) rule further down for the horizontal strip
+   pinned to the bottom of the screen on desktop instead). */
+@media (max-width: 640px) {
+  .layout3__left {
+    flex: 1 1 0;
+    min-width: 220px;
+    max-width: 260px;
+    display: flex;
+    justify-content: center;
+  }
+}
+
+@media (min-width: 641px) {
+  /* Horizontal strip pinned to the bottom of the viewport - stepped by
+     mouse wheel (RecommendationsPanel's own wheel handler) or the
+     prev/next buttons at its edges (see .rec-panel__nav below and
+     useActiveCircleNav.ts). display/max-width are intentionally left
+     unset here: taken out of the .layout3 flex row by `position: fixed`
+     below, the element just falls back to its normal block-level
+     defaults, no need to cancel the mobile rule's flex/max-width. */
+  .layout3__left {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 25;
+    padding: 12px 56px;
+    background: rgba(10, 13, 20, 0.9);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border);
+  }
+
+  /* Reserve room below the main content only while the strip itself is
+     rendered (recs && !recError - see App.tsx), so it never shows up as
+     an empty gap before a reference movie is selected or a
+     recommendations fetch fails. */
+  .layout3:has(.layout3__left) {
+    padding-bottom: 230px;
+  }
 }
 /* Intentionally no max-width (unlike .layout3__left above): once
    .layout3__left hits its own cap and stops growing, flexbox routes
@@ -557,10 +578,6 @@ body {
 
 .rec-panel__list {
   display: flex;
-  flex-direction: column;
-  max-height: 640px;
-  overflow-y: auto;
-  padding-right: 4px;
   /* Native scroll anchoring: keeps whatever section is currently
      visible in place while sections ABOVE it in the list change height
      (e.g. during the stack/unstack margin-top transition below) -
@@ -571,16 +588,80 @@ body {
   overflow-anchor: auto;
 }
 
+@media (max-width: 640px) {
+  .rec-panel__list {
+    flex-direction: column;
+    max-height: 640px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+}
+
+@media (min-width: 641px) {
+  .rec-panel__list {
+    flex-direction: row;
+    align-items: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  /* Prev/next buttons at the strip's edges - positioned against
+     .layout3__left (the nearest positioned ancestor, itself fixed to
+     the viewport), so they stay put while .rec-panel__list scrolls
+     underneath them. */
+  .rec-panel__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 0;
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  }
+  .rec-panel__nav:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+  }
+  .rec-panel__nav:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .rec-panel__nav--prev {
+    left: 12px;
+  }
+  .rec-panel__nav--next {
+    right: 12px;
+  }
+}
+
 /* Flat sections, no border/background box - separated only by a hairline
    above each section (except the first) and generous vertical spacing,
    in the spirit of a plain editorial list rather than stacked cards. */
-.rec-circle {
-  padding: 14px 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+@media (max-width: 640px) {
+  .rec-circle {
+    padding: 14px 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .rec-circle:first-child {
+    border-top: none;
+    padding-top: 0;
+  }
 }
-.rec-circle:first-child {
-  border-top: none;
-  padding-top: 0;
+
+@media (min-width: 641px) {
+  .rec-circle {
+    flex: 0 0 auto;
+    padding: 0 14px;
+  }
 }
 
 /* --- Mobile per-section stack/unstack toggle --- */
@@ -638,13 +719,24 @@ body {
 
 /* Primary circle is marked by a colored rule on the left and a brighter
    title, not by a surrounding box. */
-.rec-circle--primary {
-  border-left: 2px solid var(--accent);
-  padding-left: 10px;
-  margin-left: -12px;
+@media (max-width: 640px) {
+  .rec-circle--primary {
+    border-left: 2px solid var(--accent);
+    padding-left: 10px;
+    margin-left: -12px;
+  }
 }
 .rec-circle--primary .rec-circle__title {
   color: var(--text);
+}
+
+@media (min-width: 641px) {
+  /* Underline instead of the mobile layout's left accent rule - reads
+     clearly as "currently active" in a horizontal row of wheels too. */
+  .rec-circle--primary .rec-circle__layout {
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 4px;
+  }
 }
 
 /* Desktop only (see !isNarrow branch in RecommendationsPanel.tsx) -

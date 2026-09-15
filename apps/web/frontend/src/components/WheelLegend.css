@@ -126,7 +126,6 @@
   justify-content: flex-end;
   padding-bottom: 6px;
   margin-bottom: 4px;
-  background: linear-gradient(to bottom, rgba(10, 13, 20, 0.92) 70%, transparent);
 }
 
 .wheel-legend__layout-toggle {

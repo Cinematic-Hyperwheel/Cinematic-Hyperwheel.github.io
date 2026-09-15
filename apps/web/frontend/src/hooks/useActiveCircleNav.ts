@@ -39,33 +39,30 @@ interface UseActiveCircleNavResult {
   /** Ref callback for each rendered section - registers/unregisters its
    * DOM node under its circle key so activateCircle can scroll to it. */
   registerSectionRef: (key: string, el: HTMLElement | null) => void;
-}
-
-// Reads a CSS length custom property (e.g. "150px") set on the root
-// element - App.tsx keeps --app-header-height/--app-controls-height in
-// sync with the sticky header's actual current height (see
-// useHeaderMode.ts), the same source of truth .rec-circle's own
-// scroll-margin-top uses (see sticky-layout.css) to stay clear of it.
-function readRootCssPx(varName: string, fallback: number): number {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  const parsed = parseFloat(raw);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  /** Moves the active circle one step forward/back through the
+   * populated list (clamped at either end), scrolling it into view -
+   * shared by the arrow-key/wheel-tick handlers below and the panel's
+   * own prev/next buttons (see RecommendationsPanel.tsx). */
+  stepActive: (direction: 1 | -1) => void;
 }
 
 /**
  * Drives the "active" Recommendations circle/section on desktop: which
  * one is currently active (click, arrow keys, wheel-tick, or a
  * hand-dragged scrollbar all update it) and keeping its section
- * scrolled into view.
+ * scrolled into view. The list itself is a horizontally scrolling strip
+ * pinned to the bottom of the viewport (see RecommendationsPanel.tsx /
+ * index.css) - "scrolled into view" here means scrolled along that
+ * strip's own horizontal axis, not the page.
  *
  * There is no scroll-position tracking that DERIVES the active circle
- * from a "closest to viewport center" search; instead scrolling always
- * FOLLOWS activeKey via scrollIntoView (activateCircle), and the one
- * case where scroll happens independently of it - a hand-dragged
- * scrollbar thumb, since mouse-wheel/trackpad input over the list is
- * already fully hijacked into the stepper below - steps the active
- * circle to whichever adjacent section just left the visible area (see
- * the scroll effect below), never a list-wide search.
+ * from a "closest to the strip's center" search; instead scrolling
+ * always FOLLOWS activeKey via scrollIntoView (activateCircle), and the
+ * one case where scroll happens independently of it - the list's own
+ * scrollbar dragged by hand, since mouse-wheel/trackpad input over the
+ * list is already fully hijacked into the stepper below - steps the
+ * active circle to whichever adjacent section just left the visible
+ * area (see the scroll effect below), never a list-wide search.
  */
 export function useActiveCircleNav({
   populated,
@@ -135,7 +132,7 @@ export function useActiveCircleNav({
     (key: string) => {
       setActiveKey((prev) => (prev === key ? prev : key));
       armProgrammaticScroll();
-      sectionRefs.current.get(key)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      sectionRefs.current.get(key)?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
     },
     [armProgrammaticScroll]
   );
@@ -145,30 +142,33 @@ export function useActiveCircleNav({
     else sectionRefs.current.delete(key);
   }, []);
 
-  // The list itself doesn't scroll internally (see .rec-panel__list's
-  // overflow-y: visible override in recommendations-scroll.css) - the
-  // whole page scrolls instead, so dragging the browser's own scrollbar
-  // thumb is the one way a section can leave view without going through
-  // activateCircle (mouse-wheel/trackpad input over the list is already
-  // fully hijacked into the stepper below). When that happens, step the
+  // The list is a horizontally self-scrolling strip (see
+  // RecommendationsPanel.tsx / index.css's desktop-only overflow-x:
+  // auto override) - dragging its own scrollbar by hand is the one way
+  // a section can leave view without going through activateCircle
+  // (mouse-wheel/trackpad input over the list is already fully
+  // hijacked into the stepper below). When that happens, step the
   // active circle to the section immediately ADJACENT (by list index)
   // to the one that just left the visible area - never a list-wide
-  // "closest to the visible area's vertical center" search, which
+  // "closest to the strip's horizontal center" search, which
   // structurally tends to land 2+ sections away from the one that
-  // actually left view (individual sections are usually much shorter
-  // than the visible area, so its center sits far from the top edge
-  // where the outgoing section just disappeared) and would skip right
-  // past a perfectly visible immediate neighbour regardless of how
-  // slowly the user scrolls. Ignored while programmaticScrollRef is set
-  // (see armProgrammaticScroll) so this never fights activateCircle's
-  // own scrollIntoView.
+  // actually left view (individual sections are usually much narrower
+  // than the strip, so its center sits far from the edge where the
+  // outgoing section just disappeared) and would skip right past a
+  // perfectly visible immediate neighbour regardless of how slowly the
+  // user scrolls. Ignored while programmaticScrollRef is set (see
+  // armProgrammaticScroll) so this never fights activateCircle's own
+  // scrollIntoView.
   useEffect(() => {
     if (isNarrow || populated.length <= 1) return;
 
+    const container = listRef.current;
+    if (!container) return;
+
     let scheduled = false;
 
-    const isFullyVisible = (rect: DOMRect, top: number, bottom: number) =>
-      rect.top >= top && rect.bottom <= bottom;
+    const isFullyVisible = (rect: DOMRect, left: number, right: number) =>
++      rect.left >= left && rect.right <= right;
 
     const recompute = () => {
       scheduled = false;
@@ -179,12 +179,7 @@ export function useActiveCircleNav({
       const key = activeKeyRef.current;
       if (!key) return;
 
-      // Same covered-top calculation as .rec-circle's scroll-margin-top
-      // (sticky-layout.css) - the actually visible area starts below
-      // the sticky header (and, in hero mode, the sticky scheme row).
-      const coveredTop =
-        readRootCssPx("--app-header-height", 150) + readRootCssPx("--app-controls-height", 0) + 12;
-      const bottom = window.innerHeight;
+      const containerRect = container.getBoundingClientRect();
 
       let idx = populated.findIndex((c) => circleKey(c) === key);
       if (idx === -1) return;
@@ -197,11 +192,11 @@ export function useActiveCircleNav({
         const el = sectionRefs.current.get(circleKey(populated[idx]));
         if (!el) break;
         const rect = el.getBoundingClientRect();
-        if (isFullyVisible(rect, coveredTop, bottom)) break;
+        if (isFullyVisible(rect, containerRect.left, containerRect.right)) break;
 
         let nextIdx = idx;
-        if (rect.top < coveredTop) nextIdx = idx + 1; // scrolled down
-        else if (rect.bottom > bottom) nextIdx = idx - 1; // scrolled up
+        if (rect.left < containerRect.left) nextIdx = idx + 1; // scrolled toward later sections
+        else if (rect.right > containerRect.right) nextIdx = idx - 1; // scrolled toward earlier sections
         if (nextIdx === idx || nextIdx < 0 || nextIdx >= populated.length) break;
         idx = nextIdx;
       }
@@ -216,12 +211,12 @@ export function useActiveCircleNav({
       requestAnimationFrame(recompute);
     };
 
-    window.addEventListener("scroll", onScroll, { passive: true });
+    container.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      container.removeEventListener("scroll", onScroll);
       window.clearTimeout(programmaticScrollSettleRef.current);
     };
-  }, [isNarrow, populated, armProgrammaticScroll]);
+  }, [isNarrow, populated, armProgrammaticScroll, listRef]);
 
   // Moves the active circle one step forward/back through `populated`
   // (clamped at either end) - shared by the arrow-key and wheel-tick
@@ -289,5 +284,5 @@ export function useActiveCircleNav({
     onActiveCircleChange(populated.find((c) => circleKey(c) === activeKey) ?? null);
   }, [activeKey, populated, onActiveCircleChange]);
 
-  return { activeKey, activateCircle, registerSectionRef };
+  return { activeKey, activateCircle, registerSectionRef, stepActive };
 }

@@ -209,6 +209,28 @@ function LocateButton({
     </button>
   );
 }
+ 
+// Prev/next chevron for the desktop panel's edge nav buttons (see
+// .rec-panel__nav below) - same stroke style as the mobile info card's
+// own prev/next buttons (RecommendationInfoCard.tsx), mirrored for "next".
+function PanelNavChevron({ direction }: { direction: "prev" | "next" }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={direction === "next" ? { transform: "scaleX(-1)" } : undefined}
+    >
+      <path d="M15 5 L8 12 L15 19" />
+    </svg>
+  );
+}
 
 // Big (primary/central) wheel's own point for this item, when one is
 // currently rendered there - kept clear of the recommendation info card
@@ -446,12 +468,20 @@ export default function RecommendationsPanel({
   // mirroring it up via onActiveCircleChange - see useActiveCircleNav
   // for the full scrollspy behavior. Mobile has no notion of an active
   // circle, so it's inert there (activeKey stays null).
-  const { activeKey, activateCircle, registerSectionRef } = useActiveCircleNav({
+  const { activeKey, activateCircle, registerSectionRef, stepActive } = useActiveCircleNav({
     populated,
     isNarrow,
     listRef,
     onActiveCircleChange,
   });
+
+  // Desktop only: whether the edge nav buttons (see .rec-panel__nav
+  // below) can step further in each direction - mirrors the clamping
+  // stepActive itself already does, just exposed so the buttons can
+  // disable themselves at either end instead of silently no-op'ing.
+  const activeIndex = populated.findIndex((c) => circleKey(c) === activeKey);
+  const canStepPrev = activeIndex > 0;
+  const canStepNext = activeIndex === -1 ? populated.length > 1 : activeIndex < populated.length - 1;
 
   // Mobile-only: whether every section uses the "stacked" layout
   // (list fully below the wheel) instead of the default "peek" layout
@@ -564,6 +594,18 @@ export default function RecommendationsPanel({
 
   return (
     <div className="rec-panel">
+      {!isNarrow && (
+        <button
+          type="button"
+          className="rec-panel__nav rec-panel__nav--prev"
+          onClick={() => stepActive(-1)}
+          disabled={!canStepPrev}
+          aria-label={t("recommendations.previous")}
+          title={t("recommendations.previous")}
+        >
+          <PanelNavChevron direction="prev" />
+        </button>
+      )}
       <div className="rec-panel__list scroll-fade" ref={listRef}>
         {populated.map((circle) => {
           const cKey = circleKey(circle);
@@ -681,6 +723,18 @@ export default function RecommendationsPanel({
           );
         })}
       </div>
+      {!isNarrow && (
+        <button
+          type="button"
+          className="rec-panel__nav rec-panel__nav--next"
+          onClick={() => stepActive(1)}
+          disabled={!canStepNext}
+          aria-label={t("recommendations.next")}
+          title={t("recommendations.next")}
+        >
+          <PanelNavChevron direction="next" />
+        </button>
+      )}
     </div>
   );
 }
