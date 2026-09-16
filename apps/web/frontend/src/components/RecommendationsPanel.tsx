@@ -225,9 +225,9 @@ function PanelNavChevron({ direction }: { direction: "prev" | "next" }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      style={direction === "next" ? { transform: "scaleX(-1)" } : undefined}
+      style={direction === "next" ? { transform: "scaleY(-1)" } : undefined}
     >
-      <path d="M15 5 L8 12 L15 19" />
+      <path d="M5 15 L12 8 L19 15" />
     </svg>
   );
 }

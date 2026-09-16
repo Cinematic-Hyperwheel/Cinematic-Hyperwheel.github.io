@@ -50,13 +50,14 @@ interface UseActiveCircleNavResult {
  * Drives the "active" Recommendations circle/section on desktop: which
  * one is currently active (click, arrow keys, wheel-tick, or a
  * hand-dragged scrollbar all update it) and keeping its section
- * scrolled into view. The list itself is a horizontally scrolling strip
- * pinned to the bottom of the viewport (see RecommendationsPanel.tsx /
- * index.css) - "scrolled into view" here means scrolled along that
- * strip's own horizontal axis, not the page.
+ * scrolled into view. The list itself is a vertically scrolling column
+ * beside the main wheel (see RecommendationsPanel.tsx / index.css) -
+ * "scrolled into view" here means scrolled along that column's own
+ * vertical axis, not the page (the column has its own internal scroll,
+ * independent of whether the page itself is scrolled).
  *
  * There is no scroll-position tracking that DERIVES the active circle
- * from a "closest to the strip's center" search; instead scrolling
+ * from a "closest to the column's center" search; instead scrolling
  * always FOLLOWS activeKey via scrollIntoView (activateCircle), and the
  * one case where scroll happens independently of it - the list's own
  * scrollbar dragged by hand, since mouse-wheel/trackpad input over the
@@ -167,9 +168,26 @@ export function useActiveCircleNav({
 
     let scheduled = false;
 
-    const isFullyVisible = (rect: DOMRect, left: number, right: number) =>
-+      rect.left >= left && rect.right <= right;
+    const isFullyVisible = (rect: DOMRect, top: number, bottom: number) =>
+      rect.top >= top && rect.bottom <= bottom;
 
+    // The list is a vertically self-scrolling column (see
+    // RecommendationsPanel.tsx / index.css's desktop-only overflow-y:
+    // auto rule) - dragging its own scrollbar by hand is the one way a
+    // section can leave view without going through activateCircle
+    // (mouse-wheel/trackpad input over the list is already fully
+    // hijacked into the stepper below). When that happens, step the
+    // active circle to the section immediately ADJACENT (by list index)
+    // to the one that just left the visible area - never a list-wide
+    // "closest to the column's vertical center" search, which
+    // structurally tends to land 2+ sections away from the one that
+    // actually left view (individual sections are usually much shorter
+    // than the column, so its center sits far from the edge where the
+    // outgoing section just disappeared) and would skip right past a
+    // perfectly visible immediate neighbour regardless of how slowly the
+    // user scrolls. Ignored while programmaticScrollRef is set (see
+    // armProgrammaticScroll) so this never fights activateCircle's own
+    // scrollIntoView.
     const recompute = () => {
       scheduled = false;
       if (programmaticScrollRef.current) {
@@ -192,11 +210,11 @@ export function useActiveCircleNav({
         const el = sectionRefs.current.get(circleKey(populated[idx]));
         if (!el) break;
         const rect = el.getBoundingClientRect();
-        if (isFullyVisible(rect, containerRect.left, containerRect.right)) break;
+        if (isFullyVisible(rect, containerRect.top, containerRect.bottom)) break;
 
         let nextIdx = idx;
-        if (rect.left < containerRect.left) nextIdx = idx + 1; // scrolled toward later sections
-        else if (rect.right > containerRect.right) nextIdx = idx - 1; // scrolled toward earlier sections
+        if (rect.top < containerRect.top) nextIdx = idx + 1; // scrolled toward later sections
+        else if (rect.bottom > containerRect.bottom) nextIdx = idx - 1; // scrolled toward earlier sections
         if (nextIdx === idx || nextIdx < 0 || nextIdx >= populated.length) break;
         idx = nextIdx;
       }

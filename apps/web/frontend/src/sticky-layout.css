@@ -42,13 +42,13 @@
 
 @media (min-width: 641px) {
   /* Compact mode: the wheel must become scroll-independent and fill
-     its available slot IMMEDIATELY on switching, not only once the
+     its available slot immediately on switching, not only once the
      user has scrolled far enough for ordinary sticky to catch up (see
      the hero-mode rule above). Achieved as two parts:
 
      - This element itself stays in normal flow (`position: static`,
        not `fixed`) with an explicit `height` computed from the same
-       CSS vars its child below uses for its own top/bottom - so
+       CSS var its child below uses for its own top offset - so
        switching into this mode never changes the page's own
        scrollable height. Removing it from flow instead (or leaving its
        height to collapse to its now-`fixed` child's zero flow
@@ -58,47 +58,25 @@
        (see useHeaderMode.ts).
      - The actual wheel wrap (.layout3__wheel-wrap, below) is what
        becomes genuinely `position: fixed` - pinned to the viewport
-       regardless of scroll, sized to fill exactly the gap between the
-       header and the fixed recommendations strip beneath it.
-
-     --app-controls-height is deliberately NOT used here (unlike the
-     hero-mode rule above): .sticky-controls renders empty in compact
-     mode (the scheme selector moves into the header itself - see
-     App.tsx), so it structurally contributes 0 and isn't worth a
-     second CSS-var round trip that could itself lag on the same
-     transition. --app-header-height is the one variable that DOES need
-     to be exactly right on this exact frame - see the synchronous
-     useLayoutEffect in App.tsx that writes it.
+       regardless of scroll, filling the gap between the header and
+       the bottom of the viewport. The recommendations column
+       (.layout3__left) stays in normal flow beside it and scrolls
+       away with the rest of the page, same as in hero mode.
 
      --app-compact-scroll-slack pads this height beyond what the pinned
-     wheel visually needs - see its own comment in App.tsx. Without it,
-     .layout3__left being `position: fixed` (contributing nothing to
-     document height) can make the page barely taller than the
-     viewport once pinned, letting the switch itself clamp scrollY back
-     below the header's exit-to-hero threshold and immediately flip the
-     mode back (see useHeaderMode.ts). The extra space this reserves is
-     empty (nothing is rendered in it - the pinned wheel wrap floats
-     above it via `position: fixed`), so it only pushes the footer
-     slightly further down the page - a deliberately load-bearing gap,
-     not decorative. */
+     wheel visually needs - see its own comment in App.tsx. */
 
   .layout3__center--pinned {
     position: static;
     height: calc(
-      100vh - var(--app-header-height, 150px) - var(--app-recpanel-height, 230px) - 32px +
-        var(--app-compact-scroll-slack, 190px)
+      100vh - var(--app-header-height, 150px) - 32px + var(--app-compact-scroll-slack, 190px)
     );
   }
 
-  /* Vertical placement comes straight from the header/recommendations-
-     strip CSS vars; horizontal placement (left/width) is copied from
-     the parent's own rendered box by App.tsx's sizing effect, since
-     `position: fixed` establishes its containing block against the
-     viewport, not this (non-fixed) parent. */
   .layout3__center--pinned .layout3__wheel-wrap {
     position: fixed;
     top: calc(var(--app-header-height, 150px) + 16px);
-    bottom: calc(var(--app-recpanel-height, 230px) + 16px);
+    bottom: 16px;
     z-index: 18;
   }
 }

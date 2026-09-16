@@ -58,10 +58,8 @@ const MIN_WHEEL_SIZE = 260;
 // once .layout3__center's own max-width is gone (index.css), so this
 // rarely if ever actually clamps anything.
 const MAX_WHEEL_SIZE = 1200;
-// Gap kept clear below the wheel's readout text: the actual viewport
-// bottom edge in hero mode (where the wheel is allowed to run behind
-// the fixed recommendations strip - see the sizing effect below), or
-// the top edge of that strip once the wheel is pinned in compact mode.
+// Gap kept clear below the wheel's readout text and the viewport's
+// bottom edge, in both hero and compact mode.
 const WHEEL_BOTTOM_MARGIN = 24;
 // Used only until the first real measurement comes in via
 // onReadoutHeight below (see Wheel.tsx) - a rough estimate for ~4 short
@@ -124,13 +122,6 @@ export default function App() {
   const [headerHeight, setHeaderHeight] = useState(150); // fallback until AppHeader's own ResizeObserver reports
   const stickyControlsRef = useRef<HTMLDivElement>(null);
   const [controlsHeight, setControlsHeight] = useState(0);
-  // Real height of the fixed bottom recommendations strip
-  // (.layout3__left) - needed once the big wheel is pinned in compact
-  // mode (see .layout3__center--pinned in sticky-layout.css) so its own
-  // sizing can stay clear of that strip instead of running behind it.
-  // Default matches that CSS rule's own --app-recpanel-height fallback.
-  const recPanelRef = useRef<HTMLElement>(null);
-  const [recPanelHeight, setRecPanelHeight] = useState(230);
 
   // Publishes the header's and the scheme-selector row's real measured
   // heights as CSS custom properties (see sticky-layout.css's
@@ -143,16 +134,15 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--app-controls-height", `${controlsHeight}px`);
   }, [controlsHeight]);
-  useEffect(() => {
-    document.documentElement.style.setProperty("--app-recpanel-height", `${recPanelHeight}px`);
-  }, [recPanelHeight]);
 
   // Static (never re-set) scroll-range guarantee for compact mode: see
   // .layout3__center--pinned in sticky-layout.css. Once pinned, the
-  // wheel column's own in-flow height shrinks to fit exactly between
-  // the header and the fixed recommendations strip - and since that
-  // strip is itself `position: fixed` and contributes nothing to the
-  // document's own scrollable height, the page's total height can end
+  // wheel column's own in-flow height shrinks to fit exactly the gap
+  // between the header and the viewport bottom, and the wheel wrap
+  // itself becomes `position: fixed` and contributes nothing to the
+  // document's own scrollable height. If the recommendations column
+  // next to it (.layout3__left, still in normal flow) happens to be
+  // short - few populated circles - the page's total height can end
   // up barely taller than (or even shorter than) the viewport. Without
   // this reserved slack, switching to compact right as the user
   // scrolls past ENTER_COMPACT_PX can make the browser immediately
@@ -203,20 +193,6 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
-  // Same measurement as above, for the recommendations strip - re-run
-  // whenever it mounts/unmounts (it only exists once recs load, see
-  // `recs && !recError` below) rather than once on mount, so the
-  // observer actually attaches once there's something to measure.
-  useEffect(() => {
-    const el = recPanelRef.current;
-    if (!el) return;
-    const report = () => setRecPanelHeight(el.offsetHeight);
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [recs, recError]);
-
   // The wheel circle currently shown as the big central "primary" wheel,
   // and its recommendation overlays - computed here (rather than lower,
   // next to the render that consumes them) because the sizing effect
@@ -261,11 +237,10 @@ export default function App() {
  
     // In compact mode the wheel wrap is pinned outright (position:
     // fixed on .layout3__wheel-wrap itself - see
-    // .layout3__center--pinned in sticky-layout.css), so it must also
-    // size itself clear of the fixed recommendations strip below it -
-    // the hero-mode "partially hidden until you scroll further" look is
-    // intentional there, but no longer makes sense once the wheel is
-    // fully pinned.
+    // .layout3__center--pinned in sticky-layout.css) instead of
+    // following ordinary scroll, so its own top/bottom placement comes
+    // from that fixed CSS rather than from this element's current
+    // position in the page.
     const isPinned = headerMode === "compact";
 
     let scheduled = false;
@@ -273,8 +248,7 @@ export default function App() {
       scheduled = false;
 
       const top = wrapEl.getBoundingClientRect().top;
-      const bottomReserve = isPinned ? recPanelHeight + WHEEL_BOTTOM_MARGIN : WHEEL_BOTTOM_MARGIN;
-      const availableHeight = window.innerHeight - top - bottomReserve;
+      const availableHeight = window.innerHeight - top - WHEEL_BOTTOM_MARGIN;
       const heightBased = availableHeight - WHEEL_GAP - readoutHeight - RING_PAD * 2;
 
       // Extra column width reserved for the legend WheelStack draws
@@ -340,7 +314,7 @@ export default function App() {
       wrapEl.style.left = "";
       wrapEl.style.width = "";
     };
-  }, [isWheelWrapHidden, readoutHeight, headerMode, headerHeight, controlsHeight, hasLegend, recPanelHeight]);
+  }, [isWheelWrapHidden, readoutHeight, headerMode, headerHeight, controlsHeight, hasLegend]);
 
   const fetchRecommendations = async (itemId: number, sch: string) => {
     try {
@@ -524,7 +498,7 @@ export default function App() {
 
             <div className="layout3" ref={contentRef} style={{ paddingTop: spacerHeight }}>
               {recs && !recError && (
-                <aside className="layout3__left" ref={recPanelRef}>
+                <aside className="layout3__left">
                   <RecommendationsPanel circles={recs.circles} onActiveCircleChange={setActiveCircle} />
                 </aside>
               )}
