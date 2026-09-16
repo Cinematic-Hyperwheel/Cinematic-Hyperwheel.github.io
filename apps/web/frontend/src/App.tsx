@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";;
 import { useTranslation } from "react-i18next";
 import SearchBar from "./components/SearchBar";
 import AppHeader from "./components/AppHeader";
@@ -58,8 +58,10 @@ const MIN_WHEEL_SIZE = 260;
 // once .layout3__center's own max-width is gone (index.css), so this
 // rarely if ever actually clamps anything.
 const MAX_WHEEL_SIZE = 1200;
-// Gap left between the wheel's readout text and the actual bottom edge
-// of the viewport, so it never touches the screen edge.
+// Gap kept clear below the wheel's readout text: the actual viewport
+// bottom edge in hero mode (where the wheel is allowed to run behind
+// the fixed recommendations strip - see the sizing effect below), or
+// the top edge of that strip once the wheel is pinned in compact mode.
 const WHEEL_BOTTOM_MARGIN = 24;
 // Used only until the first real measurement comes in via
 // onReadoutHeight below (see Wheel.tsx) - a rough estimate for ~4 short
@@ -122,6 +124,13 @@ export default function App() {
   const [headerHeight, setHeaderHeight] = useState(150); // fallback until AppHeader's own ResizeObserver reports
   const stickyControlsRef = useRef<HTMLDivElement>(null);
   const [controlsHeight, setControlsHeight] = useState(0);
+  // Real height of the fixed bottom recommendations strip
+  // (.layout3__left) - needed once the big wheel is pinned in compact
+  // mode (see .layout3__center--pinned in sticky-layout.css) so its own
+  // sizing can stay clear of that strip instead of running behind it.
+  // Default matches that CSS rule's own --app-recpanel-height fallback.
+  const recPanelRef = useRef<HTMLElement>(null);
+  const [recPanelHeight, setRecPanelHeight] = useState(230);
 
   // Publishes the header's and the scheme-selector row's real measured
   // heights as CSS custom properties (see sticky-layout.css's
@@ -134,6 +143,55 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--app-controls-height", `${controlsHeight}px`);
   }, [controlsHeight]);
+  useEffect(() => {
+    document.documentElement.style.setProperty("--app-recpanel-height", `${recPanelHeight}px`);
+  }, [recPanelHeight]);
+
+  // Static (never re-set) scroll-range guarantee for compact mode: see
+  // .layout3__center--pinned in sticky-layout.css. Once pinned, the
+  // wheel column's own in-flow height shrinks to fit exactly between
+  // the header and the fixed recommendations strip - and since that
+  // strip is itself `position: fixed` and contributes nothing to the
+  // document's own scrollable height, the page's total height can end
+  // up barely taller than (or even shorter than) the viewport. Without
+  // this reserved slack, switching to compact right as the user
+  // scrolls past ENTER_COMPACT_PX can make the browser immediately
+  // clamp scrollY back down - which can cross back below
+  // EXIT_TO_HERO_PX and flip straight back to hero (see
+  // useHeaderMode.ts's hysteresis). Reserving comfortably more than
+  // ENTER_COMPACT_PX of extra scrollable room below the pinned column
+  // guarantees scrollY at the moment compact triggers is never clamped
+  // at all, closing that loop regardless of how far/fast the user
+  // actually scrolled.
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--app-compact-scroll-slack",
+      `${ENTER_COMPACT_PX + 100}px`
+    );
+  }, []);
+
+  // Synchronous (pre-paint) mirror of the header's OWN just-committed
+  // real height into --app-header-height, specifically for the
+  // headerMode transition. The ResizeObserver-driven path above
+  // (onHeightChange -> headerHeight state -> the effect right above)
+  // also eventually reports the correct value, but only after paint -
+  // fine for ordinary content-driven resizes, but not here:
+  // .layout3__center--pinned's height (see sticky-layout.css) is
+  // computed from this same variable, and reading a stale (hero-sized)
+  // value for even one frame shrinks the page enough to clamp scrollY
+  // back across the header's own exit-to-hero sentinel, flipping the
+  // mode straight back (see useHeaderMode.ts). getBoundingClientRect()
+  // forces a synchronous layout, so this always reads the geometry
+  // that matches whichever class was JUST committed, not a stale one.
+  useLayoutEffect(() => {
+    if (isWheelWrapHidden) return; // mobile has no .appheader at all
+    const headerEl = document.querySelector<HTMLElement>(".appheader");
+    if (!headerEl) return;
+    document.documentElement.style.setProperty(
+      "--app-header-height",
+      `${headerEl.getBoundingClientRect().height}px`
+    );
+  }, [headerMode, isWheelWrapHidden]);
 
   useEffect(() => {
     const el = stickyControlsRef.current;
@@ -144,6 +202,20 @@ export default function App() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Same measurement as above, for the recommendations strip - re-run
+  // whenever it mounts/unmounts (it only exists once recs load, see
+  // `recs && !recError` below) rather than once on mount, so the
+  // observer actually attaches once there's something to measure.
+  useEffect(() => {
+    const el = recPanelRef.current;
+    if (!el) return;
+    const report = () => setRecPanelHeight(el.offsetHeight);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [recs, recError]);
 
   // The wheel circle currently shown as the big central "primary" wheel,
   // and its recommendation overlays - computed here (rather than lower,
@@ -186,13 +258,23 @@ export default function App() {
     const wrapEl = wheelWrapRef.current;
     const colEl = wheelColumnRef.current;
     if (!wrapEl || !colEl) return;
+ 
+    // In compact mode the wheel wrap is pinned outright (position:
+    // fixed on .layout3__wheel-wrap itself - see
+    // .layout3__center--pinned in sticky-layout.css), so it must also
+    // size itself clear of the fixed recommendations strip below it -
+    // the hero-mode "partially hidden until you scroll further" look is
+    // intentional there, but no longer makes sense once the wheel is
+    // fully pinned.
+    const isPinned = headerMode === "compact";
 
     let scheduled = false;
     const recompute = () => {
       scheduled = false;
 
       const top = wrapEl.getBoundingClientRect().top;
-      const availableHeight = window.innerHeight - top - WHEEL_BOTTOM_MARGIN;
+      const bottomReserve = isPinned ? recPanelHeight + WHEEL_BOTTOM_MARGIN : WHEEL_BOTTOM_MARGIN;
+      const availableHeight = window.innerHeight - top - bottomReserve;
       const heightBased = availableHeight - WHEEL_GAP - readoutHeight - RING_PAD * 2;
 
       // Extra column width reserved for the legend WheelStack draws
@@ -206,6 +288,22 @@ export default function App() {
       const heightCapPx =
         Math.max(MIN_WHEEL_SIZE, Math.floor(heightBased)) + RING_PAD * 2 + legendReserve;
       colEl.style.maxWidth = `${heightCapPx}px`;
+ 
+      if (isPinned) {
+        // `position: fixed` establishes its containing block against
+        // the viewport, not this element's own (non-fixed)
+        // .layout3__center parent - so the pinned wrap's horizontal
+        // placement has to be copied from that parent's actual
+        // rendered box (already correctly centered/capped by the
+        // maxWidth just set above) instead of being expressible in
+        // plain CSS.
+        const colRect = colEl.getBoundingClientRect();
+        wrapEl.style.left = `${colRect.left}px`;
+        wrapEl.style.width = `${colRect.width}px`;
+      } else {
+        wrapEl.style.left = "";
+        wrapEl.style.width = "";
+      }
 
       // The legend's own reserved width is excluded here too, so the
       // disc itself is sized from whatever's actually left over for it.
@@ -239,8 +337,10 @@ export default function App() {
       window.removeEventListener("resize", onFrame);
       window.removeEventListener("scroll", onFrame);
       colEl.style.maxWidth = "";
+      wrapEl.style.left = "";
+      wrapEl.style.width = "";
     };
-  }, [isWheelWrapHidden, readoutHeight, headerMode, headerHeight, controlsHeight, hasLegend]);
+  }, [isWheelWrapHidden, readoutHeight, headerMode, headerHeight, controlsHeight, hasLegend, recPanelHeight]);
 
   const fetchRecommendations = async (itemId: number, sch: string) => {
     try {
@@ -424,12 +524,15 @@ export default function App() {
 
             <div className="layout3" ref={contentRef} style={{ paddingTop: spacerHeight }}>
               {recs && !recError && (
-                <aside className="layout3__left">
+                <aside className="layout3__left" ref={recPanelRef}>
                   <RecommendationsPanel circles={recs.circles} onActiveCircleChange={setActiveCircle} />
                 </aside>
               )}
 
-              <main className="layout3__center" ref={wheelColumnRef}>
+              <main
+                className={"layout3__center" + (headerMode === "compact" ? " layout3__center--pinned" : "")}
+                ref={wheelColumnRef}
+              >
                 {!isWheelWrapHidden && (
                   <div className="layout3__wheel-wrap" ref={wheelWrapRef}>
                     {primary && (
