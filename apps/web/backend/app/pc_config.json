@@ -27,11 +27,11 @@
     "labels": {
       "en": {
         "positive": "Action",
-        "negative": "Art-house"
+        "negative": "Contemplative"
       },
       "ru": {
-        "positive": "Зрелищный блокбастер",
-        "negative": "Авторский артхаус"
+        "positive": "Динамичный",
+        "negative": "Созерцательный"
       }
     }
   },
@@ -42,12 +42,12 @@
     },
     "labels": {
       "en": {
-        "positive": "Heartwarming Drama",
-        "negative": "Transgressive Horror"
+        "positive": "Uplifting",
+        "negative": "Unsettling"
       },
       "ru": {
-        "positive": "Трогательная драма",
-        "negative": "Трансгрессивный хоррор"
+        "positive": "Жизнеутверждающий",
+        "negative": "Тревожный"
       }
     }
   },
@@ -58,12 +58,12 @@
     },
     "labels": {
       "en": {
-        "negative": "Crime Thriller",
-        "positive": "Visually Stunning Sci-Fi"
+        "negative": "Realistic",
+        "positive": "Visionary"
       },
       "ru": {
-        "negative": "Криминальный триллер",
-        "positive": "Масштабный Sci-Fi"
+        "negative": "Реалистичный",
+        "positive": "Фантастический"
       }
     }
   },
@@ -74,12 +74,12 @@
     },
     "labels": {
       "en": {
-        "positive": "Political Thriller",
-        "negative": "Comedy"
+        "positive": "Serious",
+        "negative": "Comic"
       },
       "ru": {
-        "positive": "Политический триллер",
-        "negative": "Комедия"
+        "positive": "Серьезный",
+        "negative": "Комедийный"
       }
     }
   },
@@ -90,12 +90,12 @@
     },
     "labels": {
       "en": {
-        "positive": "Existential Drama",
-        "negative": "Classic Hollywood"
+        "positive": "Existential",
+        "negative": "Classic"
       },
       "ru": {
-        "positive": "Экзистенциальная драма",
-        "negative": "Голливудская классика"
+        "positive": "Экзистенциальный",
+        "negative": "Классический"
       }
     }
   },
@@ -106,12 +106,12 @@
     },
     "labels": {
       "en": {
-        "positive": "Puzzle Film",
-        "negative": "Splatter Horror"
+        "positive": "Intelligent",
+        "negative": "Brutal"
       },
       "ru": {
-        "positive": "Интеллектуальный детектив",
-        "negative": "Экстремальный хоррор"
+        "positive": "Интеллектуальный",
+        "negative": "Жесткий"
       }
     }
   },
@@ -122,12 +122,12 @@
     },
     "labels": {
       "en": {
-        "negative": "Absurdist Comedy",
-        "positive": "Dark Fantasy"
+        "negative": "Satirical",
+        "positive": "Mystical"
       },
       "ru": {
-        "negative": "Абсурдистская комедия",
-        "positive": "Мистический триллер"
+        "negative": "Сатирический",
+        "positive": "Мистический"
       }
     }
   },
@@ -138,12 +138,12 @@
     },
     "labels": {
       "en": {
-        "negative": "Atmospheric Horror",
-        "positive": "Superhero / Сomic-Book / Martial Arts"
+        "negative": "Frightening",
+        "positive": "Heroic"
       },
       "ru": {
-        "negative": "Камерный хоррор",
-        "positive": "Боевые искусства"
+        "negative": "Пугающий",
+        "positive": "Героический"
       }
     }
   },
@@ -154,29 +154,12 @@
     },
     "labels": {
       "en": {
-        "negative": "Love & Relationships",
-        "positive": "Brutal Movie"
+        "negative": "Feminine",
+        "positive": "Masculine"
       },
       "ru": {
-        "negative": "Любовная драма",
-        "positive": "Брутальное кино"
-      }
-    }
-  },
-  "11": {
-    "excluded_from_hue": false,
-    "colors": {
-      "negative": "#C25B7E",
-      "positive": "#7A8C3A"
-    },
-    "labels": {
-      "en": {
-        "negative": "Romance",
-        "positive": "Conceptual"
-      },
-      "ru": {
-        "negative": "Романтика",
-        "positive": "Концептуальное кино"
+        "negative": "Женственный",
+        "positive": "Маскулинный"
       }
     }
   }
