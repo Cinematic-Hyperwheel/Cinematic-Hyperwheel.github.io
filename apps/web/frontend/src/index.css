@@ -587,50 +587,7 @@ body {
     flex-direction: column;
     align-items: stretch;
     overflow-x: hidden;
-    overflow-y: auto;
     padding: 40px 0;
-    /* Own scrollable height, clear of the sticky header/scheme-selector
-       above it - the column itself stays in normal page flow (see
-       .layout3__left), only its own list of circles scrolls internally
-       once it's taller than the available viewport height. */
-    max-height: calc(100vh - var(--app-header-height, 150px) - var(--app-controls-height, 0px) - 40px);
-  }
-
-  /* Prev/next buttons at the top/bottom edges of the vertical list -
-     positioned against .rec-panel itself, so they stay put while
-     .rec-panel__list scrolls underneath them. */
-  .rec-panel__nav {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    color: var(--text);
-    padding: 0;
-    cursor: pointer;
-    z-index: 2;
-    transition: color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
-  }
-  .rec-panel__nav:hover:not(:disabled) {
-    color: var(--accent);
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
-  }
-  .rec-panel__nav:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-  .rec-panel__nav--prev {
-    top: 0;
-  }
-  .rec-panel__nav--next {
-    bottom: 0;
   }
 }
 

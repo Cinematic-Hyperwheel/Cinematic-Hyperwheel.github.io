@@ -34,6 +34,12 @@ interface Props {
    * exists.
    */
   onActiveCircleChange?: (circle: RecommendCircle | null) => void;
+  /**
+   * Desktop only: whether the app header is currently in compact mode
+   * (see useHeaderMode.ts). Determines whether the wheel-tick stepper
+   * (see useActiveCircleNav) listens page-wide or only over this list.
+   */
+  compactHeader?: boolean;
 }
 
 // Compact label for a scheme angle, shown inside the angle badge on the
@@ -207,28 +213,6 @@ function LocateButton({
     >
       <LocateIcon />
     </button>
-  );
-}
- 
-// Prev/next chevron for the desktop panel's edge nav buttons (see
-// .rec-panel__nav below) - same stroke style as the mobile info card's
-// own prev/next buttons (RecommendationInfoCard.tsx), mirrored for "next".
-function PanelNavChevron({ direction }: { direction: "prev" | "next" }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={direction === "next" ? { transform: "scaleY(-1)" } : undefined}
-    >
-      <path d="M5 15 L12 8 L19 15" />
-    </svg>
   );
 }
 
@@ -437,6 +421,7 @@ export default function RecommendationsPanel({
   imdbUrlFor = imdbUrlForItem,
   tmdbUrlFor = tmdbUrlForItem,
   onActiveCircleChange,
+  compactHeader = false,
 }: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -472,16 +457,9 @@ export default function RecommendationsPanel({
     populated,
     isNarrow,
     listRef,
+    headerCompact: compactHeader,
     onActiveCircleChange,
   });
-
-  // Desktop only: whether the edge nav buttons (see .rec-panel__nav
-  // below) can step further in each direction - mirrors the clamping
-  // stepActive itself already does, just exposed so the buttons can
-  // disable themselves at either end instead of silently no-op'ing.
-  const activeIndex = populated.findIndex((c) => circleKey(c) === activeKey);
-  const canStepPrev = activeIndex > 0;
-  const canStepNext = activeIndex === -1 ? populated.length > 1 : activeIndex < populated.length - 1;
 
   // Mobile-only: whether every section uses the "stacked" layout
   // (list fully below the wheel) instead of the default "peek" layout
@@ -594,18 +572,6 @@ export default function RecommendationsPanel({
 
   return (
     <div className="rec-panel">
-      {!isNarrow && (
-        <button
-          type="button"
-          className="rec-panel__nav rec-panel__nav--prev"
-          onClick={() => stepActive(-1)}
-          disabled={!canStepPrev}
-          aria-label={t("recommendations.previous")}
-          title={t("recommendations.previous")}
-        >
-          <PanelNavChevron direction="prev" />
-        </button>
-      )}
       <div className="rec-panel__list scroll-fade" ref={listRef}>
         {populated.map((circle) => {
           const cKey = circleKey(circle);
@@ -723,18 +689,6 @@ export default function RecommendationsPanel({
           );
         })}
       </div>
-      {!isNarrow && (
-        <button
-          type="button"
-          className="rec-panel__nav rec-panel__nav--next"
-          onClick={() => stepActive(1)}
-          disabled={!canStepNext}
-          aria-label={t("recommendations.next")}
-          title={t("recommendations.next")}
-        >
-          <PanelNavChevron direction="next" />
-        </button>
-      )}
     </div>
   );
 }

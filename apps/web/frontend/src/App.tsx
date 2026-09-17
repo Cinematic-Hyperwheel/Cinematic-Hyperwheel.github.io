@@ -499,7 +499,11 @@ export default function App() {
             <div className="layout3" ref={contentRef} style={{ paddingTop: spacerHeight }}>
               {recs && !recError && (
                 <aside className="layout3__left">
-                  <RecommendationsPanel circles={recs.circles} onActiveCircleChange={setActiveCircle} />
+                  <RecommendationsPanel
+                    circles={recs.circles}
+                    onActiveCircleChange={setActiveCircle}
+                    compactHeader={headerMode === "compact"}
+                  />
                 </aside>
               )}
 
