@@ -572,7 +572,17 @@ export default function RecommendationsPanel({
 
   return (
     <div className="rec-panel">
-      <div className="rec-panel__list scroll-fade" ref={listRef}>
+      <div
+        className={
+          "rec-panel__list scroll-fade" +
+          // Reserves scroll room below the list (desktop only, see
+          // sticky-layout.css) so activateCircle can align ANY section's
+          // top edge with the sticky header, including the last one -
+          // pointless with a single section, so skipped then.
+          (populated.length > 1 ? " rec-panel__list--reserve-align" : "")
+        }
+        ref={listRef}
+      >
         {populated.map((circle) => {
           const cKey = circleKey(circle);
           // Desktop: matches whichever circle is currently active (see

@@ -36,9 +36,13 @@ interface UseActiveCircleNavOptions {
 
 interface UseActiveCircleNavResult {
   activeKey: string | null;
-  /** Marks `key` active and scrolls its section into view if it isn't
-   * already fully visible - used for click selection as well as
-   * keyboard/wheel-tick stepping. */
+  /** Marks `key` active and scrolls the page so that section's top edge
+   * aligns with the sticky header - the same position the main wheel
+   * occupies (see sticky-layout.css's .rec-circle scroll-margin-top) -
+   * used for click selection as well as keyboard/wheel-tick stepping.
+   * Every section, including the very last one, can reach that aligned
+   * position - see .rec-panel__list--reserve-align's bottom padding in
+   * sticky-layout.css. */
   activateCircle: (key: string) => void;
   /** Ref callback for each rendered section - registers/unregisters its
    * DOM node under its circle key so activateCircle can scroll to it. */
@@ -95,8 +99,72 @@ export function useActiveCircleNav({
   // as well as keyboard/wheel stepping.
   const activateCircle = useCallback((key: string) => {
     setActiveKey((prev) => (prev === key ? prev : key));
-    sectionRefs.current.get(key)?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+    // "start" (not "nearest") always aligns the section's top edge with
+    // the sticky header - matching the main wheel's own top edge - so
+    // the activated section lands in the same spot every time,
+    // regardless of where it was before. See sticky-layout.css for how
+    // every section, including the last, is guaranteed enough room
+    // below it to actually reach that position.
+    sectionRefs.current.get(key)?.scrollIntoView({ inline: "nearest", block: "start", behavior: "smooth" });
   }, []);
+
+  // Header height changes discretely the moment hero<->compact flips
+  // (see useHeaderMode.ts / App.tsx) - shifting where "top edge aligned
+  // with the sticky header" actually sits, even though the active
+  // section's own on-screen position doesn't move on its own (that part
+  // is already handled by useHeaderMode's own spacerHeight
+  // compensation). Re-aligns the active section to the new offset right
+  // after the switch.
+  //
+  // The switch also kicks off several cascading, differently-timed side
+  // effects elsewhere (AppHeader's own ResizeObserver report cycle, the
+  // animated max-width transition on .layout3__center in index.css,
+  // etc.) that keep nudging layout for a little while afterwards - so a
+  // single scrollIntoView call fired immediately can land, then get
+  // knocked out of alignment by one of those still-settling effects.
+  // Rather than guessing a fixed delay (fragile: the real settle time
+  // depends on device speed, section count, and CSS transition
+  // durations defined elsewhere), this polls the section's own
+  // getBoundingClientRect() across animation frames and only scrolls
+  // once its position has stopped moving for a few consecutive frames -
+  // i.e. once layout has actually settled, whatever that took.
+  const headerCompactMounted = useRef(false);
+  useEffect(() => {
+    if (!headerCompactMounted.current) {
+      headerCompactMounted.current = true;
+      return;
+    }
+    if (isNarrow || !activeKey) return;
+
+    const STABLE_FRAMES_REQUIRED = 3;
+    const MAX_FRAMES = 60; // ~1s safety cap at 60fps, in case something never settles
+    let cancelled = false;
+    let lastTop: number | null = null;
+    let stableCount = 0;
+    let frame = 0;
+
+    const check = () => {
+      if (cancelled) return;
+      const el = sectionRefs.current.get(activeKey);
+      if (!el) return;
+
+      const top = el.getBoundingClientRect().top;
+      stableCount = lastTop !== null && Math.abs(top - lastTop) < 0.5 ? stableCount + 1 : 0;
+      lastTop = top;
+      frame += 1;
+
+      if (stableCount >= STABLE_FRAMES_REQUIRED || frame >= MAX_FRAMES) {
+        el.scrollIntoView({ inline: "nearest", block: "start", behavior: "auto" });
+        return;
+      }
+      requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [headerCompact, isNarrow, activeKey]);
 
   const registerSectionRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(key, el);

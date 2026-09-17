@@ -26,6 +26,20 @@
   .rec-circle {
     scroll-margin-top: calc(var(--app-header-height, 150px) + var(--app-controls-height, 0px) + 12px);
   }
+
+  /* activateCircle always aligns the activated section's top edge with
+     the offset above (flush with the sticky header, matching the main
+     wheel's own top edge) rather than merely scrolling it into view.
+     Near the end of the list there may not be enough page content left
+     below a section for the page to actually scroll that far, so
+     without this reserve the last few sections could never reach the
+     top no matter how they're activated. The amount reserved is the
+     worst case ever needed: a section already sitting at the very
+     bottom of the viewport is at most one screen's worth (the visible
+     area below the sticky header) away from the target position. */
+  .rec-panel__list--reserve-align {
+    padding-bottom: calc(100vh - var(--app-header-height, 150px) - var(--app-controls-height, 0px) - 12px);
+  }
 }
 
 /* Hero mode only (see .layout3__center--pinned below for compact):
