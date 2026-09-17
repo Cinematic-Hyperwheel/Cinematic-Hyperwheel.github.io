@@ -51,6 +51,17 @@ interface UseActiveCircleNavResult {
    * populated list (clamped at either end), scrolling it into view -
    * used by the arrow-key/wheel-tick handlers below. */
   stepActive: (direction: 1 | -1) => void;
+  /** Ref callback for an empty spacer element rendered as the LAST
+   * child of the list (desktop only) - its height is kept in sync,
+   * imperatively, with exactly how much extra blank scroll room the
+   * page needs so activateCircle/scroll-align can bring the LAST
+   * section's top edge flush with the sticky header, even when the
+   * page's own natural content wouldn't otherwise scroll that far (see
+   * recomputeReserve below). Computed from real measured geometry each
+   * time, never a fixed guess - so it's always exactly as large as
+   * needed and never lets the page scroll further than that, which
+   * would push the last section back off the top of the viewport. */
+  spacerRef: (el: HTMLElement | null) => void;
 }
 
 /**
@@ -80,6 +91,81 @@ export function useActiveCircleNav({
   // section into view.
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [activeKey, setActiveKey] = useState<string | null>(null);
+    const spacerElRef = useRef<HTMLElement | null>(null);
+  // Mirrors whatever height is currently applied to the spacer, so
+  // recomputeReserve can back its own previous contribution out of a
+  // fresh scrollHeight measurement and always converge on the true,
+  // current deficit rather than compounding an earlier estimate.
+  const appliedReserveRef = useRef(0);
+
+  // Same offset `.rec-circle`'s own scroll-margin-top is built from
+  // (see sticky-layout.css) - read directly from the CSS custom
+  // properties App.tsx keeps in sync, so this always agrees with
+  // wherever a section's top edge actually lands once aligned.
+  const currentAlignOffset = useCallback((): number => {
+    const styles = getComputedStyle(document.documentElement);
+    const header = parseFloat(styles.getPropertyValue("--app-header-height")) || 0;
+    const controls = parseFloat(styles.getPropertyValue("--app-controls-height")) || 0;
+    return header + controls + 12;
+  }, []);
+
+  // Recomputes exactly how much blank space (if any) the page needs
+  // below the list so the LAST populated section can still reach the
+  // aligned position - the section furthest down the page is always
+  // the binding case, since every section targets the same fixed
+  // on-screen offset. Applied directly to the spacer element's own
+  // style (not via React state) so it's visible to the very next
+  // synchronous layout read - in particular the scrollIntoView call
+  // right after it in the effect below.
+  const recomputeReserve = useCallback(() => {
+    const spacerEl = spacerElRef.current;
+    if (!spacerEl) return;
+    if (isNarrow || populated.length === 0) {
+      spacerEl.style.height = "0px";
+      appliedReserveRef.current = 0;
+      return;
+    }
+    const lastEl = sectionRefs.current.get(circleKey(populated[populated.length - 1]));
+    if (!lastEl) return;
+
+    const requiredScrollY = window.scrollY + lastEl.getBoundingClientRect().top - currentAlignOffset();
+    // The page's own max scroll WITHOUT the reserve currently applied -
+    // subtracting it back out is what makes this self-correcting
+    // regardless of what the reserve happened to be before this call.
+    const naturalMaxScrollY =
+      document.documentElement.scrollHeight - window.innerHeight - appliedReserveRef.current;
+    const reserve = Math.max(0, requiredScrollY - naturalMaxScrollY);
+
+    spacerEl.style.height = `${reserve}px`;
+    appliedReserveRef.current = reserve;
+  }, [isNarrow, populated, currentAlignOffset]);
+
+  // Keeps the reserve correct as anything that can move the last
+  // section's position changes: viewport resize, the populated list
+  // itself (new reference movie/scheme), or the list's own height (e.g.
+  // a "+N more" row expanding/collapsing elsewhere in it).
+  useEffect(() => {
+    recomputeReserve();
+    window.addEventListener("resize", recomputeReserve);
+
+    const listEl = listRef.current;
+    let scheduled = false;
+    const onListResize = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        recomputeReserve();
+      });
+    };
+    const resizeObserver = listEl ? new ResizeObserver(onListResize) : null;
+    if (listEl) resizeObserver?.observe(listEl);
+
+    return () => {
+      window.removeEventListener("resize", recomputeReserve);
+      resizeObserver?.disconnect();
+    };
+  }, [recomputeReserve, listRef]);
 
   // Defaults the active circle to the first one whenever the populated
   // list changes (new reference movie or scheme). useLayoutEffect so
@@ -110,24 +196,20 @@ export function useActiveCircleNav({
 
   // Header height changes discretely the moment hero<->compact flips
   // (see useHeaderMode.ts / App.tsx) - shifting where "top edge aligned
-  // with the sticky header" actually sits, even though the active
-  // section's own on-screen position doesn't move on its own (that part
-  // is already handled by useHeaderMode's own spacerHeight
-  // compensation). Re-aligns the active section to the new offset right
-  // after the switch.
+  // with the sticky header" sits, even though the active section's own
+  // on-screen position doesn't move on its own (already handled by
+  // useHeaderMode's own spacerHeight compensation). Re-aligns the
+  // active section, and refreshes the scroll reserve for the new
+  // offset, right after the switch.
   //
   // The switch also kicks off several cascading, differently-timed side
   // effects elsewhere (AppHeader's own ResizeObserver report cycle, the
-  // animated max-width transition on .layout3__center in index.css,
-  // etc.) that keep nudging layout for a little while afterwards - so a
-  // single scrollIntoView call fired immediately can land, then get
-  // knocked out of alignment by one of those still-settling effects.
-  // Rather than guessing a fixed delay (fragile: the real settle time
-  // depends on device speed, section count, and CSS transition
-  // durations defined elsewhere), this polls the section's own
-  // getBoundingClientRect() across animation frames and only scrolls
-  // once its position has stopped moving for a few consecutive frames -
-  // i.e. once layout has actually settled, whatever that took.
+  // animated max-width transition on .layout3__center in index.css)
+  // that keep nudging layout for a little while afterwards. Rather than
+  // guessing a fixed delay, this polls the active section's own
+  // getBoundingClientRect() across animation frames and only acts once
+  // its position has stopped moving for a few consecutive frames - i.e.
+  // once layout has actually settled, whatever that took.
   const headerCompactMounted = useRef(false);
   useEffect(() => {
     if (!headerCompactMounted.current) {
@@ -154,6 +236,10 @@ export function useActiveCircleNav({
       frame += 1;
 
       if (stableCount >= STABLE_FRAMES_REQUIRED || frame >= MAX_FRAMES) {
+        // Reserve is refreshed for the new offset BEFORE scrolling -
+        // both are synchronous DOM writes, so the scroll below already
+        // sees the up-to-date geometry.
+        recomputeReserve();
         el.scrollIntoView({ inline: "nearest", block: "start", behavior: "auto" });
         return;
       }
@@ -164,7 +250,7 @@ export function useActiveCircleNav({
     return () => {
       cancelled = true;
     };
-  }, [headerCompact, isNarrow, activeKey]);
+  }, [headerCompact, isNarrow, activeKey, recomputeReserve]);
 
   const registerSectionRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(key, el);
@@ -241,5 +327,13 @@ export function useActiveCircleNav({
     onActiveCircleChange(populated.find((c) => circleKey(c) === activeKey) ?? null);
   }, [activeKey, populated, onActiveCircleChange]);
 
-  return { activeKey, activateCircle, registerSectionRef, stepActive };
+  return {
+    activeKey,
+    activateCircle,
+    registerSectionRef,
+    stepActive,
+    spacerRef: useCallback((el: HTMLElement | null) => {
+      spacerElRef.current = el;
+    }, []),
+  };
 }

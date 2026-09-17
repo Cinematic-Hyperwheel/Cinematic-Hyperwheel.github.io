@@ -453,7 +453,7 @@ export default function RecommendationsPanel({
   // mirroring it up via onActiveCircleChange - see useActiveCircleNav
   // for the full scrollspy behavior. Mobile has no notion of an active
   // circle, so it's inert there (activeKey stays null).
-  const { activeKey, activateCircle, registerSectionRef, stepActive } = useActiveCircleNav({
+  const { activeKey, activateCircle, registerSectionRef, stepActive, spacerRef } = useActiveCircleNav({
     populated,
     isNarrow,
     listRef,
@@ -572,17 +572,7 @@ export default function RecommendationsPanel({
 
   return (
     <div className="rec-panel">
-      <div
-        className={
-          "rec-panel__list scroll-fade" +
-          // Reserves scroll room below the list (desktop only, see
-          // sticky-layout.css) so activateCircle can align ANY section's
-          // top edge with the sticky header, including the last one -
-          // pointless with a single section, so skipped then.
-          (populated.length > 1 ? " rec-panel__list--reserve-align" : "")
-        }
-        ref={listRef}
-      >
+      <div className="rec-panel__list scroll-fade" ref={listRef}>
         {populated.map((circle) => {
           const cKey = circleKey(circle);
           // Desktop: matches whichever circle is currently active (see
@@ -698,6 +688,14 @@ export default function RecommendationsPanel({
             </section>
           );
         })}
+        {!isNarrow && (
+          // Height is kept in sync imperatively by useActiveCircleNav's
+          // recomputeReserve - exactly as much extra scroll room as the
+          // LAST section currently needs to reach the aligned position,
+          // never more, so native full-page scrolling can't overshoot
+          // past it (see that hook for the full rationale).
+          <div className="rec-panel__list-reserve" ref={spacerRef} aria-hidden="true" />
+        )}
       </div>
     </div>
   );
