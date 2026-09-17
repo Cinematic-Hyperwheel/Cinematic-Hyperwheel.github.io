@@ -86,6 +86,25 @@
     bottom: 16px;
     z-index: 18;
   }
+
+  /* Compact mode only (toggled via App.tsx's app__footer--pinned
+     class): the footer becomes a persistent bar pinned to the bottom
+     of the viewport, mirroring the compact header's own bar treatment
+     (.appheader--compact in header.css). It stays in normal document
+     flow and only engages once scrolled to - unlike the pinned wheel
+     wrap, which is fully removed from flow via position: fixed - so it
+     can never overlap content above it. */
+  .app__footer--pinned {
+    position: sticky;
+    bottom: 0;
+    z-index: 19;
+    width: calc(100% + 40px);
+    max-width: none;
+    margin: auto -20px 0;
+    padding: 10px 20px;
+    background: rgba(10, 13, 20, 0.85);
+    backdrop-filter: blur(10px);
+  }
 }
 
 .hero-backdrop {

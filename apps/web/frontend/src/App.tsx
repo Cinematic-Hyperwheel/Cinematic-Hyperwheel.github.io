@@ -518,7 +518,12 @@ export default function App() {
               </main>
             </div>
 
-            <footer className="app__footer app__footer--slim">
+            <footer
+              className={
+                "app__footer app__footer--slim" +
+                (!isWheelWrapHidden && headerMode === "compact" ? " app__footer--pinned" : "")
+              }
+            >
               <p>
                 {t("footer.copyright", { year: new Date().getFullYear() })}
                 {" · "}
