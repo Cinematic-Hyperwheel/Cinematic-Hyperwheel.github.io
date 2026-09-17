@@ -7,9 +7,8 @@ import BrandTitle from "./BrandTitle";
 interface Props {
   mode: HeaderMode;
   searchSlot: ReactNode;
-  /** Color-scheme selector - only passed (and rendered) in compact mode;
-   * in hero mode it's rendered separately below the header (see
-   * App.tsx's `sticky-controls`). */
+  /** Color-scheme selector, rendered inside the header in both hero and
+   * compact mode. */
   schemeSlot?: ReactNode;
   onAboutClick: () => void;
   /** Reports this header's own real rendered height via ResizeObserver -
