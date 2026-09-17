@@ -6,6 +6,16 @@ import { circleKey } from "../utils/circleKey";
 // burst of trackpad delta events from the same gesture).
 const WHEEL_LOCK_MS = 350;
 
+// Below this threshold, a freshly computed reserve is treated as
+// unchanged and the DOM write is skipped. The spacer element this
+// drives is itself the last child of the list the ResizeObserver below
+// watches, and document.documentElement.scrollHeight (an integer) vs.
+// getBoundingClientRect() (a float) round differently from call to
+// call - without this threshold, recomputeReserve would never agree
+// with itself closely enough to stop, and each write would just
+// re-trigger the observer that calls it again.
+const RESERVE_EPSILON_PX = 1;
+
 interface UseActiveCircleNavOptions {
   /** Circles that actually have at least one recommendation (see
    * RecommendationsPanel's `populated`) - the ordered set this hook
@@ -121,8 +131,10 @@ export function useActiveCircleNav({
     const spacerEl = spacerElRef.current;
     if (!spacerEl) return;
     if (isNarrow || populated.length === 0) {
-      spacerEl.style.height = "0px";
-      appliedReserveRef.current = 0;
+      if (appliedReserveRef.current !== 0) {
+        spacerEl.style.height = "0px";
+        appliedReserveRef.current = 0;
+      }
       return;
     }
     const lastEl = sectionRefs.current.get(circleKey(populated[populated.length - 1]));
@@ -135,6 +147,12 @@ export function useActiveCircleNav({
     const naturalMaxScrollY =
       document.documentElement.scrollHeight - window.innerHeight - appliedReserveRef.current;
     const reserve = Math.max(0, requiredScrollY - naturalMaxScrollY);
+ 
+    // Treat a sub-pixel-scale difference from what's already applied as
+    // converged - see RESERVE_EPSILON_PX above for why this is what
+    // actually breaks the write -> ResizeObserver -> write cycle,
+    // rather than just reducing its amplitude.
+    if (Math.abs(reserve - appliedReserveRef.current) < RESERVE_EPSILON_PX) return;
 
     spacerEl.style.height = `${reserve}px`;
     appliedReserveRef.current = reserve;
