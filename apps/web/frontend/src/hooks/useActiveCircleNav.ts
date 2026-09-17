@@ -16,6 +16,12 @@ const WHEEL_LOCK_MS = 350;
 // re-trigger the observer that calls it again.
 const RESERVE_EPSILON_PX = 1;
 
+// How long the scrollspy effect waits after the LAST scroll event
+// before treating a scroll as settled and resuming passive tracking - a
+// debounce rather than a fixed delay, since a smooth scrollIntoView's
+// actual duration depends on distance and isn't known in advance.
+const PROGRAMMATIC_SCROLL_SETTLE_MS = 120;
+
 interface UseActiveCircleNavOptions {
   /** Circles that actually have at least one recommendation (see
    * RecommendationsPanel's `populated`) - the ordered set this hook
@@ -34,9 +40,10 @@ interface UseActiveCircleNavOptions {
   listRef: RefObject<HTMLElement>;
   /** Desktop only: whether the app header is currently in compact mode
    * (see useHeaderMode.ts). Determines where the wheel-tick stepper
-   * below listens for input: page-wide in compact mode (the pinned
-   * main wheel fills most of the viewport, so a tick anywhere should
-   * work), scoped to the list element in hero mode. */
+   * below listens for input (page-wide in compact mode, scoped to the
+   * list element in hero mode), and whether the passive scrollspy
+   * effect is active at all (compact mode only - see this hook's own
+   * doc comment). */
   headerCompact: boolean;
   /** Mirrors the active circle up to the parent whenever it changes -
    * drives the big central wheel in App.tsx. Only meaningful on
@@ -76,17 +83,39 @@ interface UseActiveCircleNavResult {
 
 /**
  * Drives the "active" Recommendations circle/section on desktop: which
- * one is currently active (click, arrow keys, or a wheel tick - see
- * below) and keeping its section scrolled into view. The list itself
- * has no scrollbar of its own - it's part of the page's normal flow
- * (see RecommendationsPanel.tsx / index.css) - so "scrolled into view"
- * here means scrolling the page itself via scrollIntoView
+ * one is currently active and keeping its section scrolled into view.
+ * The list itself has no scrollbar of its own - it's part of the page's
+ * normal flow (see RecommendationsPanel.tsx / index.css) - so "scrolled
+ * into view" here means scrolling the page itself via scrollIntoView
  * (activateCircle).
  *
- * The active circle is plain state, changed only by explicit input
- * (click, arrow keys, wheel tick) - there is no scroll-position
- * tracking that derives it from "closest to the viewport center" or
- * any similar passive observation of page scroll.
+ * The active circle changes through two different paths:
+ *
+ * - explicit input (click, arrow keys, or a wheel tick - see below):
+ *   scrolls the chosen section's top edge to the big wheel's own
+ *   aligned position (see currentAlignOffset) - "active changed" drives
+ *   a scroll.
+ * - passive scrollspy, compact header mode only: whichever section's
+ *   top edge has reached that same aligned position during ordinary
+ *   page scrolling becomes active, without moving the scroll position
+ *   itself - "scrolled" drives "active changed". In compact mode the
+ *   wheel-tick stepper above already captures every wheel/trackpad
+ *   scroll gesture as a discrete step (see its own preventDefault), so
+ *   this only ever observes genuine scrolling that bypassed it -
+ *   scrollbar dragging, Page Up/Down, Home/End. Hero mode has no
+ *   equivalent of this: the big wheel isn't pinned to a fixed on-screen
+ *   slot there, so there's no single position to spy against.
+ *
+ * These two paths are mirror images of each other and would fight
+ * indefinitely if left unguarded (a scrollIntoView triggered by the
+ * first path would immediately be reinterpreted as user scrolling by
+ * the second, and vice versa). suppressScrollSpyRef/
+ * beginProgrammaticScroll below shield every scroll this hook itself
+ * triggers from being picked up by the scrollspy effect: the effect
+ * ignores scroll events while the flag is set, and the flag only clears
+ * once scrolling has been quiet for PROGRAMMATIC_SCROLL_SETTLE_MS -
+ * i.e. once the triggered scroll has actually finished, whatever that
+ * took.
  */
 export function useActiveCircleNav({
   populated,
@@ -101,12 +130,29 @@ export function useActiveCircleNav({
   // section into view.
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [activeKey, setActiveKey] = useState<string | null>(null);
-    const spacerElRef = useRef<HTMLElement | null>(null);
+  const spacerElRef = useRef<HTMLElement | null>(null);
   // Mirrors whatever height is currently applied to the spacer, so
   // recomputeReserve can back its own previous contribution out of a
   // fresh scrollHeight measurement and always converge on the true,
   // current deficit rather than compounding an earlier estimate.
   const appliedReserveRef = useRef(0);
+
+  // See this hook's own doc comment above for what this guards against.
+  // Set for the duration of any scroll THIS hook triggers; the
+  // scrollspy effect below no-ops while it's true, and re-arms the
+  // settle timer on every scroll event it sees instead of reacting to
+  // it, so a smooth scrollIntoView's whole motion (many scroll events)
+  // stays suppressed until it actually stops.
+  const suppressScrollSpyRef = useRef(false);
+  const scrollSettleTimerRef = useRef<number | undefined>(undefined);
+
+  const beginProgrammaticScroll = useCallback(() => {
+    suppressScrollSpyRef.current = true;
+    window.clearTimeout(scrollSettleTimerRef.current);
+    scrollSettleTimerRef.current = window.setTimeout(() => {
+      suppressScrollSpyRef.current = false;
+    }, PROGRAMMATIC_SCROLL_SETTLE_MS);
+  }, []);
 
   // Same offset `.rec-circle`'s own scroll-margin-top is built from
   // (see sticky-layout.css) - read directly from the CSS custom
@@ -203,6 +249,9 @@ export function useActiveCircleNav({
   // as well as keyboard/wheel stepping.
   const activateCircle = useCallback((key: string) => {
     setActiveKey((prev) => (prev === key ? prev : key));
+    // Shields the scroll about to start from the scrollspy effect below
+    // - see this hook's own doc comment.
+    beginProgrammaticScroll();
     // "start" (not "nearest") always aligns the section's top edge with
     // the sticky header - matching the main wheel's own top edge - so
     // the activated section lands in the same spot every time,
@@ -210,7 +259,7 @@ export function useActiveCircleNav({
     // every section, including the last, is guaranteed enough room
     // below it to actually reach that position.
     sectionRefs.current.get(key)?.scrollIntoView({ inline: "nearest", block: "start", behavior: "smooth" });
-  }, []);
+  }, [beginProgrammaticScroll]);
 
   // Header height changes discretely the moment hero<->compact flips
   // (see useHeaderMode.ts / App.tsx) - shifting where "top edge aligned
@@ -258,6 +307,11 @@ export function useActiveCircleNav({
         // both are synchronous DOM writes, so the scroll below already
         // sees the up-to-date geometry.
         recomputeReserve();
+        // This is a scroll THIS hook is causing, not the user - shield
+        // it from the scrollspy effect below the same way activateCircle
+        // does, so re-aligning after a header-mode switch never gets
+        // read back as "the user scrolled to a different section".
+        beginProgrammaticScroll();
         el.scrollIntoView({ inline: "nearest", block: "start", behavior: "auto" });
         return;
       }
@@ -268,7 +322,66 @@ export function useActiveCircleNav({
     return () => {
       cancelled = true;
     };
-  }, [headerCompact, isNarrow, activeKey, recomputeReserve]);
+  }, [headerCompact, isNarrow, activeKey, recomputeReserve, beginProgrammaticScroll]);
+
+  // The section whose top edge has reached the same aligned position
+  // activateCircle scrolls TO (see currentAlignOffset) - the last
+  // section, in document order, whose top is still at or above that
+  // line. Sections are laid out in the same order as `populated`, so a
+  // single forward scan that stops at the first one still below the
+  // line is enough.
+  const sectionAtAlignOffset = useCallback((): string | null => {
+    if (populated.length === 0) return null;
+    const offset = currentAlignOffset();
+    let candidate: string | null = null;
+    for (const circle of populated) {
+      const key = circleKey(circle);
+      const top = sectionRefs.current.get(key)?.getBoundingClientRect().top;
+      if (top === undefined) continue;
+      if (top > offset) break;
+      candidate = key;
+    }
+    // Above the very first section (e.g. scrolled all the way back to
+    // the top of the page) - falls back to it rather than leaving
+    // nothing active.
+    return candidate ?? circleKey(populated[0]);
+  }, [populated, currentAlignOffset]);
+
+  // Passive scrollspy - compact header mode only (see this hook's own
+  // doc comment for why hero mode has no equivalent). rAF-throttled
+  // like the other scroll-driven effects in this codebase (see
+  // App.tsx's wheel-sizing effect). Every scroll event first checks
+  // suppressScrollSpyRef: while a scroll THIS hook triggered is still
+  // settling, events only extend that settle window instead of being
+  // treated as user scrolling - see beginProgrammaticScroll above.
+  useEffect(() => {
+    if (isNarrow || !headerCompact || populated.length === 0) return;
+
+    let scheduled = false;
+    const onScroll = () => {
+      if (suppressScrollSpyRef.current) {
+        window.clearTimeout(scrollSettleTimerRef.current);
+        scrollSettleTimerRef.current = window.setTimeout(() => {
+          suppressScrollSpyRef.current = false;
+        }, PROGRAMMATIC_SCROLL_SETTLE_MS);
+        return;
+      }
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        // A programmatic scroll (e.g. a click that landed while this
+        // frame was pending) may have started after onScroll fired but
+        // before this callback ran - re-check right before acting.
+        if (suppressScrollSpyRef.current) return;
+        const key = sectionAtAlignOffset();
+        setActiveKey((prev) => (prev === key ? prev : key));
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isNarrow, headerCompact, populated, sectionAtAlignOffset]);
 
   const registerSectionRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(key, el);
