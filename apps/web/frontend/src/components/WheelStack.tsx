@@ -8,6 +8,7 @@ import { colorOnWheel } from "../utils/color";
 import { resolvePoster } from "../utils/poster";
 import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import "./WheelLegend.css";
 import "./MovieHighlight.css";
 
@@ -30,6 +31,13 @@ interface Layer {
   overlays?: RecAngle[];
   visible: boolean;
 }
+ 
+// How long the active circle must stay unchanged before the legend is
+// allowed to fetch poster images for it (see settledLegendKey in
+// WheelStack below) - comfortably longer than useActiveCircleNav's own
+// WHEEL_LOCK_MS, so a sustained burst of wheel-tick steps never counts
+// as "settled" partway through.
+const POSTER_LOAD_SETTLE_MS = 450;
 
 function refCompassBearing(refX: number, refY: number): number {
   return ((Math.atan2(refY, refX) * 180) / Math.PI + 90 + 360) % 360;
@@ -89,6 +97,11 @@ interface LegendTileProps {
   isHighlighted: boolean;
   onEnter: (el: HTMLElement) => void;
   onLeave: () => void;
+  /** Whether this tile's own circle is the currently settled one (see
+   * settledLegendKey in WheelStack) - gates the poster fetch below so
+   * only the circle the user actually stopped on ever requests poster
+   * images, not every circle briefly passed through on the way there. */
+  loadPosters: boolean;
 }
 
 // Poster tile for the legend's grid layout - same hover/highlight wiring
@@ -96,10 +109,11 @@ interface LegendTileProps {
 // different visual: a lazily-resolved poster (see utils/poster.ts) with
 // a bottom scrim for the title and a corner badge/swatch for the scheme
 // angle, instead of a text row.
-function LegendTile({ item, angleLabel, swatch, isHighlighted, onEnter, onLeave }: LegendTileProps) {
+function LegendTile({ item, angleLabel, swatch, isHighlighted, onEnter, onLeave, loadPosters }: LegendTileProps) {
   const [posterUrl, setPosterUrl] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
+    if (!loadPosters) return;
     let cancelled = false;
     setPosterUrl(undefined);
     resolvePoster(item.item_id).then((url) => {
@@ -108,7 +122,7 @@ function LegendTile({ item, angleLabel, swatch, isHighlighted, onEnter, onLeave 
     return () => {
       cancelled = true;
     };
-  }, [item.item_id]);
+  }, [item.item_id, loadPosters]);
 
   return (
     <div
@@ -143,6 +157,8 @@ interface WheelLegendProps {
   overlays?: RecAngle[];
   layout: LegendLayoutMode;
   onToggleLayout: () => void;
+  /** Forwarded to each LegendTile - see LegendTileProps.loadPosters. */
+  loadPosters: boolean;
 }
 
 // Legend rows for the big/primary wheel. Hovering a row cross-highlights
@@ -153,7 +169,7 @@ interface WheelLegendProps {
 // ever reacts to THIS row's own hover, never to a highlight that
 // originated elsewhere, so it can't end up open at the same time as a
 // card triggered by a different surface (a list row, a wheel point).
-function WheelLegend({ circle, overlays, layout, onToggleLayout }: WheelLegendProps) {
+function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters }: WheelLegendProps) {
   const cKey = circleKey(circle);
   const { setHighlighted, clearHighlighted } = useHighlight();
   const activeItemId = useHighlightedItem(cKey);
@@ -232,6 +248,7 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout }: WheelLegendPr
                       isHighlighted={isHighlighted}
                       onEnter={handleEnter}
                       onLeave={handleLeave}
+                      loadPosters={loadPosters}
                     />
                   );
                 }
@@ -319,6 +336,22 @@ export default function WheelStack({ circle, size, title, overlays }: Props) {
   // changes.
   const [legendLayout, setLegendLayout] = useState<LegendLayoutMode>("grid");
 
+  // The circle poster loading is currently allowed for - only updates
+  // once `circle` has stayed the same for POSTER_LOAD_SETTLE_MS (see
+  // useDebouncedValue), so stepping rapidly through several circles
+  // (e.g. a fast mouse-wheel burst driving useActiveCircleNav's
+  // wheel-tick stepper) never fires a poster request for every circle
+  // briefly passed through - only for the one actually settled on.
+  // Gating by key (compared against each layer below) rather than by
+  // "did this layer just mount" is what makes this work even while an
+  // older, already-superseded crossfade layer is still mounted (see
+  // the layer-removal logic below - a stale layer can stick around for
+  // a while after being replaced).
+  const settledLegendKey = useDebouncedValue(
+    circle ? circleKey(circle) : null,
+    POSTER_LOAD_SETTLE_MS
+  );
+
   useEffect(() => {
     if (!circle) return;
     const key = circleKey(circle);
@@ -405,6 +438,7 @@ export default function WheelStack({ circle, size, title, overlays }: Props) {
               overlays={l.overlays}
               layout={legendLayout}
               onToggleLayout={() => setLegendLayout((m) => (m === "list" ? "grid" : "list"))}
+              loadPosters={l.key === settledLegendKey}
             />
           </div>
         </div>
