@@ -486,10 +486,6 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
-.wheel__readout { text-align: center; font-size: 12px; color: var(--muted); }
-.wheel__readout-title { color: var(--text); font-size: 14px; margin-bottom: 4px; }
-.wheel__readout-axis { font-size: 10px; letter-spacing: 0.06em; opacity: 0.8; }
-.wheel--compact .wheel__readout { font-size: 10px; }
 .wheel__ring-text {
   fill: var(--muted);
   font-family: inherit;

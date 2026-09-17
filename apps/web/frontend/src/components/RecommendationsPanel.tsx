@@ -655,7 +655,6 @@ export default function RecommendationsPanel({
                       circle={wheelCircle}
                       size={fillWheelSize}
                       overlays={circle.angles}
-                      showReadout={false}
                     />
                     <WheelPointLabels
                       circle={wheelCircle}

@@ -8,10 +8,6 @@
     "placeholder": "Title, year... e.g. \"The Matrix 1999\"",
     "random": "Surprise me"
   },
-  "wheel": {
-    "readout": "PC{{pcX}}: {{zX}}σ · PC{{pcY}}: {{zY}}σ",
-    "readoutAngle": "angle {{angle}}° · length {{radius}}"
-  },
   "card": {
     "genres": "Genres",
     "unknown": "—"

@@ -301,8 +301,9 @@ exactly once.
 
 Each disc's fill is a decorative "mood" gradient built from that circle's
 axis colors, not a literal encoding of the values — the source of truth
-is the point's position plus the text readout (z-score per axis, angle,
-vector length).
+is the point's position on the disc; the underlying z-scores, angle, and
+vector length remain available in the API response, but are no longer
+shown as on-page text.
 On both the main and the secondary wheels the four pole labels are drawn
 curving along a single ring around the disc (outside its coloured gradient,
 on the page background), sized per label so the text is never clipped. On the

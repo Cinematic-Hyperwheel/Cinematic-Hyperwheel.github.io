@@ -58,15 +58,9 @@ const MIN_WHEEL_SIZE = 260;
 // once .layout3__center's own max-width is gone (index.css), so this
 // rarely if ever actually clamps anything.
 const MAX_WHEEL_SIZE = 1200;
-// Gap kept clear below the wheel's readout text and the viewport's
-// bottom edge, in both hero and compact mode.
+// Gap kept clear below the wheel and the viewport's bottom edge, in
+// both hero and compact mode.
 const WHEEL_BOTTOM_MARGIN = 24;
-// Used only until the first real measurement comes in via
-// onReadoutHeight below (see Wheel.tsx) - a rough estimate for ~4 short
-// lines of text at .wheel__readout's font sizes, just so the very first
-// size computation doesn't wildly overshoot before that measurement
-// exists.
-const READOUT_HEIGHT_FALLBACK = 90;
 // Horizontal gap between the wheel disc and its legend, and the
 // legend's own max width - see .wheel-stack__row / .wheel-stack__legend
 // in WheelLegend.css. Duplicated here (rather than measured) so the
@@ -102,7 +96,6 @@ export default function App() {
   const wheelWrapRef = useRef<HTMLDivElement>(null);
   const wheelColumnRef = useRef<HTMLElement>(null);
   const [wheelSize, setWheelSize] = useState(320);
-  const [readoutHeight, setReadoutHeight] = useState(READOUT_HEIGHT_FALLBACK);
   const [isWheelWrapHidden, setIsWheelWrapHidden] = useState(
     () => window.innerWidth <= WHEEL_WRAP_MOBILE_BREAKPOINT
   );
@@ -225,10 +218,9 @@ export default function App() {
   const isEmpty = !selected;
 
   // Sizes the big wheel to fill the available space on BOTH axes while
-  // staying fully within the visible viewport, readout text and legend
-  // included - see Wheel.tsx (frozen viewBox) and WheelStack.tsx
-  // (crossfade, wheel+legend row) for how the result is actually
-  // rendered smoothly.
+  // staying fully within the visible viewport, legend included - see
+  // Wheel.tsx (frozen viewBox) and WheelStack.tsx (crossfade,
+  // wheel+legend row) for how the result is actually rendered smoothly.
   useEffect(() => {
     if (isWheelWrapHidden) return;
     const wrapEl = wheelWrapRef.current;
@@ -249,7 +241,7 @@ export default function App() {
 
       const top = wrapEl.getBoundingClientRect().top;
       const availableHeight = window.innerHeight - top - WHEEL_BOTTOM_MARGIN;
-      const heightBased = availableHeight - WHEEL_GAP - readoutHeight - RING_PAD * 2;
+      const heightBased = availableHeight - WHEEL_GAP - RING_PAD * 2;
 
       // Extra column width reserved for the legend WheelStack draws
       // beside the disc (see .wheel-stack__row in WheelLegend.css) -
@@ -314,7 +306,7 @@ export default function App() {
       wrapEl.style.left = "";
       wrapEl.style.width = "";
     };
-  }, [isWheelWrapHidden, readoutHeight, headerMode, headerHeight, controlsHeight, hasLegend]);
+  }, [isWheelWrapHidden, headerMode, headerHeight, controlsHeight, hasLegend]);
 
   const fetchRecommendations = async (itemId: number, sch: string) => {
     try {
@@ -519,7 +511,6 @@ export default function App() {
                         size={wheelSize}
                         title={selected?.title}
                         overlays={primaryOverlays}
-                        onReadoutHeight={setReadoutHeight}
                       />
                     )}
                   </div>

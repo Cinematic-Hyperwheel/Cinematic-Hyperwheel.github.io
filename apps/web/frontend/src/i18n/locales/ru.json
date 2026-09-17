@@ -8,10 +8,6 @@
     "placeholder": "Название, год... например «Матрица 1999»",
     "random": "Удиви меня"
   },
-  "wheel": {
-    "readout": "PC{{pcX}}: {{zX}}σ · PC{{pcY}}: {{zY}}σ",
-    "readoutAngle": "угол {{angle}}° · длина {{radius}}"
-  },
   "card": {
     "genres": "Жанры",
     "unknown": "—"

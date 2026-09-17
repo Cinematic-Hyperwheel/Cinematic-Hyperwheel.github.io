@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RecAngle, WheelCircle } from "../api";
 import { colorOnWheel } from "../utils/color";
@@ -8,12 +8,6 @@ interface Props {
   size?: number;
   title?: string;
   overlays?: RecAngle[];
-  /** When false, suppresses the title/readout block below the disc even
-   * in non-compact mode - used when the wheel is a backdrop for an
-   * overlaid UI element (see RecommendationsPanel's angle-section
-   * overlay), where that text would just sit hidden underneath it. */
-  showReadout?: boolean;
-  onReadoutHeight?: (height: number) => void;
 }
 
 // z-scores are unbounded in principle; clamp to a comfortable display range
@@ -126,10 +120,8 @@ export default function Wheel({
   size = 320,
   title,
   overlays = [],
-  showReadout = true,
-  onReadoutHeight,
 }: Props) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const [activeLabel, setActiveLabel] = useState<null | string>(null);
   // Unique per mounted Wheel instance - the axis pair alone (pid) is NOT
   // enough: the same (pc_x, pc_y) can now render twice at once (the main
@@ -139,7 +131,6 @@ export default function Wheel({
   // one instance can resolve to the OTHER instance's (differently
   // sized/positioned) arc.
   const uid = useId();
-  const readoutRef = useRef<HTMLDivElement>(null);
 
   const compact = size < COMPACT_BELOW;
   const halfBox = size / 2;
@@ -153,17 +144,6 @@ export default function Wheel({
   const center = wrap / 2;
   const discOffset = pad;
   const maxR = halfBox - (compact ? 10 : 28);
-
-  useEffect(() => {
-    if (!onReadoutHeight || compact || !showReadout) return;
-    const el = readoutRef.current;
-    if (!el) return;
-    const report = () => onReadoutHeight(el.offsetHeight);
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [onReadoutHeight, compact, showReadout, title, circle]);
 
   // Geometry used for EVERYTHING drawn inside the <svg> - see
   // GEOMETRY_SIZE's doc comment above. Compact wheels (small, static
@@ -397,27 +377,6 @@ export default function Wheel({
           ))}
         </svg>
       </div>
-      {!compact && showReadout && (
-        <div className="wheel__readout" ref={readoutRef}>
-          <div className="wheel__readout-axis">
-            PC{circle.axis_x.pc}/PC{circle.axis_y.pc}
-          </div>
-          <div>
-            {t("wheel.readout", {
-              pcX: circle.axis_x.pc,
-              zX: circle.z_x.toFixed(2),
-              pcY: circle.axis_y.pc,
-              zY: circle.z_y.toFixed(2),
-            })}
-          </div>
-          <div>
-            {t("wheel.readoutAngle", {
-              angle: circle.angle_deg.toFixed(1),
-              radius: circle.radius.toFixed(2),
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

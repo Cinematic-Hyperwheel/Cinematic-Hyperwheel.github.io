@@ -19,11 +19,6 @@ interface Props {
   size: number;
   title?: string;
   overlays?: RecAngle[];
-  /** Forwarded to the TOPMOST (newest) layer's Wheel only - see
-   * Wheel.tsx's onReadoutHeight doc comment. The outgoing layer's own
-   * readout is about to disappear anyway, so only the incoming/current
-   * one's height is relevant to a caller doing layout math with it. */
-  onReadoutHeight?: (height: number) => void;
 }
 
 interface Layer {
@@ -316,7 +311,7 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout }: WheelLegendPr
  * key) never cross-lights with the incoming one - no special-casing
  * needed here beyond each layer rendering its own circle's key.
  */
-export default function WheelStack({ circle, size, title, overlays, onReadoutHeight }: Props) {
+export default function WheelStack({ circle, size, title, overlays }: Props) {
   const [layers, setLayers] = useState<Layer[]>([]);
   const nextId = useRef(0);
   // Shared across every layer (see the crossfade below) so switching
@@ -378,7 +373,7 @@ export default function WheelStack({ circle, size, title, overlays, onReadoutHei
 
   return (
     <div className="wheel-stack">
-      {layers.map((l, i) => (
+      {layers.map((l) => (
         <div
           key={l.id}
           className={"wheel-stack__layer" + (l.visible ? " wheel-stack__layer--visible" : "")}
@@ -396,7 +391,6 @@ export default function WheelStack({ circle, size, title, overlays, onReadoutHei
                 size={l.size}
                 title={l.title}
                 overlays={l.overlays}
-                onReadoutHeight={i === layers.length - 1 ? onReadoutHeight : undefined}
               />
               <WheelPointLabels
                 circle={l.circle}
