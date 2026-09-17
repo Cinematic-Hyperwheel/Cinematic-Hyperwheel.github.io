@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Wheel from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
-import { RecAngle, RecItem, WheelCircle } from "../api";
+import { RecAngle, RecItem, RecommendCircle, WheelCircle } from "../api";
 import { circleKey } from "../utils/circleKey";
 import { colorOnWheel } from "../utils/color";
 import { resolvePoster } from "../utils/poster";
-import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
+import { useHighlight } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import "./WheelLegend.css";
@@ -20,6 +20,13 @@ interface Props {
   size: number;
   title?: string;
   overlays?: RecAngle[];
+  /** Every circle that has at least one recommendation, in the same
+   * order the Recommendations list/scrollspy uses (see App.tsx) - only
+   * consulted by the grid-layout legend (see WheelLegend below), to
+   * fill any empty vertical space left below the active circle's own
+   * recommendations with dimmed preview blocks for the circles that
+   * follow it. */
+  queueCircles?: RecommendCircle[];
 }
 
 interface Layer {
@@ -29,6 +36,7 @@ interface Layer {
   size: number;
   title?: string;
   overlays?: RecAngle[];
+  queueCircles?: RecommendCircle[];
   visible: boolean;
 }
  
@@ -159,22 +167,55 @@ interface WheelLegendProps {
   onToggleLayout: () => void;
   /** Forwarded to each LegendTile - see LegendTileProps.loadPosters. */
   loadPosters: boolean;
+  /** See Props.queueCircles above. */
+  queueCircles?: RecommendCircle[];
 }
 
-// Legend rows for the big/primary wheel. Hovering a row cross-highlights
-// the same movie's point on the wheel/other surfaces (see
-// HighlightContext.tsx) and, independently, opens the recommendation
-// info card anchored to that row (see contexts/ActiveCardContext.tsx),
-// kept clear of the big wheel's own point for this item - the card only
-// ever reacts to THIS row's own hover, never to a highlight that
-// originated elsewhere, so it can't end up open at the same time as a
-// card triggered by a different surface (a list row, a wheel point).
-function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters }: WheelLegendProps) {
+// AxisConfig's own color pair shape, duplicated here (rather than
+// imported) since both a WheelCircle's and a RecommendCircle's axis
+// configs already satisfy it structurally - see renderBlock below,
+// which is shared by both the active circle's own block and the extra
+// circles sourced from queueCircles.
+interface AxisColorPair {
+  positive: string;
+  negative: string;
+}
+
+// Legend rows/tiles for the big/primary wheel. Hovering a row or tile
+// cross-highlights the same movie's point on the wheel/other surfaces
+// (see HighlightContext.tsx) and, independently, opens the
+// recommendation info card anchored to it (see
+// contexts/ActiveCardContext.tsx), kept clear of the big wheel's own
+// point for this item - the card only ever reacts to its own trigger's
+// hover, never to a highlight that originated elsewhere.
+//
+// In grid layout, once the active circle's own recommendations are
+// rendered, any empty vertical space left in the legend's own visible
+// area (see .wheel-stack__legend's height, stretched to match the
+// wheel - WheelLegend.css) is filled with additional, dimmed preview
+// blocks for the circles that follow the active one in `queueCircles` -
+// see the fitting effect below. List layout only ever shows the active
+// circle, unchanged.
+function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, queueCircles }: WheelLegendProps) {
   const cKey = circleKey(circle);
-  const { setHighlighted, clearHighlighted } = useHighlight();
-  const activeItemId = useHighlightedItem(cKey);
+  const { highlighted, setHighlighted, clearHighlighted } = useHighlight();
   const { showCard, hideCard, closeCardNow } = useActiveCard();
   const openCardKeyRef = useRef<string | null>(null);
+  const legendRef = useRef<HTMLDivElement>(null);
+
+  const populated = overlays?.filter((angle) => angle.items.length > 0) ?? [];
+
+  // Circles after the active one, in the same order the Recommendations
+  // list/scrollspy uses (see App.tsx) - candidates for the extra preview
+  // blocks below. Empty whenever the active circle can't be located in
+  // the queue (e.g. the prop wasn't provided), which simply disables the
+  // fill-extra-space behavior rather than erroring.
+  const activeQueueIndex = queueCircles?.findIndex((c) => circleKey(c) === cKey) ?? -1;
+  const extraQueue = activeQueueIndex >= 0 ? queueCircles!.slice(activeQueueIndex + 1) : [];
+
+  // Grid layout only: how many of the circles in `extraQueue` are
+  // currently rendered as extra preview blocks.
+  const [extraCount, setExtraCount] = useState(0);
 
   // Closes this instance's own card (if one of its rows currently has
   // one open) when the instance itself unmounts - e.g. the big wheel
@@ -188,112 +229,197 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const populated = overlays?.filter((angle) => angle.items.length > 0) ?? [];
+  // A fresh active circle, a layout switch, or the active circle's own
+  // recommendation set changing shape (e.g. a scheme switch that
+  // doesn't happen to change which axis pair is primary) invalidates
+  // any previously fitted extra blocks - always re-measure from scratch
+  // rather than growing/shrinking the previous circle's count. Runs
+  // pre-paint (useLayoutEffect) together with the fitting effect below,
+  // so the reset-then-regrow cycle converges before the user ever sees
+  // an intermediate state.
+  useLayoutEffect(() => {
+    setExtraCount(0);
+  }, [cKey, layout, populated.length]);
+
+  // Re-measures from scratch when the legend's own box (not just its
+  // content) changes size - a viewport resize, or the wheel (and so the
+  // legend, stretched to match it - see WheelLegend.css) growing or
+  // shrinking. Content-only height changes (adding a block) are handled
+  // by the fitting effect below instead, without a full reset.
+  useEffect(() => {
+    if (layout !== "grid") return;
+    const el = legendRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setExtraCount(0));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [layout]);
+
+  // Grows extraCount one circle at a time while the rendered blocks
+  // still fit inside the legend's own visible height - i.e. while
+  // there's empty space left to fill. This is entirely local to the
+  // legend's own box (scrollHeight vs. clientHeight) and never touches
+  // window scroll position, so it can't race with either the active
+  // circle switching via a click/keyboard/wheel-tick, or with the
+  // page's own scrollspy (see useActiveCircleNav.ts) - those two are
+  // what drive WHICH circle is active; this effect only ever decides
+  // how many blocks to show for whichever circle already is active.
+  // The last block added is allowed to overflow past the bottom edge
+  // (the legend already scrolls internally - see .wheel-stack__legend)
+  // - that's the intended "one extra row may spill past the visible
+  // area" allowance, rather than a bug to correct for.
+  useLayoutEffect(() => {
+    if (layout !== "grid") return;
+    const el = legendRef.current;
+    if (!el) return;
+    if (extraCount >= extraQueue.length) return;
+    if (el.scrollHeight <= el.clientHeight) {
+      setExtraCount((n) => n + 1);
+    }
+    // extraQueue is a fresh slice every render; only its length matters
+    // for this comparison, and it changes only alongside cKey/populated
+    // (both already covered by the reset effect above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, extraCount, extraQueue.length]);
+
   if (populated.length === 0) return null;
 
   const bearing = refCompassBearing(circle.z_x, circle.z_y);
 
+  const makeHoverHandlers = (blockKey: string, item: RecItem, cardKey: string) => ({
+    onEnter: (el: HTMLElement) => {
+      setHighlighted(blockKey, item.item_id);
+      const pointEl = el
+        .closest<HTMLElement>(".wheel-stack__row")
+        ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
+      showCard({
+        key: cardKey,
+        item,
+        source: "legend",
+        rect: el.getBoundingClientRect(),
+        avoidRect: pointEl?.getBoundingClientRect(),
+      });
+      openCardKeyRef.current = cardKey;
+    },
+    onLeave: () => {
+      clearHighlighted(blockKey, item.item_id);
+      hideCard(cardKey);
+    },
+  });
+
+  // Renders one circle's own angle groups as either poster tiles (grid)
+  // or text rows (list) - shared by the active circle's own block and,
+  // in grid layout, the extra preview blocks appended after it.
+  // `blockKey` scopes hover-highlight and card triggers to that
+  // circle's own key, so an extra block never lights up the active
+  // circle's points (or vice versa).
+  const renderBlock = (
+    blockKey: string,
+    angles: RecAngle[],
+    blockBearing: number,
+    axisXColors: AxisColorPair,
+    axisYColors: AxisColorPair,
+    blockLoadPosters: boolean
+  ) =>
+    angles.map((angle) => {
+      const swatch = colorOnWheel(
+        blockBearing + angle.angle_deg,
+        axisXColors.positive,
+        axisXColors.negative,
+        axisYColors.positive,
+        axisYColors.negative
+      );
+      const angleText = `${Math.round(angle.angle_deg) > 0 ? "+" : ""}${Math.round(angle.angle_deg)}°`;
+
+      return (
+        <div className={"rec-angle" + (layout === "grid" ? " rec-angle--grid" : "")} key={angle.angle_deg}>
+          <div className={layout === "grid" ? "wheel-legend__tiles" : undefined}>
+            {angle.items.map((item, index) => {
+              const cardKey = `${blockKey}:legend:${item.item_id}`;
+              const isHighlighted = highlighted?.circleKey === blockKey && highlighted.itemId === item.item_id;
+              const { onEnter: handleEnter, onLeave: handleLeave } = makeHoverHandlers(blockKey, item, cardKey);
+
+              if (layout === "grid") {
+                return (
+                  <LegendTile
+                    key={item.item_id}
+                    item={item}
+                    angleLabel={index === 0 ? angleText : undefined}
+                    swatch={swatch}
+                    isHighlighted={isHighlighted}
+                    onEnter={handleEnter}
+                    onLeave={handleLeave}
+                    loadPosters={blockLoadPosters}
+                  />
+                );
+              }
+
+              return (
+                <div
+                  className={
+                    "rec-row" +
+                    (index > 0 ? " rec-row--compact" : "") +
+                    (isHighlighted ? " rec-row--highlighted" : "")
+                  }
+                  key={item.item_id}
+                  onMouseEnter={(e) => handleEnter(e.currentTarget)}
+                  onMouseLeave={handleLeave}
+                >
+                  {index === 0 ? (
+                    <span
+                      className="rec-row__anglebadge"
+                      style={{ borderColor: swatch, color: swatch }}
+                      aria-hidden="true"
+                    >
+                      {angleText}
+                    </span>
+                  ) : (
+                    <span
+                      className="rec-row__swatch"
+                      style={{ background: swatch, color: swatch }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div className="rec-row__body">
+                    <span className="rec-row__title">{item.title}</span>
+                    {item.angular_error_deg != null && (
+                      <span className="rec-row__meta">
+                        Δangle: {item.angular_error_deg.toFixed(1)}°
+                        {item.radius_ratio != null && ` · r-ratio: ${item.radius_ratio.toFixed(2)}`}
+                      </span>
+                    )}
+                  </div>
+                  <span />
+                  <span />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    });
+
+  const visibleExtraQueue = layout === "grid" ? extraQueue.slice(0, extraCount) : [];
+
   return (
-    <div className="wheel-stack__legend" aria-label="Recommendations">
+    <div className="wheel-stack__legend" ref={legendRef} aria-label="Recommendations">
       <div className="wheel-legend__header">
         <LegendLayoutToggle layout={layout} onToggle={onToggleLayout} />
       </div>
-      {populated.map((angle) => {
-        const swatch = colorOnWheel(
-          bearing + angle.angle_deg,
-          circle.axis_x.colors.positive,
-          circle.axis_x.colors.negative,
-          circle.axis_y.colors.positive,
-          circle.axis_y.colors.negative
-        );
-        const angleText = `${Math.round(angle.angle_deg) > 0 ? "+" : ""}${Math.round(angle.angle_deg)}°`;
+
+      <div className="wheel-legend__group">
+        {renderBlock(cKey, populated, bearing, circle.axis_x.colors, circle.axis_y.colors, loadPosters)}
+      </div>
+
+      {visibleExtraQueue.map((entry) => {
+        const entryKey = circleKey(entry);
+        const entryPopulated = entry.angles.filter((a) => a.items.length > 0);
+        if (entryPopulated.length === 0) return null;
+        const entryBearing = entry.reference ? refCompassBearing(entry.reference.z_x, entry.reference.z_y) : 0;
 
         return (
-          <div className={"rec-angle" + (layout === "grid" ? " rec-angle--grid" : "")} key={angle.angle_deg}>
-            <div className={layout === "grid" ? "wheel-legend__tiles" : undefined}>
-              {angle.items.map((item, index) => {
-                const cardKey = `${cKey}:legend:${item.item_id}`;
-                const isHighlighted = activeItemId === item.item_id;
-
-                // Shared by both the list row and the grid tile below -
-                // the only thing that actually differs between the two
-                // layouts is what's rendered, not the hover/highlight
-                // wiring itself.
-                const handleEnter = (el: HTMLElement) => {
-                  setHighlighted(cKey, item.item_id);
-                  const pointEl = el
-                    .closest<HTMLElement>(".wheel-stack__row")
-                    ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
-                  showCard({
-                    key: cardKey,
-                    item,
-                    source: "legend",
-                    rect: el.getBoundingClientRect(),
-                    avoidRect: pointEl?.getBoundingClientRect(),
-                  });
-                  openCardKeyRef.current = cardKey;
-                };
-                const handleLeave = () => {
-                  clearHighlighted(cKey, item.item_id);
-                  hideCard(cardKey);
-                };
-
-                if (layout === "grid") {
-                  return (
-                    <LegendTile
-                      key={item.item_id}
-                      item={item}
-                      angleLabel={index === 0 ? angleText : undefined}
-                      swatch={swatch}
-                      isHighlighted={isHighlighted}
-                      onEnter={handleEnter}
-                      onLeave={handleLeave}
-                      loadPosters={loadPosters}
-                    />
-                  );
-                }
-
-                return (
-                  <div
-                    className={
-                      "rec-row" +
-                      (index > 0 ? " rec-row--compact" : "") +
-                      (isHighlighted ? " rec-row--highlighted" : "")
-                    }
-                    key={item.item_id}
-                    onMouseEnter={(e) => handleEnter(e.currentTarget)}
-                    onMouseLeave={handleLeave}
-                  >
-                    {index === 0 ? (
-                      <span
-                        className="rec-row__anglebadge"
-                        style={{ borderColor: swatch, color: swatch }}
-                        aria-hidden="true"
-                      >
-                        {angleText}
-                      </span>
-                    ) : (
-                      <span
-                        className="rec-row__swatch"
-                        style={{ background: swatch, color: swatch }}
-                        aria-hidden="true"
-                      />
-                    )}
-                    <div className="rec-row__body">
-                      <span className="rec-row__title">{item.title}</span>
-                      {item.angular_error_deg != null && (
-                        <span className="rec-row__meta">
-                          Δangle: {item.angular_error_deg.toFixed(1)}°
-                          {item.radius_ratio != null && ` · r-ratio: ${item.radius_ratio.toFixed(2)}`}
-                        </span>
-                      )}
-                    </div>
-                    <span />
-                    <span />
-                  </div>
-                );
-              })}
-            </div>
+          <div className="wheel-legend__group wheel-legend__group--dimmed" key={entryKey}>
+            {renderBlock(entryKey, entryPopulated, entryBearing, entry.axis_x.colors, entry.axis_y.colors, loadPosters)}
           </div>
         );
       })}
@@ -328,7 +454,7 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters }: 
  * key) never cross-lights with the incoming one - no special-casing
  * needed here beyond each layer rendering its own circle's key.
  */
-export default function WheelStack({ circle, size, title, overlays }: Props) {
+export default function WheelStack({ circle, size, title, overlays, queueCircles }: Props) {
   const [layers, setLayers] = useState<Layer[]>([]);
   const nextId = useRef(0);
   // Shared across every layer (see the crossfade below) so switching
@@ -341,7 +467,10 @@ export default function WheelStack({ circle, size, title, overlays }: Props) {
   // useDebouncedValue), so stepping rapidly through several circles
   // (e.g. a fast mouse-wheel burst driving useActiveCircleNav's
   // wheel-tick stepper) never fires a poster request for every circle
-  // briefly passed through - only for the one actually settled on.
+  // briefly passed through - only for the one actually settled on. This
+  // also gates poster loading for the legend's extra preview blocks
+  // (see WheelLegend above), since they only ever render once the
+  // active circle itself has settled.
   // Gating by key (compared against each layer below) rather than by
   // "did this layer just mount" is what makes this work even while an
   // older, already-superseded crossfade layer is still mounted (see
@@ -360,19 +489,19 @@ export default function WheelStack({ circle, size, title, overlays }: Props) {
         // Same circle already showing (or mid fade-in) - update its data
         // without starting a new fade.
         const updated = [...prev];
-        updated[updated.length - 1] = { ...updated[updated.length - 1], circle, size, title, overlays };
+        updated[updated.length - 1] = { ...updated[updated.length - 1], circle, size, title, overlays, queueCircles };
         return updated;
       }
       const id = ++nextId.current;
-      return [...prev, { id, key, circle, size, title, overlays, visible: false }];
+      return [...prev, { id, key, circle, size, title, overlays, queueCircles, visible: false }];
     });
-    // circle/size/title/overlays are fresh objects/arrays every parent
-    // render regardless of whether they logically changed - intentional:
-    // the branch above makes re-running this a harmless no-op update
-    // rather than an extra fade, so depending on primitives only isn't
-    // needed here.
+    // circle/size/title/overlays/queueCircles are fresh objects/arrays
+    // every parent render regardless of whether they logically changed -
+    // intentional: the branch above makes re-running this a harmless
+    // no-op update rather than an extra fade, so depending on primitives
+    // only isn't needed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [circle, size, title, overlays]);
+  }, [circle, size, title, overlays, queueCircles]);
 
   useEffect(() => {
     const pending = layers.find((l) => !l.visible);
@@ -439,6 +568,7 @@ export default function WheelStack({ circle, size, title, overlays }: Props) {
               layout={legendLayout}
               onToggleLayout={() => setLegendLayout((m) => (m === "list" ? "grid" : "list"))}
               loadPosters={l.key === settledLegendKey}
+              queueCircles={l.queueCircles}
             />
           </div>
         </div>

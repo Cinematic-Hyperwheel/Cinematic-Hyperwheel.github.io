@@ -270,3 +270,23 @@
     animation: none;
   }
 }
+
+/* Extra "preview" blocks appended after the active circle's own
+   recommendations in grid layout, filling any empty vertical space
+   left below it (see the extra-block fitting effect in
+   WheelStack.tsx) - slightly dimmed and set off by a visible gap so
+   they read as a secondary, not-yet-active collection rather than a
+   continuation of the active circle's own list. */
+.wheel-legend__group + .wheel-legend__group {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.wheel-legend__group--dimmed {
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+}
+.wheel-legend__group--dimmed:hover {
+  opacity: 0.85;
+}

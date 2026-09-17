@@ -216,6 +216,14 @@ export default function App() {
   // scheme selector entirely; a single, larger search bar takes over as
   // the page's primary call to action (see .wheel-empty-state below).
   const isEmpty = !selected;
+  // Circles that actually have at least one recommendation, in the same
+  // order RecommendationsPanel's own scrollspy uses (see
+  // useActiveCircleNav) - passed to the primary wheel's legend so its
+  // grid layout can fill empty vertical space with preview blocks for
+  // the circles that follow the active one (see WheelLegend in
+  // WheelStack.tsx).
+  const populatedCircles =
+    recs && !recError ? recs.circles.filter((c) => c.angles.some((a) => a.items.length > 0)) : [];
 
   // Sizes the big wheel to fill the available space on BOTH axes while
   // staying fully within the visible viewport, legend included - see
@@ -507,6 +515,7 @@ export default function App() {
                         size={wheelSize}
                         title={selected?.title}
                         overlays={primaryOverlays}
+                        queueCircles={populatedCircles}
                       />
                     )}
                   </div>
