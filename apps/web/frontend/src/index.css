@@ -685,8 +685,8 @@ body {
      layout's left accent rule, just adapted to sit under the wheel
      instead of beside it. */
   .rec-circle--primary .rec-circle__layout {
-    border-bottom: 2px solid var(--accent);
-    padding-bottom: 4px;
+    border-left: 2px solid var(--accent);
+    padding-left: 4px;
   }
 }
 
@@ -704,6 +704,93 @@ body {
   /* Positioned ancestor for WheelPointLabels' absolutely-positioned
      overlay svg - same pattern as WheelStack.tsx's disc-wrap. */
   position: relative;
+  transition: opacity 200ms ease, filter 200ms ease;
+}
+
+/* --- Desktop small-wheel selection affordances ---------------------
+   Three related effects on the small per-section wheels in the
+   Recommendations list: the active circle is visually singled out, an
+   inactive circle hints that it's clickable on hover, and activating a
+   circle (by any means - click, arrow keys, wheel-tick, or the passive
+   scrollspy) flashes its wheel once. See the `flashKey` state in
+   RecommendationsPanel.tsx for how .rec-circle--flash is applied.
+
+   All three are anchored to .wheel__disc itself - the actual colored
+   circle (see Wheel.tsx) - rather than to .rec-circle__wheel's own
+   wrapping box, which is padded out further to make room for the
+   pole-label ring drawn around the disc (RING_PAD in Wheel.tsx).
+   Anchoring to that outer box would draw the glow around the labels
+   instead of around the disc; .wheel__disc is `position: absolute`,
+   so a pseudo-element on it positions relative to its own exact
+   circular box regardless of that outer padding. Layered just outside
+   the disc's own existing box-shadow/ring border, not replacing it. */
+
+.rec-circle:not(.rec-circle--primary) .rec-circle__wheel {
+  opacity: 0.5;
+  filter: saturate(0.65);
+}
+
+/* Soft glow hugging the active circle's own disc edge. */
+.rec-circle--primary .rec-circle__wheel .wheel__disc::after {
+  content: "";
+  position: absolute;
+  inset: 0px;
+  border-radius: 50%;
+  box-shadow: 0 0 16px 3px rgba(110, 231, 255, 0.32);
+  pointer-events: none;
+}
+
+/* Hovering an INACTIVE circle hints it can be activated by clicking:
+   a slow pulsing ring around its disc. Skipped on the active circle
+   itself, since activating it again is a no-op. */
+.rec-circle:not(.rec-circle--primary) .rec-circle__layout:hover .rec-circle__wheel {
+  opacity: 0.85;
+}
+.rec-circle:not(.rec-circle--primary) .rec-circle__layout:hover .rec-circle__wheel .wheel__disc::before {
+  content: "";
+  position: absolute;
+  inset: 0px;
+  border-radius: 50%;
+  animation: rec-circle-hover-pulse 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes rec-circle-hover-pulse {
+  0%, 100% { box-shadow: 0 0 5px 0 rgba(110, 231, 255, 0.25); }
+  50% { box-shadow: 0 0 14px 4px rgba(110, 231, 255, 0.5); }
+}
+
+/* One-shot flash on activation: an expanding, fading ring around the
+   disc plus a brief brightness pop on the wheel itself. Both end back
+   at the resting values (ring at 0 opacity, filter at the same
+   saturate(1) brightness(1) the active circle already sits at) so
+   nothing visibly snaps once the animation is removed. */
+.rec-circle--flash .rec-circle__wheel {
+  animation: rec-circle-activate-glow 550ms ease-out;
+}
+.rec-circle--flash .rec-circle__wheel .wheel__disc::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(232, 236, 244, 0.9);
+  animation: rec-circle-activate-ring 550ms ease-out;
+  pointer-events: none;
+}
+@keyframes rec-circle-activate-glow {
+  0% { filter: saturate(1.5) brightness(1.4); }
+  100% { filter: saturate(1) brightness(1); }
+}
+@keyframes rec-circle-activate-ring {
+  0% { transform: scale(0.95); opacity: 0.9; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-circle:not(.rec-circle--primary) .rec-circle__layout:hover .rec-circle__wheel .wheel__disc::before,
+  .rec-circle--flash .rec-circle__wheel,
+  .rec-circle--flash .rec-circle__wheel .wheel__disc::before {
+    animation: none;
+  }
 }
 
 /* Wraps just the per-section wheel (not the list below it) in the

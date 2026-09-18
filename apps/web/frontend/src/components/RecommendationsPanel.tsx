@@ -461,6 +461,16 @@ export default function RecommendationsPanel({
     onActiveCircleChange,
   });
 
+  // Briefly flashes the just-activated circle's own wheel (desktop
+  // only - see .rec-circle--flash in index.css). Fires on every
+  // genuine activation, regardless of what triggered it: click, arrow
+  // keys, wheel-tick, or the passive scrollspy in useActiveCircleNav.
+  const [flashKey, setFlashKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (isNarrow || !activeKey) return;
+    setFlashKey(activeKey);
+  }, [activeKey, isNarrow]);
+
   // Mobile-only: whether every section uses the "stacked" layout
   // (list fully below the wheel) instead of the default "peek" layout
   // (list pulled up over the wheel's lower edge). One switch for the
@@ -605,17 +615,31 @@ export default function RecommendationsPanel({
           // point-label/highlight overlay as the big wheel (see
           // WheelPointLabels) - the per-angle text list is mobile-only
           // (see the stacked branch below).
-          if (!isNarrow) {
+                    if (!isNarrow) {
             return (
               <section
-                className={"rec-circle" + (isPrimaryStyle ? " rec-circle--primary" : "")}
+                className={
+                  "rec-circle" +
+                  (isPrimaryStyle ? " rec-circle--primary" : "") +
+                  (cKey === flashKey ? " rec-circle--flash" : "")
+                }
                 key={cKey}
                 ref={(el) => registerSectionRef(cKey, el)}
                 onClick={() => activateCircle(cKey)}
               >
                 <div className="rec-circle__layout">
                   {wheelCircle && (
-                    <div className="rec-circle__wheel">
+                    <div
+                      className="rec-circle__wheel"
+                      // Clears the flash class once its animation has
+                      // played, so a later activation of the same
+                      // circle can retrigger it (toggling a class that
+                      // never actually left wouldn't restart the CSS
+                      // animation).
+                      onAnimationEnd={() => {
+                        if (cKey === flashKey) setFlashKey(null);
+                      }}
+                    >
                       <Wheel circle={wheelCircle} size={SECTION_WHEEL_UNSTACKED} overlays={circle.angles} />
                       <WheelPointLabels
                         circle={wheelCircle}
