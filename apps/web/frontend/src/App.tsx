@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";;
 import { useTranslation } from "react-i18next";
 import SearchBar from "./components/SearchBar";
 import AppHeader from "./components/AppHeader";
-import { RING_PAD, WHEEL_GAP } from "./components/Wheel";
+import { RING_PAD } from "./components/Wheel";
 import WheelStack from "./components/WheelStack";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 import RecommendationsPanel from "./components/RecommendationsPanel";
@@ -58,9 +58,6 @@ const MIN_WHEEL_SIZE = 260;
 // once .layout3__center's own max-width is gone (index.css), so this
 // rarely if ever actually clamps anything.
 const MAX_WHEEL_SIZE = 1200;
-// Gap kept clear below the wheel and the viewport's bottom edge, in
-// both hero and compact mode.
-const WHEEL_BOTTOM_MARGIN = 24;
 // Horizontal gap between the wheel disc and its legend, and the
 // legend's own max width - see .wheel-stack__row / .wheel-stack__legend
 // in WheelLegend.css. Duplicated here (rather than measured) so the
@@ -115,7 +112,17 @@ export default function App() {
   const [headerHeight, setHeaderHeight] = useState(150); // fallback until AppHeader's own ResizeObserver reports
   const stickyControlsRef = useRef<HTMLDivElement>(null);
   const [controlsHeight, setControlsHeight] = useState(0);
-
+  // Real rendered height of the app footer - only actually consulted
+  // in compact mode (see the wheel-sizing effect below), where the
+  // footer becomes a sticky bar pinned to the bottom of the viewport
+  // (.app__footer--pinned in sticky-layout.css) directly beneath the
+  // pinned wheel. Measured rather than guessed so the wheel's own
+  // reserved bottom clearance always matches exactly how tall the
+  // footer actually is (its content can wrap to more than one line at
+  // narrow widths, or differ by locale).
+  const footerRef = useRef<HTMLElement>(null);
+  const [footerHeight, setFooterHeight] = useState(0);
+  
   // Publishes the header's and the scheme-selector row's real measured
   // heights as CSS custom properties (see sticky-layout.css's
   // calc()-based `top` offsets) - global on :root rather than scoped to
@@ -186,6 +193,16 @@ export default function App() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const el = footerRef.current;
+    if (!el) return;
+    const report = () => setFooterHeight(el.offsetHeight);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // The wheel circle currently shown as the big central "primary" wheel,
   // and its recommendation overlays - computed here (rather than lower,
   // next to the render that consumes them) because the sizing effect
@@ -247,9 +264,31 @@ export default function App() {
     const recompute = () => {
       scheduled = false;
 
-      const top = wrapEl.getBoundingClientRect().top;
-      const availableHeight = window.innerHeight - top - WHEEL_BOTTOM_MARGIN;
-      const heightBased = availableHeight - WHEEL_GAP - RING_PAD * 2;
+      // Hero mode: .layout3__center is `position: sticky` (see
+      // sticky-layout.css) - computed analytically from the same
+      // headerHeight/controlsHeight state that offset's CSS custom
+      // property is driven from, rather than read off the wrap's own
+      // getBoundingClientRect(): near the top of the page the element
+      // hasn't actually engaged its sticky offset yet (its natural
+      // in-flow position briefly sits lower than that), so reading its
+      // live position there undersizes the wheel until the user
+      // scrolls past the engage point. Compact/pinned mode has no such
+      // transitional state - the wrap is genuinely `position: fixed`,
+      // so its live top is already exact.
+      const top = isPinned ? wrapEl.getBoundingClientRect().top : headerHeight + controlsHeight + 16;
+      // Bottom clearance differs by mode. Compact: the pinned wheel
+      // sits directly above the sticky footer bar (.app__footer--pinned
+      // in sticky-layout.css), which already visually occupies that
+      // space once scrolled to - the wheel only needs to stop exactly
+      // where the footer begins, reserved here to match the footer's
+      // own measured height (footerHeight) rather than a guessed
+      // constant. Hero: nothing is pinned directly below the wheel (the
+      // page just keeps scrolling past it, footer included), so there's
+      // nothing to reserve space for - the wheel is free to use the
+      // full remaining viewport height.
+      const bottomMargin = isPinned ? footerHeight : 0;
+      const availableHeight = window.innerHeight - top - bottomMargin;
+      const heightBased = availableHeight - RING_PAD * 2;
 
       // Extra column width reserved for the legend WheelStack draws
       // beside the disc (see .wheel-stack__row in WheelLegend.css) -
@@ -274,9 +313,17 @@ export default function App() {
         const colRect = colEl.getBoundingClientRect();
         wrapEl.style.left = `${colRect.left}px`;
         wrapEl.style.width = `${colRect.width}px`;
+        // Matches bottomMargin above exactly, instead of the CSS
+        // fallback's fixed guess (see .layout3__center--pinned
+        // .layout3__wheel-wrap in sticky-layout.css) - keeps the fixed
+        // box's real bottom edge and the height just computed for it
+        // in agreement, so the disc never renders taller or shorter
+        // than the box actually reserved for it.
+        wrapEl.style.bottom = `${bottomMargin}px`;
       } else {
         wrapEl.style.left = "";
         wrapEl.style.width = "";
+        wrapEl.style.bottom = "";
       }
 
       // The legend's own reserved width is excluded here too, so the
@@ -297,24 +344,14 @@ export default function App() {
     const resizeObserver = new ResizeObserver(onFrame);
     resizeObserver.observe(wrapEl);
     window.addEventListener("resize", onFrame);
-    // The element's top can shift from plain page scroll (before it's
-    // "stuck", or near the end of its sticky range) AND, now, from the
-    // header's own height changing between hero and compact - neither
-    // of the two listeners above fires for that second case on its own,
-    // which is what headerMode/headerHeight/controlsHeight in the
-    // dependency array below are for (they force this whole effect,
-    // including its one immediate recompute() call, to re-run right
-    // when the header's real geometry changes).
-    window.addEventListener("scroll", onFrame, { passive: true });
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener("resize", onFrame);
-      window.removeEventListener("scroll", onFrame);
       colEl.style.maxWidth = "";
       wrapEl.style.left = "";
       wrapEl.style.width = "";
     };
-  }, [isWheelWrapHidden, headerMode, headerHeight, controlsHeight, hasLegend]);
+  }, [isWheelWrapHidden, headerMode, headerHeight, controlsHeight, hasLegend, footerHeight]);
 
   const fetchRecommendations = async (itemId: number, sch: string) => {
     try {
@@ -524,6 +561,7 @@ export default function App() {
             </div>
 
             <footer
+              ref={footerRef}
               className={
                 "app__footer app__footer--slim" +
                 (!isWheelWrapHidden && headerMode === "compact" ? " app__footer--pinned" : "")

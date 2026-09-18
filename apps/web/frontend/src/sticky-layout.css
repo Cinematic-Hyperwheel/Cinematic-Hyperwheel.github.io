@@ -83,6 +83,9 @@
   .layout3__center--pinned .layout3__wheel-wrap {
     position: fixed;
     top: calc(var(--app-header-height, 150px) + 16px);
+    /* Real value is set inline by App.tsx's sizing effect, matching
+       the footer's own measured height exactly (see footerHeight
+       there) - this is just the pre-measurement fallback. */
     bottom: 16px;
     z-index: 18;
   }
