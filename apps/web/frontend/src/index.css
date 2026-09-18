@@ -409,13 +409,14 @@ body {
   height: 24px;
 }
 
-/* Generic crossfade stack, used both for the big wheel's disc and for
-   its legend (see WheelStack.tsx) - each has its own independent
-   instance. Grid stacking (every layer in the same single cell) instead
-   of absolute positioning: sizes itself to its content automatically,
-   no need to separately track/set a pixel width or height for the
-   overlap to work. Later layers are later in the DOM, so they paint on
-   top of earlier ones with no z-index needed. */
+/* Structural only - positions every crossfade layer (disc or legend) in
+   the same grid cell; the visual transition itself (opacity, and for
+   the legend, a directional slide) comes from the disc/legend-specific
+   classes below. Grid stacking instead of absolute positioning: sizes
+   itself to its content automatically, no need to separately track/set
+   a pixel width or height for the overlap to work. Later layers are
+   later in the DOM, so they paint on top of earlier ones with no
+   z-index needed. */
 .wheel-stack__crossfade {
   display: grid;
   grid-template-columns: 1fr;
@@ -425,12 +426,56 @@ body {
 .wheel-stack__crossfade-layer {
   grid-column: 1;
   grid-row: 1;
-  opacity: 0;
-  transition: opacity 260ms ease;
   isolation: isolate;
 }
-.wheel-stack__crossfade-layer--visible {
+
+/* Disc layer: plain opacity crossfade - see WheelStack.tsx's discLayers. */
+.wheel-stack__disc-layer {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+.wheel-stack__disc-layer--visible {
   opacity: 1;
+}
+
+/* Legend layer: opacity + a vertical slide for the entering layer only
+   (see WheelStack.tsx's legendLayers) - switching the active circle
+   reads as the poster grid/list sliding in from below (moving to a
+   later circle in queueCircles' own order) or from above (an earlier
+   one), on top of an older, fully opaque layer that stays static
+   underneath until covered and removed. Keeping the older layer static
+   and opaque - rather than also animating it out - is what guarantees
+   an opaque frame is on screen at every instant of the transition. The
+   plain, non-directional --enter variant is used when there's no
+   previous circle to compare against (the very first legend shown) - a
+   fade only, no slide. */
+.wheel-stack__legend-layer {
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+.wheel-stack__legend-layer--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.wheel-stack__legend-layer--enter {
+  opacity: 0;
+}
+.wheel-stack__legend-layer--enter-down {
+  opacity: 0;
+  transform: translateY(28px);
+}
+.wheel-stack__legend-layer--enter-up {
+  opacity: 0;
+  transform: translateY(-28px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel-stack__legend-layer {
+    transition: opacity 260ms ease;
+  }
+  .wheel-stack__legend-layer--enter-down,
+  .wheel-stack__legend-layer--enter-up {
+    transform: none;
+  }
 }
 
 .wheel { display: flex; flex-direction: column; align-items: center; gap: 14px; cursor: help; }
