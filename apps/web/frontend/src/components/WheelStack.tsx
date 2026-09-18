@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Wheel from "./Wheel";
+import Wheel, { RING_PAD } from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
 import { RecAngle, RecItem, RecommendCircle, WheelCircle } from "../api";
 import { circleKey } from "../utils/circleKey";
@@ -169,6 +169,17 @@ interface WheelLegendProps {
   loadPosters: boolean;
   /** See Props.queueCircles above. */
   queueCircles?: RecommendCircle[];
+  /** Pixel height to cap the legend at - the wheel's own rendered wrap
+   * height (size + RING_PAD*2, see WheelStack below), so the legend
+   * never grows taller than the disc beside it. Set explicitly rather
+   * than relying on the flex row's own stretch behavior: without an
+   * explicit cap, content taller than the wheel would make the row (and
+   * so the legend's own stretched height) grow to fit itself instead of
+   * the other way around - which is what let the grid layout's
+   * extra-block fitting effect below always measure "fits" and render
+   * every queued circle instead of stopping once the visible area is
+   * full. */
+  maxHeight: number;
 }
 
 // AxisConfig's own color pair shape, duplicated here (rather than
@@ -191,12 +202,12 @@ interface AxisColorPair {
 //
 // In grid layout, once the active circle's own recommendations are
 // rendered, any empty vertical space left in the legend's own visible
-// area (see .wheel-stack__legend's height, stretched to match the
-// wheel - WheelLegend.css) is filled with additional, dimmed preview
+// area (capped to the wheel's own height via the maxHeight prop passed
+// in from WheelStack below) is filled with additional, dimmed preview
 // blocks for the circles that follow the active one in `queueCircles` -
 // see the fitting effect below. List layout only ever shows the active
 // circle, unchanged.
-function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, queueCircles }: WheelLegendProps) {
+function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, queueCircles, maxHeight }: WheelLegendProps) {
   const cKey = circleKey(circle);
   const { highlighted, setHighlighted, clearHighlighted } = useHighlight();
   const { showCard, hideCard, closeCardNow } = useActiveCard();
@@ -242,10 +253,11 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, qu
   }, [cKey, layout, populated.length]);
 
   // Re-measures from scratch when the legend's own box (not just its
-  // content) changes size - a viewport resize, or the wheel (and so the
-  // legend, stretched to match it - see WheelLegend.css) growing or
-  // shrinking. Content-only height changes (adding a block) are handled
-  // by the fitting effect below instead, without a full reset.
+  // content) changes size - a viewport resize, or the wheel growing or
+  // shrinking (which changes the legend's own maxHeight cap, passed in
+  // from WheelStack below). Content-only height changes (adding a
+  // block) are handled by the fitting effect below instead, without a
+  // full reset.
   useEffect(() => {
     if (layout !== "grid") return;
     const el = legendRef.current;
@@ -402,7 +414,7 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, qu
   const visibleExtraQueue = layout === "grid" ? extraQueue.slice(0, extraCount) : [];
 
   return (
-    <div className="wheel-stack__legend" ref={legendRef} aria-label="Recommendations">
+    <div className="wheel-stack__legend" ref={legendRef} aria-label="Recommendations" style={{ maxHeight }}>
       <div className="wheel-legend__header">
         <LegendLayoutToggle layout={layout} onToggle={onToggleLayout} />
       </div>
@@ -569,6 +581,7 @@ export default function WheelStack({ circle, size, title, overlays, queueCircles
               onToggleLayout={() => setLegendLayout((m) => (m === "list" ? "grid" : "list"))}
               loadPosters={l.key === settledLegendKey}
               queueCircles={l.queueCircles}
+              maxHeight={l.size + RING_PAD * 2 + 40}
             />
           </div>
         </div>

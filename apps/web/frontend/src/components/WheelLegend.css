@@ -13,10 +13,14 @@
   position: relative;
 }
 
+/* max-height is set inline per-render (WheelStack.tsx), matching the
+   wheel's own rendered height - without it, content taller than the
+   wheel would stretch the whole flex row (and so this element's own
+   stretched height) to fit itself, and overflow-y would never engage. */
 .wheel-stack__legend {
   flex: 0 0 auto;
   width: min(600px, 28vw);
-  overflow-y: auto;
+  overflow-y: hidden;
   padding: 8px 4px 8px 0;
   text-align: left;
   pointer-events: auto;
