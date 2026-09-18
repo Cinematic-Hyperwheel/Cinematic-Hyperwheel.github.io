@@ -13,6 +13,7 @@ import { HighlightProvider } from "./contexts/HighlightContext";
 import { ActiveCardProvider } from "./contexts/ActiveCardContext";
 import ActiveRecommendationCard from "./components/ActiveRecommendationCard";
 import BrandTitle from "./components/BrandTitle";
+import { HoverCircleProvider, useHoverCircle } from "./contexts/HoverCircleContext";
 import {
   MovieHit,
   RecommendCircle,
@@ -71,7 +72,16 @@ function legendReserveWidth(): number {
 }
 
 export default function App() {
+  return (
+    <HoverCircleProvider>
+      <AppContent />
+    </HoverCircleProvider>
+  );
+}
+
+function AppContent() {
   const { t, i18n } = useTranslation();
+  const { hoveredCircle } = useHoverCircle();
   const [selected, setSelected] = useState<MovieHit | null>(null);
   const [circles, setCircles] = useState<WheelCircle[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -221,12 +231,17 @@ export default function App() {
   // Secondary circles no longer render here - they're shown inline next
   // to their matching Recommendations section instead (see
   // RecommendationsPanel.tsx). Only the top-ranked circle stays as the
-  // large centered wheel.
+  // large centered wheel. Hovering an inactive small wheel or an
+  // inactive circle's legend tile never changes `primary` itself - see
+  // previewCircle below - so it can't trigger this column's own
+  // layout/legend recalculation.
   const primary = activeWheelCircle ?? fallbackPrimary ?? null;
   const primaryOverlays = primary ? findRecCircle(primary, recs)?.angles : undefined;
-  // Whether WheelStack will actually draw a legend beside the primary
-  // wheel (see WheelLegend's own populated-angles check) - the sizing
-  // effect below only reserves column width for it when it will.
+  // Hover-preview override for the big wheel's disc only (see
+  // contexts/HoverCircleContext.tsx) - the legend beside it always
+  // keeps showing `primary`'s own data, never the previewed circle's.
+  const hoveredWheelCircle = hoveredCircle ? toWheelCircle(hoveredCircle) : null;
+  const hoveredOverlays = hoveredWheelCircle ? findRecCircle(hoveredWheelCircle, recs)?.angles : undefined;
   const hasLegend = !isWheelWrapHidden && (primaryOverlays?.some((a) => a.items.length > 0) ?? false);
   // True until a reference movie is picked - the very first thing a
   // visitor sees. In this state the header sheds its search bar and the
@@ -553,6 +568,8 @@ export default function App() {
                         title={selected?.title}
                         overlays={primaryOverlays}
                         queueCircles={populatedCircles}
+                        previewCircle={hoveredWheelCircle}
+                        previewOverlays={hoveredOverlays}
                       />
                     )}
                   </div>

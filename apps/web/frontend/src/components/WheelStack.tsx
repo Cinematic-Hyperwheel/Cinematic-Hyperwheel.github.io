@@ -6,19 +6,21 @@ import { RecAngle, RecItem, RecommendCircle, WheelCircle } from "../api";
 import { circleKey } from "../utils/circleKey";
 import { colorOnWheel } from "../utils/color";
 import { resolvePoster } from "../utils/poster";
+import { supportsHover } from "../utils/hover";
 import { useHighlight } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
+import { useHoverCircle } from "../contexts/HoverCircleContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import "./WheelLegend.css";
 import "./MovieHighlight.css";
 
 interface Props {
-  /** Circle to display, or null while nothing is resolved yet (before the
-   * first movie is selected, or briefly between an old and new
-   * recommendation set settling after a movie/scheme change). */
+  /** Actual active/primary circle - always drives the legend, and
+   * drives the disc too whenever no hover preview is active. */
   circle: WheelCircle | null;
   size: number;
   title?: string;
+  /** Overlays for `circle` - always what the legend renders. */
   overlays?: RecAngle[];
   /** Every circle that has at least one recommendation, in the same
    * order the Recommendations list/scrollspy uses (see App.tsx) - only
@@ -27,6 +29,15 @@ interface Props {
    * recommendations with dimmed preview blocks for the circles that
    * follow it. */
   queueCircles?: RecommendCircle[];
+  /** Hover-preview override (see contexts/HoverCircleContext.tsx):
+   * hovering an inactive small wheel (RecommendationsPanel.tsx) or an
+   * inactive circle's tile in the legend grid (WheelLegend below)
+   * temporarily shows THIS circle on the disc instead of `circle`. The
+   * legend never reflects this - it always stays on `circle` - so
+   * hovering never changes what recommendations are listed, only what
+   * the disc currently shows. */
+  previewCircle?: WheelCircle | null;
+  previewOverlays?: RecAngle[];
 }
 
 interface Layer {
@@ -36,7 +47,6 @@ interface Layer {
   size: number;
   title?: string;
   overlays?: RecAngle[];
-  queueCircles?: RecommendCircle[];
   visible: boolean;
 }
  
@@ -211,6 +221,7 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, qu
   const cKey = circleKey(circle);
   const { highlighted, setHighlighted, clearHighlighted } = useHighlight();
   const { showCard, hideCard, closeCardNow } = useActiveCard();
+  const { setHoveredCircle } = useHoverCircle();
   const openCardKeyRef = useRef<string | null>(null);
   const legendRef = useRef<HTMLDivElement>(null);
 
@@ -229,13 +240,14 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, qu
   const [extraCount, setExtraCount] = useState(0);
 
   // Closes this instance's own card (if one of its rows currently has
-  // one open) when the instance itself unmounts - e.g. the big wheel
-  // crossfading to a different circle while a legend row is still
-  // hovered (see WheelStack's crossfade) - so the card never outlives
-  // the row it's anchored to.
+  // one open), and clears any hover-preview override it may have set on
+  // the big wheel, when the instance itself unmounts - e.g. the big
+  // wheel crossfading to a different circle while a legend tile is
+  // still hovered (see WheelStack's crossfade).
   useEffect(() => {
     return () => {
       if (openCardKeyRef.current) closeCardNow(openCardKeyRef.current);
+      setHoveredCircle(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -430,7 +442,21 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, qu
         const entryBearing = entry.reference ? refCompassBearing(entry.reference.z_x, entry.reference.z_y) : 0;
 
         return (
-          <div className="wheel-legend__group wheel-legend__group--dimmed" key={entryKey}>
+          <div
+            className="wheel-legend__group wheel-legend__group--dimmed"
+            key={entryKey}
+            // Hovering any tile in an inactive circle's preview block
+            // temporarily shows that circle on the big wheel, and (via
+            // the shared hovered-circle key) highlights its own small
+            // wheel in the Recommendations list - see
+            // RecommendationsPanel.tsx.
+            onMouseEnter={() => {
+              if (supportsHover()) setHoveredCircle(entry);
+            }}
+            onMouseLeave={() => {
+              if (supportsHover()) setHoveredCircle(null);
+            }}
+          >
             {renderBlock(entryKey, entryPopulated, entryBearing, entry.axis_x.colors, entry.axis_y.colors, loadPosters)}
           </div>
         );
@@ -440,7 +466,8 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, qu
 }
 
 /**
- * Crossfades between successive wheels instead of swapping them outright.
+ * Crossfades between successive discs instead of swapping them outright
+ * (see discCircle above for what drives which circle is shown).
  * A plain key-based remount (unmount old, mount new at opacity 0, fade in)
  * has a visible gap: the old wheel is gone in the same commit the new one
  * mounts, so for the first frames of the fade-in there's nothing but the
@@ -466,13 +493,29 @@ function WheelLegend({ circle, overlays, layout, onToggleLayout, loadPosters, qu
  * key) never cross-lights with the incoming one - no special-casing
  * needed here beyond each layer rendering its own circle's key.
  */
-export default function WheelStack({ circle, size, title, overlays, queueCircles }: Props) {
+export default function WheelStack({
+  circle,
+  size,
+  title,
+  overlays,
+  queueCircles,
+  previewCircle,
+  previewOverlays,
+}: Props) {
   const [layers, setLayers] = useState<Layer[]>([]);
   const nextId = useRef(0);
   // Shared across every layer (see the crossfade below) so switching
   // list<->grid doesn't reset itself the moment the displayed circle
   // changes.
   const [legendLayout, setLegendLayout] = useState<LegendLayoutMode>("grid");
+
+  // What the disc (Wheel + WheelPointLabels) actually renders - the
+  // hover-preview circle when one is set, otherwise the real active
+  // circle. The legend below is intentionally NOT derived from this -
+  // it always uses `circle`/`overlays` directly, so hovering a small
+  // wheel or a legend tile never changes what the legend lists.
+  const discCircle = previewCircle ?? circle;
+  const discOverlays = previewCircle ? previewOverlays : overlays;
 
   // The circle poster loading is currently allowed for - only updates
   // once `circle` has stayed the same for POSTER_LOAD_SETTLE_MS (see
@@ -494,26 +537,24 @@ export default function WheelStack({ circle, size, title, overlays, queueCircles
   );
 
   useEffect(() => {
-    if (!circle) return;
-    const key = circleKey(circle);
+    if (!discCircle) return;
+    const key = circleKey(discCircle);
     setLayers((prev) => {
       if (prev.length > 0 && prev[prev.length - 1].key === key) {
-        // Same circle already showing (or mid fade-in) - update its data
-        // without starting a new fade.
         const updated = [...prev];
-        updated[updated.length - 1] = { ...updated[updated.length - 1], circle, size, title, overlays, queueCircles };
+        updated[updated.length - 1] = { ...updated[updated.length - 1], circle: discCircle, size, title, overlays: discOverlays };
         return updated;
       }
       const id = ++nextId.current;
-      return [...prev, { id, key, circle, size, title, overlays, queueCircles, visible: false }];
+      return [...prev, { id, key, circle: discCircle, size, title, overlays: discOverlays, visible: false }];
     });
-    // circle/size/title/overlays/queueCircles are fresh objects/arrays
-    // every parent render regardless of whether they logically changed -
+    // discCircle/size/title/discOverlays are fresh objects/arrays every
+    // parent render regardless of whether they logically changed -
     // intentional: the branch above makes re-running this a harmless
-    // no-op update rather than an extra fade, so depending on primitives
-    // only isn't needed here.
+    // no-op update rather than an extra fade, so depending on
+    // primitives only isn't needed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [circle, size, title, overlays, queueCircles]);
+  }, [discCircle, size, title, discOverlays]);
 
   useEffect(() => {
     const pending = layers.find((l) => !l.visible);
@@ -543,49 +584,47 @@ export default function WheelStack({ circle, size, title, overlays, queueCircles
     });
   };
 
-  if (layers.length === 0) return null;
+  if (!circle || layers.length === 0) return null;
 
   return (
     <div className="wheel-stack">
-      {layers.map((l) => (
-        <div
-          key={l.id}
-          className={"wheel-stack__layer" + (l.visible ? " wheel-stack__layer--visible" : "")}
-          onTransitionEnd={() => handleTransitionEnd(l.id)}
-        >
-          {/* Disc and legend sit side by side in a flex row (see
-              .wheel-stack__row in WheelLegend.css) so the legend's width
-              is accounted for by normal layout -
-              App.tsx's wheel-sizing effect reserves matching column
-              width for it. */}
-          <div className="wheel-stack__row">
-            <div className="wheel-stack__disc-wrap">
-              <Wheel
-                circle={l.circle}
-                size={l.size}
-                title={l.title}
-                overlays={l.overlays}
-              />
-              <WheelPointLabels
-                circle={l.circle}
-                size={l.size}
-                title={l.title}
-                overlays={l.overlays}
-                circleKey={l.key}
-              />
+      {/* Disc and legend sit side by side in a flex row (see
+          .wheel-stack__row in WheelLegend.css). The disc crossfades
+          between successive circles (hover-preview in and out, or a
+          genuine active-circle switch) independently of the legend,
+          which stays fixed on `circle`/`overlays` the whole time - see
+          the Props doc comment above for why. */}
+      <div className="wheel-stack__row">
+        <div className="wheel-stack__disc-crossfade">
+          {layers.map((l) => (
+            <div
+              key={l.id}
+              className={"wheel-stack__layer" + (l.visible ? " wheel-stack__layer--visible" : "")}
+              onTransitionEnd={() => handleTransitionEnd(l.id)}
+            >
+              <div className="wheel-stack__disc-wrap">
+                <Wheel circle={l.circle} size={l.size} title={l.title} overlays={l.overlays} />
+                <WheelPointLabels
+                  circle={l.circle}
+                  size={l.size}
+                  title={l.title}
+                  overlays={l.overlays}
+                  circleKey={l.key}
+                />
+              </div>
             </div>
-            <WheelLegend
-              circle={l.circle}
-              overlays={l.overlays}
-              layout={legendLayout}
-              onToggleLayout={() => setLegendLayout((m) => (m === "list" ? "grid" : "list"))}
-              loadPosters={l.key === settledLegendKey}
-              queueCircles={l.queueCircles}
-              maxHeight={l.size + RING_PAD * 2 + 40}
-            />
-          </div>
+          ))}
         </div>
-      ))}
+        <WheelLegend
+          circle={circle}
+          overlays={overlays}
+          layout={legendLayout}
+          onToggleLayout={() => setLegendLayout((m) => (m === "list" ? "grid" : "list"))}
+          loadPosters={circleKey(circle) === settledLegendKey}
+          queueCircles={queueCircles}
+          maxHeight={size + RING_PAD * 2 + 40}
+        />
+      </div>
     </div>
   );
 }

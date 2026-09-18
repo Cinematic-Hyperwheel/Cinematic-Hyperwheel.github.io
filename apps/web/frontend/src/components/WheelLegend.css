@@ -1,5 +1,7 @@
 /* Wheel + legend sit side by side in a flex row (see .wheel-stack__row
-   below and WheelStack.tsx). */
+   below and WheelStack.tsx). The wheel side crossfades between circles
+   independently (see .wheel-stack__disc-crossfade in index.css); the
+   legend itself never does. */
 .wheel-stack__row {
   display: flex;
   gap: 24px;

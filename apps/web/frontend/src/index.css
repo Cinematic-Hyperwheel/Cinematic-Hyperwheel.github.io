@@ -409,13 +409,15 @@ body {
   height: 24px;
 }
 
-/* Crossfade container for the big central wheel - see WheelStack.tsx.
-   Grid stacking (every layer in the same single cell) instead of
-   absolute positioning: sizes itself to its content automatically, no
-   need to separately track/set a pixel width or height for the overlap
-   to work. Later layers are later in the DOM, so they paint on top of
+/* Crossfade container for the big central wheel's disc only - the
+   legend beside it (see .wheel-stack__row in WheelLegend.css) is not
+   part of this stack and never crossfades with it. Grid stacking
+   (every layer in the same single cell) instead of absolute
+   positioning: sizes itself to its content automatically, no need to
+   separately track/set a pixel width or height for the overlap to
+   work. Later layers are later in the DOM, so they paint on top of
    earlier ones with no z-index needed. */
-.wheel-stack {
+.wheel-stack__disc-crossfade {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
@@ -754,6 +756,21 @@ body {
   animation: rec-circle-hover-pulse 1.5s ease-in-out infinite;
   pointer-events: none;
 }
+/* Same treatment as :hover above, applied via a class instead - lets a
+   hover elsewhere (an inactive circle's tile in the legend grid, see
+   WheelStack.tsx's WheelLegend) preview an inactive small wheel without
+   the pointer actually being over it. */
+.rec-circle__wheel--hover-preview {
+  opacity: 0.85;
+}
+.rec-circle__wheel--hover-preview .wheel__disc::before {
+  content: "";
+  position: absolute;
+  inset: 0px;
+  border-radius: 50%;
+  animation: rec-circle-hover-pulse 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
 @keyframes rec-circle-hover-pulse {
   0%, 100% { box-shadow: 0 0 5px 0 rgba(110, 231, 255, 0.25); }
   50% { box-shadow: 0 0 14px 4px rgba(110, 231, 255, 0.5); }
@@ -787,6 +804,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .rec-circle:not(.rec-circle--primary) .rec-circle__layout:hover .rec-circle__wheel .wheel__disc::before,
+  .rec-circle__wheel--hover-preview .wheel__disc::before,
   .rec-circle--flash .rec-circle__wheel,
   .rec-circle--flash .rec-circle__wheel .wheel__disc::before {
     animation: none;

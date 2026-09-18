@@ -7,6 +7,7 @@ import { imdbUrlForItem } from "../utils/imdb";
 import { tmdbUrlForItem } from "../utils/tmdb";
 import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
+import { useHoverCircle } from "../contexts/HoverCircleContext";
 import { useActiveCircleNav } from "../hooks/useActiveCircleNav";
 import Wheel, { RING_PAD } from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
@@ -428,6 +429,7 @@ export default function RecommendationsPanel({
   const { trigger, showCard, hideCard, closeCardNow, clearCard } = useActiveCard();
   const listRef = useRef<HTMLDivElement>(null);
   const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  const { hoveredCircleKey, setHoveredCircle } = useHoverCircle();
 
   // Only circles that actually turned up at least one recommendation
   // anywhere across their angles are worth showing. Memoized so
@@ -514,8 +516,17 @@ export default function RecommendationsPanel({
   useEffect(() => {
     clearCard();
     setUnstacked(false);
+    setHoveredCircle(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [circles]);
+
+  // Clears any hover-preview override this panel may have set on the big
+  // wheel if the panel itself unmounts while still hovered - a plain
+  // mouseleave wouldn't fire in that case.
+  useEffect(() => {
+    return () => setHoveredCircle(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggle = (key: string) => {
     setExpanded((prev) => {
@@ -615,7 +626,7 @@ export default function RecommendationsPanel({
           // point-label/highlight overlay as the big wheel (see
           // WheelPointLabels) - the per-angle text list is mobile-only
           // (see the stacked branch below).
-                    if (!isNarrow) {
+          if (!isNarrow) {
             return (
               <section
                 className={
@@ -627,10 +638,24 @@ export default function RecommendationsPanel({
                 ref={(el) => registerSectionRef(cKey, el)}
                 onClick={() => activateCircle(cKey)}
               >
-                <div className="rec-circle__layout">
+                <div
+                  className="rec-circle__layout"
+                  onMouseEnter={() => {
+                    // Only an inactive wheel gets a hover preview -
+                    // hovering the one already shown on the big wheel
+                    // would be a no-op override.
+                    if (canHover && !isPrimaryStyle) setHoveredCircle(circle);
+                  }}
+                  onMouseLeave={() => {
+                    if (canHover && !isPrimaryStyle) setHoveredCircle(null);
+                  }}
+                >
                   {wheelCircle && (
                     <div
-                      className="rec-circle__wheel"
+                      className={
+                        "rec-circle__wheel" +
+                        (!isPrimaryStyle && cKey === hoveredCircleKey ? " rec-circle__wheel--hover-preview" : "")
+                      }
                       // Clears the flash class once its animation has
                       // played, so a later activation of the same
                       // circle can retrigger it (toggling a class that
