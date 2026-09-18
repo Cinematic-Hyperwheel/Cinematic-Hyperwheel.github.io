@@ -14,8 +14,11 @@ interface Props {
 const Z_CLAMP = 3;
 // below this disc size, skip the four pole-label strings around the disc
 // (no room to render them legibly) - full labels are still available as
-// a native tooltip on hover
-const COMPACT_BELOW = 220;
+// a native tooltip on hover. Also the threshold WheelPointLabels.tsx
+// uses to switch to the same real-pixel (non-frozen) geometry as this
+// component's own compact branch below - exported so the two stay in
+// sync.
+export const COMPACT_BELOW = 220;
 // Extra page-background margin around the wheel, so the single pole-label
 // ring sits OUTSIDE the disc's coloured gradient (radius = size/2).
 // Otherwise the curved labels would overlap the "mood" conic gradient and

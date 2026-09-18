@@ -1,6 +1,7 @@
 import "./WheelPointLabels.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RecAngle, WheelCircle } from "../api";
+import { COMPACT_BELOW, RING_PAD } from "./Wheel";
 import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
 import { supportsHover } from "../utils/hover";
@@ -28,8 +29,14 @@ interface Point {
 }
 
 const Z_CLAMP = 3;
+// Frozen reference space for the continuously-resized main wheel only -
+// see Wheel.tsx's own GEOMETRY_SIZE comment. Compact wheels (size 
+// COMPACT_BELOW) skip this and compute directly in real pixels instead,
+// mirroring Wheel.tsx's own compact branch exactly - see the `compact`
+// block in WheelPointLabels below. This is what keeps a point drawn
+// here landing on the same disc point Wheel.tsx itself draws, at any
+// wheel size.
 const GEOMETRY_SIZE = 460;
-const RING_PAD = 36;
 const GEOMETRY_WRAP = GEOMETRY_SIZE + RING_PAD * 2;
 const LABEL_GAP = 10;
 const LABEL_FONT = 10;
@@ -47,9 +54,11 @@ const REC_POINT_RADIUS = 6;
 // recommendation point's own drawn radius.
 const POINT_AVOID_PADDING = 4;
 
-function pointPosition(zx: number, zy: number): { x: number; y: number } {
-  const center = GEOMETRY_SIZE / 2 + RING_PAD;
-  const maxR = GEOMETRY_SIZE / 2 - 28;
+// center/maxR are the caller's own gCenter/gMaxR (frozen-space values
+// for the main wheel, real-pixel values for compact wheels - see
+// WheelPointLabels below), so this always lands on the same point
+// Wheel.tsx itself draws.
+function pointPosition(zx: number, zy: number, center: number, maxR: number): { x: number; y: number } {
   const radius = Math.hypot(zx, zy);
   const scale = radius > Z_CLAMP ? Z_CLAMP / radius : 1;
   return {
@@ -163,9 +172,10 @@ function labelWidth(title: string): number {
 function referenceLabelPosition(
   point: Point,
   title: string,
-  avoidPoints: Point[]
+  avoidPoints: Point[],
+  center: number,
+  wrap: number
 ): { x: number; y: number; textAnchor: "middle" | "start" | "end" } {
-  const center = GEOMETRY_SIZE / 2 + RING_PAD;
   const dx = point.x - center;
   const dy = point.y - center;
   const length = Math.hypot(dx, dy);
@@ -194,7 +204,7 @@ function referenceLabelPosition(
   };
 
   const exceedsViewport = (x: number, y: number) =>
-    x - halfWidth < 0 || x + halfWidth > GEOMETRY_WRAP || y - halfHeight < 0 || y + halfHeight > GEOMETRY_WRAP;
+    x - halfWidth < 0 || x + halfWidth > wrap || y - halfHeight < 0 || y + halfHeight > wrap;
 
   const getBestAnchorInfo = (rectX: number, rectY: number) => {
     const xs = [rectX - halfWidth, rectX, rectX + halfWidth];
@@ -314,7 +324,20 @@ function referenceLabelPosition(
 export default function WheelPointLabels({ circle, size, title, overlays = [], circleKey }: Props) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const displayWrap = size + RING_PAD * 2;
+
+  // Mirrors Wheel.tsx's own compact/frozen-geometry split exactly.
+  // Getting this wrong - always using the frozen constants regardless
+  // of size - is what makes a compact wheel's overlay box and its point
+  // coordinates disagree with the real disc drawn by Wheel.tsx, which
+  // shows up as the hover highlight landing off the actual point.
+  const compact = size < COMPACT_BELOW;
+  const pad = compact ? 20 : RING_PAD;
+  const displayWrap = size + pad * 2;
+  const gHalfBox = compact ? size / 2 : GEOMETRY_SIZE / 2;
+  const gWrap = compact ? displayWrap : GEOMETRY_WRAP;
+  const gCenter = gWrap / 2;
+  const gMaxR = gHalfBox - (compact ? 10 : 28);
+
   const { setHighlighted, clearHighlighted } = useHighlight();
   const highlightedItemId = useHighlightedItem(circleKey);
   const reportedItemIdRef = useRef<number | null>(null);
@@ -325,18 +348,18 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
     const result: Point[] = [];
     let index = 0;
     if (title) {
-      const position = pointPosition(circle.z_x, circle.z_y);
+      const position = pointPosition(circle.z_x, circle.z_y, gCenter, gMaxR);
       result.push({ x: position.x, y: position.y, title, reference: true, index: index++, itemId: null });
     }
 
     for (const angle of overlays) {
       for (const item of angle.items) {
-        const position = pointPosition(item.z_x, item.z_y);
+        const position = pointPosition(item.z_x, item.z_y, gCenter, gMaxR);
         result.push({ x: position.x, y: position.y, title: item.title, reference: false, index: index++, itemId: item.item_id });
       }
     }
     return result;
-  }, [circle, overlays, title]);
+  }, [circle, overlays, title, gCenter, gMaxR]);
 
   const referencePoint = useMemo(
     () => points.find((point) => point.reference) ?? null,
@@ -462,8 +485,8 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
     if (rect.width === 0 || rect.height === 0) return;
 
     const pointerPoint = {
-      x: ((clientX - rect.left) / rect.width) * GEOMETRY_WRAP,
-      y: ((clientY - rect.top) / rect.height) * GEOMETRY_WRAP,
+      x: ((clientX - rect.left) / rect.width) * gWrap,
+      y: ((clientY - rect.top) / rect.height) * gWrap,
     };
 
     if (localHoveredPoint) {
@@ -489,7 +512,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
   };
 
   const referenceLabel = referencePoint
-    ? referenceLabelPosition(referencePoint, referencePoint.title, points.filter((p) => !p.reference))
+    ? referenceLabelPosition(referencePoint, referencePoint.title, points.filter((p) => !p.reference), gCenter, gWrap)
     : null;
   const labelOffset = visiblePoints.length > 1
     ? ((visiblePoints.length - 1) * LABEL_LINE_HEIGHT) / 2
@@ -499,7 +522,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
     <svg
       ref={svgRef}
       className="wheel__point-labels"
-      viewBox={`0 0 ${GEOMETRY_WRAP} ${GEOMETRY_WRAP}`}
+      viewBox={`0 0 ${gWrap} ${gWrap}`}
       width={displayWrap}
       height={displayWrap}
       preserveAspectRatio="xMidYMid meet"
@@ -531,7 +554,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
       )}
 
       {visiblePoints.map((point, index) => {
-        const side = point.x + LABEL_GAP + labelWidth(point.title) <= GEOMETRY_WRAP ? 1 : -1;
+        const side = point.x + LABEL_GAP + labelWidth(point.title) <= gWrap ? 1 : -1;
         const textAnchor = side === 1 ? "start" : "end";
         const x = point.x + side * LABEL_GAP;
         const y = point.y - labelOffset + index * LABEL_LINE_HEIGHT;
