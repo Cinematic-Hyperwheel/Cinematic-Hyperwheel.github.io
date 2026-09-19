@@ -409,9 +409,8 @@ body {
   height: 24px;
 }
 
-/* Structural only - positions every crossfade layer (disc or legend) in
-   the same grid cell; the visual transition itself (opacity, and for
-   the legend, a directional slide) comes from the disc/legend-specific
+/* Structural only - positions every disc crossfade layer in the same
+   grid cell; the visual transition itself comes from the disc-specific
    classes below. Grid stacking instead of absolute positioning: sizes
    itself to its content automatically, no need to separately track/set
    a pixel width or height for the overlap to work. Later layers are
@@ -449,34 +448,6 @@ body {
    plain, non-directional --enter variant is used when there's no
    previous circle to compare against (the very first legend shown) - a
    fade only, no slide. */
-.wheel-stack__legend-layer {
-  transition: opacity 260ms ease, transform 260ms ease;
-}
-.wheel-stack__legend-layer--visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-.wheel-stack__legend-layer--enter {
-  opacity: 0;
-}
-.wheel-stack__legend-layer--enter-down {
-  opacity: 0;
-  transform: translateY(28px);
-}
-.wheel-stack__legend-layer--enter-up {
-  opacity: 0;
-  transform: translateY(-28px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wheel-stack__legend-layer {
-    transition: opacity 260ms ease;
-  }
-  .wheel-stack__legend-layer--enter-down,
-  .wheel-stack__legend-layer--enter-up {
-    transform: none;
-  }
-}
 
 .wheel { display: flex; flex-direction: column; align-items: center; gap: 14px; cursor: help; }
 .wheel--compact { gap: 6px; }

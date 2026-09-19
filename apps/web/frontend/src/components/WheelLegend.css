@@ -16,50 +16,52 @@
   position: relative;
 }
 
-/* max-height is set inline per-render (WheelStack.tsx), matching the
-   wheel's own rendered height - without it, content taller than the
-   wheel would stretch the whole flex row (and so this element's own
-   stretched height) to fit itself, and overflow-y would never engage. */
+/* Fixed-height clipping viewport for the legend track below - a real
+   height, not a max-height: the track is positioned against it by
+   transform, so it needs a definite box to be clipped by. Set inline
+   per render (WheelStack.tsx) to match the wheel's own rendered
+   height, so the legend is never taller than the disc beside it. */
 .wheel-stack__legend {
   flex: 0 0 auto;
   width: min(600px, 28vw);
-  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 8px 4px 8px 0;
   text-align: left;
   pointer-events: auto;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color 150ms ease;
 }
 
-.wheel-stack__legend:hover {
-  scrollbar-color: rgba(110, 231, 255, 0.35) transparent;
+.wheel-legend__viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.wheel-stack__legend::-webkit-scrollbar {
-  width: 6px;
-}
-
-.wheel-stack__legend::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.wheel-stack__legend::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 999px;
-}
-
-.wheel-stack__legend:hover::-webkit-scrollbar-thumb {
-  background: rgba(110, 231, 255, 0.35);
-}
-
-.wheel-stack__legend .rec-angle + .rec-angle {
-  margin-top: 8px;
-}
-
-.wheel-stack__legend .rec-row {
+/* One continuous column holding every populated circle's block; the
+   active one is aligned to the top by translating the whole track (see
+   WheelLegend in WheelStack.tsx). Switching circles animates only this
+   transform, so the content on screen physically travels from where it
+   currently is to its new position - visible from the first frame,
+   with nothing remounting or fading. position: relative makes this the
+   blocks' offset parent, which is what lets their offsetTop be read as
+   a clean, transform-independent target offset. */
+.wheel-legend__track {
   position: relative;
-  cursor: default;
+  will-change: transform;
+  transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Replacing the block set wholesale (new reference movie or scheme)
+   jumps instead of sliding - see `instant` in WheelLegend. */
+.wheel-legend__track--instant {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel-legend__track {
+    transition: none;
+  }
 }
 
 /* Directional "beam" pointing into a highlighted legend row, plus a
@@ -126,9 +128,7 @@
 
 /* --- Legend layout toggle (list <-> grid, see WheelStack.tsx) --- */
 .wheel-legend__header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   padding-bottom: 6px;
@@ -278,22 +278,22 @@
   }
 }
 
-/* Extra "preview" blocks appended after the active circle's own
-   recommendations in grid layout, filling any empty vertical space
-   left below it (see the extra-block fitting effect in
-   WheelStack.tsx) - slightly dimmed and set off by a visible gap so
-   they read as a secondary, not-yet-active collection rather than a
-   continuation of the active circle's own list. */
-.wheel-legend__group + .wheel-legend__group {
+/* Blocks below the active one are the preview of what comes next -
+   dimmed and set off by a visible gap so they read as a secondary,
+   not-yet-active collection. The dim/undim runs over the same duration
+   as the track's own slide, so a circle lights up as it arrives rather
+   than snapping at either end. */
+.wheel-legend__block + .wheel-legend__block {
   margin-top: 26px;
   padding-top: 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.wheel-legend__group--dimmed {
+.wheel-legend__block--dimmed {
   opacity: 0.55;
-  transition: opacity 150ms ease;
+  transition: opacity 420ms ease;
 }
-.wheel-legend__group--dimmed:hover {
+.wheel-legend__block--dimmed:hover {
   opacity: 0.85;
+  transition: opacity 150ms ease;
 }
