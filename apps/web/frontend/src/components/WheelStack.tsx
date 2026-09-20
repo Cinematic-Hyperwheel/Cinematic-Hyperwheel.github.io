@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useTranslation } from "react-i18next";
 import Wheel, { RING_PAD } from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
-import { RecAngle, RecItem, RecommendCircle, WheelCircle } from "../api";
+import { RecAngle, RecItem, RecommendCircle, StarfieldItem, WheelCircle } from "../api";
 import { circleKey } from "../utils/circleKey";
 import { colorOnWheel } from "../utils/color";
 import { resolvePoster } from "../utils/poster";
@@ -22,6 +22,10 @@ interface Props {
   /** Overlays for `circle`. Only used as a fallback source for the
    * legend when `queueCircles` isn't provided (see legendCircles). */
   overlays?: RecAngle[];
+  /** Background star field for `circle`'s own plane - see Wheel.tsx.
+   * Only used as a fallback source when `queueCircles` isn't provided,
+   * same as `overlays`. */
+  starfield?: StarfieldItem[];
   /** Every circle that has at least one recommendation, in the same
    * order the Recommendations list/scrollspy uses (see App.tsx). This
    * is the legend's own content: one block per circle, all of them
@@ -37,6 +41,9 @@ interface Props {
    * shows. */
   previewCircle?: WheelCircle | null;
   previewOverlays?: RecAngle[];
+  /** Star field for `previewCircle` - swapped in alongside
+   * previewOverlays whenever a hover preview is active. */
+  previewStarfield?: StarfieldItem[];
 }
 
 interface DiscLayer {
@@ -46,6 +53,7 @@ interface DiscLayer {
   size: number;
   title?: string;
   overlays?: RecAngle[];
+  starfield?: StarfieldItem[];
   visible: boolean;
 }
 
@@ -657,6 +665,8 @@ export default function WheelStack({
   queueCircles,
   previewCircle,
   previewOverlays,
+  previewStarfield,
+  starfield,
 }: Props) {
   const [discLayers, setDiscLayers] = useState<DiscLayer[]>([]);
   const nextDiscId = useRef(0);
@@ -669,6 +679,8 @@ export default function WheelStack({
   // never changes what the legend lists or where its track sits.
   const discCircle = previewCircle ?? circle;
   const discOverlays = previewCircle ? previewOverlays : overlays;
+  const discStarfield = previewCircle ? previewStarfield : starfield;
+  
 
   const activeKey = circle ? circleKey(circle) : null;
 
@@ -694,25 +706,26 @@ export default function WheelStack({
     ];
   }, [queueCircles, circle, overlays]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!discCircle) return;
     const key = circleKey(discCircle);
     setDiscLayers((prev) => {
       if (prev.length > 0 && prev[prev.length - 1].key === key) {
         const updated = [...prev];
-        updated[updated.length - 1] = { ...updated[updated.length - 1], circle: discCircle, size, title, overlays: discOverlays };
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          circle: discCircle, size, title, overlays: discOverlays, starfield: discStarfield,
+        };
         return updated;
       }
       const id = ++nextDiscId.current;
-      return [...prev, { id, key, circle: discCircle, size, title, overlays: discOverlays, visible: false }];
+      return [...prev, { id, key, circle: discCircle, size, title, overlays: discOverlays, starfield: discStarfield, visible: false }];
     });
-    // discCircle/size/title/discOverlays are fresh objects/arrays every
-    // parent render regardless of whether they logically changed -
-    // intentional: the branch above makes re-running this a harmless
-    // no-op update rather than an extra fade, so depending on
-    // primitives only isn't needed here.
+    // discCircle/size/title/discOverlays/discStarfield are fresh
+    // objects/arrays every parent render regardless of whether they
+    // logically changed - intentional, see the branch above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [discCircle, size, title, discOverlays]);
+  }, [discCircle, size, title, discOverlays, discStarfield]);
 
   useEffect(() => {
     const pending = discLayers.find((l) => !l.visible);
@@ -759,12 +772,13 @@ export default function WheelStack({
               onTransitionEnd={() => handleDiscTransitionEnd(l.id)}
             >
               <div className="wheel-stack__disc-wrap">
-                <Wheel circle={l.circle} size={l.size} title={l.title} overlays={l.overlays} />
+                <Wheel circle={l.circle} size={l.size} title={l.title} overlays={l.overlays} starfield={l.starfield} />
                 <WheelPointLabels
                   circle={l.circle}
                   size={l.size}
                   title={l.title}
                   overlays={l.overlays}
+                  starfield={l.starfield}
                   circleKey={l.key}
                 />
               </div>

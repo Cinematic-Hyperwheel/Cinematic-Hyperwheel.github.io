@@ -523,6 +523,11 @@ body {
   cursor: help;
   pointer-events: all;
 }
+.wheel__star-point {
+  fill: rgba(232, 236, 244, 0.55);
+  cursor: help;
+  pointer-events: all;
+}
 .card {
   width: 100%; max-width: 480px;
   background: var(--panel); border: 1px solid var(--border);

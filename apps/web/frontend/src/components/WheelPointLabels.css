@@ -1,5 +1,6 @@
 .wheel__point,
-.wheel__rec-point {
+.wheel__rec-point,
+.wheel__star-point {
   transition: opacity 180ms ease, transform 180ms ease;
   transform-box: fill-box;
   transform-origin: center;

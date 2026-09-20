@@ -106,9 +106,11 @@ def main() -> None:
     )
     p_rec.add_argument(
         "--shortlist-size", type=int, default=50,
-        help="Stage-A candidate pool size (closest items to the target by "
-             "full-space distance) that Stage B's angular re-rank picks "
-             "--top-k from. Must be >= --top-k. See /docs/math.md, section 6b.",
+        help="Safety cap on Stage-A's character shortlist (items that are "
+             "a statistically significant near-outlier on closeness to the "
+             "target - not just the closest available regardless of how "
+             "close that is) before Stage B's angular re-rank. Must be >= "
+             "--top-k. See /docs/math.md, section 6b.",
     )
 
     args = parser.parse_args()

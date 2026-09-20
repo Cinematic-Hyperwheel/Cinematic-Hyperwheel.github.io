@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RecAngle, WheelCircle } from "../api";
+import { RecAngle, StarfieldItem, WheelCircle } from "../api";
 import { colorOnWheel } from "../utils/color";
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   size?: number;
   title?: string;
   overlays?: RecAngle[];
+  starfield?: StarfieldItem[];
 }
 
 // z-scores are unbounded in principle; clamp to a comfortable display range
@@ -123,6 +124,7 @@ export default function Wheel({
   size = 320,
   title,
   overlays = [],
+  starfield = [],
 }: Props) {
   const { i18n } = useTranslation();
   const [activeLabel, setActiveLabel] = useState<null | string>(null);
@@ -282,6 +284,20 @@ export default function Wheel({
     })
   );
 
+  // Background "star field": every catalog item that matches the
+  // reference everywhere except this plane (see find_plane_neighbors in
+  // the engine) - small, muted, uncolored points scattered across the
+  // disc rather than clustered at the scheme's target angles.
+  const starPoints = starfield.map((it) => {
+    const rr = Math.hypot(it.z_x, it.z_y);
+    const rs = rr > Z_CLAMP ? Z_CLAMP / rr : 1;
+    return {
+      cx: gCenter + ((it.z_x * rs) / Z_CLAMP) * gMaxR,
+      cy: gCenter + ((it.z_y * rs) / Z_CLAMP) * gMaxR,
+      item: it,
+    };
+  });
+
   const gradient =
     `conic-gradient(from 0deg,` +
     `${circle.axis_y.colors.negative} 0deg,` +
@@ -367,6 +383,16 @@ export default function Wheel({
               </textPath>
             </text>
           </g>
+          {starPoints.map((p) => (
+            <circle
+              key={`star-${p.item.item_id}`}
+              cx={p.cx}
+              cy={p.cy}
+              r={compact ? 1.0 : 1.2}
+              className="wheel__star-point"
+              data-point-item-id={p.item.item_id}
+            />
+          ))}
           {recPoints.map((p, i) => (
             <circle
               key={`${p.item.item_id}-${i}`}

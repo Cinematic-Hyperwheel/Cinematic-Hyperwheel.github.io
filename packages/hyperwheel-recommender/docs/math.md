@@ -165,16 +165,25 @@ The shared two-stage core (`_stage_ab_rows` in `recommend.py`, used by
 both `recommend_on_basis` and `recommend_many_planes` - see section 6c)
 resolves this in two stages instead of one:
 
-- **Stage A** - the `shortlist_size` closest real items to `target_vec`,
-  measured in the STANDARDIZED SHAPE SPACE the PCA basis itself was fit
-  on (`(Q - M) / scale`, section 3), not raw Euclidean distance in the
-  original `[0,1]` criteria units. This is what enforces character
-  preservation (section 5) - delta is nonzero only inside the hue plane,
-  so distance elsewhere is a genuine measure of shared character, but
-  only once L (overall level) and per-criterion scale are normalized out
-  the same way they are before PCA; a raw-units distance would instead
-  let a shift in overall level, or a single high-variance criterion,
-  dominate the ranking regardless of actual shape similarity.
+- **Stage A** - the real items that are a statistically significant
+  near-outlier on the low side of the catalog's own distance distribution
+  to `target_vec` (robust modified z-score, median/MAD -
+  `_near_outlier_indices` in `recommend.py`), measured in the
+  STANDARDIZED SHAPE SPACE the PCA basis itself was fit on
+  (`(Q - M) / scale`, section 3), not raw Euclidean distance in the
+  original `[0,1]` criteria units, capped at `shortlist_size` as a safety
+  ceiling rather than a fixed pool size (see below). This is what
+  enforces character preservation (section 5) - delta is nonzero only
+  inside the hue plane, so distance elsewhere is a genuine measure of
+  shared character, but only once L (overall level) and per-criterion
+  scale are normalized out the same way they are before PCA; a raw-units
+  distance would instead let a shift in overall level, or a single
+  high-variance criterion, dominate the ranking regardless of actual
+  shape similarity. A fixed top-N pool alone can't tell "close" from
+  "closest available": if fewer than N items are genuinely close, the
+  rest are padding that can still slip through Stage B's angle/radius
+  gate by coincidence and be reported as a match despite sharing little
+  of the reference's character.
 - **Stage B** - among that shortlist, rank by angular distance (in the
   whitened hue plane) to the exact target angle, and keep the closest
   `top_k`. This is what enforces the rotation actually being expressed,
@@ -207,13 +216,13 @@ Euclidean distance in criteria units. A new `angular_error_deg` column reports S
 metric per returned item, so callers can see how good the angular match
 actually was instead of inferring it indirectly from position on a chart.
 
-`shortlist_size` trades off between the two goals: too small and Stage B
-may have nothing with a good angle to choose from (degenerates back to
-Stage-A-only behavior); too large and Stage B approaches "closest angle
-in the whole catalog" regardless of character, undermining Stage A's
-guarantee. No principled default exists yet - start at 50 and inspect
-`angular_error_deg` vs. `distance_to_target` across a few reference items
-to tune it for a given catalog and n_criteria.
+`shortlist_size` is now a safety cap, not the selection mechanism itself
+- Stage A's own near-outlier test (above) decides which items are
+"close enough" to consider at all, so the cap only matters if that test
+qualifies an unusually large number of items (a degenerate or very
+homogeneous catalog) and mainly bounds Stage B's own cost in that case.
+It no longer needs tuning to trade "too small" against "too large" the
+way a fixed-size pool did; a generous cap (e.g. 800) is safe by default.
 
 ### 6c. Batched Stage A across many planes for the same reference
 
@@ -233,9 +242,11 @@ axis directions pulled back into criteria space and re-standardized the
 same way Q_scaled is), the squared standardized shape-space distance to
 any candidate k decomposes as:
 
+```
 dist(k)^2 = base(k)
 - 2dy_iproj_i(k) - 2dy_jproj_j(k)
 + dy_i^2*||v_i||^2 + dy_j^2*||v_j||^2 + 2dy_idy_j*(v_i . v_j)
+```
 
 - `base(k) = ||Q_scaled[k] - Q_scaled[ref]||^2` does not depend on the
   plane or the rotation angle at all - the same for every plane and
@@ -256,3 +267,52 @@ rounding) across every plane and scheme tested.
 list of planes; `recommend_on_basis` is a thin single-plane wrapper
 around it, so both share exactly one Stage A/B implementation
 (`_stage_ab_rows`).
+
+## 7. Plane starfield (orthogonal-distance neighbors)
+
+Sections 5-6c find items near a rotated TARGET within one hue plane -
+useful for the scheme's own clusters, but silent about everything else
+in the catalog. A different, complementary question: for a given plane
+(i, j), which items match the reference across every criterion NOT
+explained by this plane's own two axes, regardless of where they land
+within the plane itself?
+
+This reuses Stage A's own character-similarity metric rather than a new
+one: the full standardized TAG-space distance (`_base_distance_sq`,
+`||Q_scaled[k] - Q_scaled[ref]||^2` - Q_scaled being the standardized,
+per-criterion shape vectors PCA itself was fit on, section 3, NOT the
+reduced n_components PCA-score space), with the plane's own contribution
+subtracted via orthogonal projection.
+
+For a difference vector d = Q_scaled[k] - Q_scaled[ref], its dot products
+with the plane's two pullback directions v_i, v_j (`_plane_projection_terms` -
+PC_i's and PC_j's own loadings, mapped back into criterion space; already
+computed for the rotation delta in section 6c) are exactly proj_i(k),
+proj_j(k). The squared norm of d's projection onto span{v_i, v_j} follows
+the standard formula for a non-orthonormal 2D basis:
+
+```
+proj_sq(k) = [proj_i(k) proj_j(k)] . G^-1 . [proj_i(k) proj_j(k)]^T
+G = [[vpp, vpq], [vpq, vqq]]
+orth_dist(k) = sqrt(base(k) - proj_sq(k))
+```
+
+`orth_dist(k)` is therefore the reference distance measured across every
+criterion this plane's two axes don't already account for - the same
+metric Stage A already uses to judge "still feels like the reference"
+for scheme candidates, just with this specific plane's contribution
+removed instead of a rotation delta added. Note this operates entirely
+in the original tag/criterion space (hundreds of dimensions), not in the
+reduced n_components PCA-score space - the other PCA components never
+appear as separate axes here; they only matter insofar as they're part
+of the same tag-space geometry.
+
+Candidates are selected via the same near-outlier test Stage A uses for
+scheme candidates (`_near_outlier_indices`, section 6b) - the
+`shortlist_size`-worth closest items alone can't tell "close" from
+"closest available"; the shared test decides "close enough" from the
+distribution itself. Unlike the scheme case, there is no Stage B
+angle/radius gate afterward - nothing here constrains where in the plane
+a candidate sits, so plotted on that plane's disc these items scatter
+across the whole radius/angle range instead of clustering at scheme
+target angles.

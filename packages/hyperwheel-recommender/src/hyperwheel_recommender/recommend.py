@@ -22,6 +22,57 @@ ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates
 # A candidate is eligible for Stage B only if its radius is within this window.
 RADIUS_TOL_LOG = np.log(1.1)
 
+# Threshold on the "modified z-score" (Iglewicz & Hoaglin's robust
+# outlier statistic: (x - median) / (1.4826 * MAD), MAD = median
+# absolute deviation) below which an item counts as a genuine outlier on
+# the NEAR side of a distance distribution - i.e. meaningfully closer
+# than the bulk of the catalog, not merely "one of the N closest
+# available regardless of how close that actually is". A fixed top-N
+# alone can't tell those apart: if fewer than N items are genuinely
+# close, the rest are padding that can still slip through Stage B's
+# angle/radius gate by coincidence (see _stage_ab_rows) and be reported
+# as a match despite sharing little of the reference's character. -3.5
+# is the conventional cutoff for this statistic; also used by
+# starfield.find_plane_neighbors for the same reason.
+NEAR_OUTLIER_Z = -2.5
+
+
+def _near_outlier_indices(
+    dists: np.ndarray,
+    exclude_idx: int,
+    z_threshold: float = NEAR_OUTLIER_Z,
+    max_count: int | None = None,
+) -> np.ndarray:
+    """
+    Indices of items that are a statistically significant near-outlier on
+    `dists`' own distribution across the catalog (robust modified
+    z-score, median/MAD rather than mean/std, since the bulk of the
+    distribution - not the near tail itself - should anchor "typical"),
+    ordered by ascending distance. `exclude_idx` (the reference item) is
+    always excluded regardless of its own distance. `max_count`, if
+    given, is a safety CAP on how many are returned (guards against a
+    degenerate distribution producing an unreasonably large result) - it
+    never pads the result back up if fewer items actually qualify.
+    Self-calibrating per call: a distribution with only a handful of
+    genuinely close items yields a handful of results, one with hundreds
+    yields hundreds.
+    """
+    d = dists.copy()
+    d[exclude_idx] = np.inf
+    finite = d[np.isfinite(d)]
+    if finite.size == 0:
+        return np.array([], dtype=int)
+    median = np.median(finite)
+    mad = np.median(np.abs(finite - median))
+    if mad < 1e-12:
+        # Every item (effectively) equidistant - nothing statistically
+        # stands out as "close".
+        return np.array([], dtype=int)
+    modified_z = (d - median) / (1.4826 * mad)
+    candidates = np.where(modified_z <= z_threshold)[0]
+    order = candidates[np.argsort(d[candidates])]
+    return order[:max_count] if max_count is not None else order
+
 _RESULT_COLUMNS = [
     "scheme", "angle_deg", "rank", "item",
     "distance_to_target", "angular_error_deg", "radius_ratio",
@@ -51,9 +102,11 @@ def recommend_on_basis(
 
     plane: explicit 1-based (i, j) component pair forming the hue plane
         on which to rotate (the caller decides it - typically the same
-        reviewed, labelled plane the wheel UI shows). shortlist_size: see
-        _stage_ab_rows - size of the Stage-A character shortlist that
-        Stage B's angular re-rank picks from. Must be >= top_k.
+        reviewed, labelled plane the wheel UI shows). shortlist_size:
+        safety cap on the Stage-A character shortlist (see
+        _stage_ab_rows / _near_outlier_indices) - Stage A itself already
+        selects only statistically close items; this just bounds how
+        many, at most, enter Stage B. Must be >= top_k.
     """
     if reference_item not in basis.items:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
@@ -72,6 +125,53 @@ def recommend_on_basis(
         basis, reference_item, scheme, planes=[plane],
         top_k=top_k, shortlist_size=shortlist_size,
     )[plane]
+
+def _base_distance_sq(basis: TasteBasis, ref_idx: int) -> np.ndarray:
+    """
+    Squared standardized shape-space distance from every item to the
+    reference - Stage A's own character-similarity metric (see
+    _stage_ab_rows): ||Q_scaled[k] - Q_scaled[ref]||^2 across every
+    criterion, not just a PCA-reduced subset. Shared by
+    recommend_many_planes (as the base term before a plane's rotation
+    delta is added) and starfield.find_plane_neighbors (as the full,
+    un-adjusted distance used with no rotation at all). Computed once per
+    reference - the only O(n_items x n_criteria) pass either caller needs.
+    """
+    dot_ref = basis.Q_scaled @ basis.Q_scaled[ref_idx]
+    base = basis.Q_norm_sq + basis.Q_norm_sq[ref_idx] - 2.0 * dot_ref
+    return np.clip(base, 0.0, None)
+
+
+def _plane_projection_terms(
+    basis: TasteBasis, ref_idx: int, plane: tuple[int, int]
+) -> tuple[float, float, float, np.ndarray, np.ndarray]:
+    """
+    Per-plane geometry shared by recommend_many_planes and
+    starfield.find_plane_neighbors: the plane's own two axis directions
+    pulled back into standardized shape space (v_pi, v_pj), their Gram
+    matrix entries (vpp, vqq, vpq), and every item's own dot product with
+    each direction relative to the reference (proj_i, proj_j) - see
+    /docs/math.md section 6c for the derivation. proj_i(k) is exactly
+    <Q_scaled[k] - Q_scaled[ref], v_pi> (verified by matching terms
+    against recommend_many_planes's own distance expansion). O(n_criteria)
+    for the scalars, O(n_items) for proj_i/proj_j.
+    """
+    pi, pj = plane[0] - 1, plane[1] - 1
+    y_ref = basis.scores[ref_idx]
+
+    w_pi = basis.U[pi] * basis.scale
+    w_pj = basis.U[pj] * basis.scale
+    mw_pi, mw_pj = w_pi.mean(), w_pj.mean()
+    v_pi = (w_pi - mw_pi) * basis.inv_scale
+    v_pj = (w_pj - mw_pj) * basis.inv_scale
+    vpp = float(v_pi @ v_pi)
+    vqq = float(v_pj @ v_pj)
+    vpq = float(v_pi @ v_pj)
+
+    proj_i = (basis.scores[:, pi] - y_ref[pi]) - mw_pi * (basis.s - basis.s[ref_idx])
+    proj_j = (basis.scores[:, pj] - y_ref[pj]) - mw_pj * (basis.s - basis.s[ref_idx])
+
+    return vpp, vqq, vpq, proj_i, proj_j
 
 def recommend_many_planes(
     basis: TasteBasis,
@@ -108,9 +208,9 @@ def recommend_many_planes(
     planes: each entry is an explicit 1-based (i, j) component pair
         forming a hue plane to rotate within (the caller decides it -
         typically the same reviewed, labelled planes the wheel UI shows,
-        one per circle). shortlist_size: see _stage_ab_rows - size of the
-        Stage-A character shortlist that Stage B's angular re-rank picks
-        from, shared across every plane and angle in this call.
+        one per circle). shortlist_size: safety cap on the Stage-A
+        character shortlist (see _stage_ab_rows / _near_outlier_indices),
+        shared across every plane and angle in this call.
 
     Returns: {plane: DataFrame}, one entry per requested plane, each in
     the same schema recommend_on_basis returns (scheme, angle_deg, rank,
@@ -126,13 +226,8 @@ def recommend_many_planes(
         )
 
     ref_idx = basis.items.index(reference_item)
-
-    # --- once per request: the only full-matrix pass this whole call needs ---
-    dot_ref = basis.Q_scaled @ basis.Q_scaled[ref_idx]          # (n_items,)
-    base = basis.Q_norm_sq + basis.Q_norm_sq[ref_idx] - 2.0 * dot_ref
-    base = np.clip(base, 0.0, None)                              # guard fp negatives
-
-    y_ref = basis.scores[ref_idx]   # == basis.U @ ((Q[ref]-M)/scale), already cached
+    base = _base_distance_sq(basis, ref_idx)
+    y_ref = basis.scores[ref_idx]
 
     results: dict[tuple[int, int], pd.DataFrame] = {}
 
@@ -144,20 +239,7 @@ def recommend_many_planes(
             )
         pi, pj = plane[0] - 1, plane[1] - 1   # 1-based -> 0-based
         std_i, std_j = basis.pc_std[pi], basis.pc_std[pj]
-
-        # --- per-plane scalars/vectors: O(n_criteria), NOT O(n_items) ---
-        w_pi = basis.U[pi] * basis.scale
-        w_pj = basis.U[pj] * basis.scale
-        mw_pi, mw_pj = w_pi.mean(), w_pj.mean()
-        v_pi = (w_pi - mw_pi) * basis.inv_scale
-        v_pj = (w_pj - mw_pj) * basis.inv_scale
-        vpp = float(v_pi @ v_pi)
-        vqq = float(v_pj @ v_pj)
-        vpq = float(v_pi @ v_pj)
-
-        # --- per-item, O(n_items), reused across every scheme angle ---
-        proj_i = (basis.scores[:, pi] - y_ref[pi]) - mw_pi * (basis.s - basis.s[ref_idx])
-        proj_j = (basis.scores[:, pj] - y_ref[pj]) - mw_pj * (basis.s - basis.s[ref_idx])
+        vpp, vqq, vpq, proj_i, proj_j = _plane_projection_terms(basis, ref_idx, plane)
 
         # Precompute every item's own whitened angle in the hue plane once -
         # basis.scores is already in the same (scaled, doubly-centered) space
@@ -223,8 +305,8 @@ def recommend(
         see /docs/math.md, section 7.
     exclude_components, candidate_components: only used when
         hue_components="auto" - passed straight to select_hue_plane.
-    shortlist_size: see recommend_on_basis - size of the Stage-A
-        character shortlist that Stage B's angular re-rank picks from.
+    shortlist_size: safety cap on the Stage-A character shortlist (see
+        recommend_on_basis / _near_outlier_indices).
     """
     if reference_item not in wide.index:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
@@ -340,12 +422,17 @@ def _stage_ab_rows(
         measure of shared character - but only if measured in the same
         standardized space PCA itself uses, since raw criteria units let
         a large-L or high-variance criterion dominate the distance
-        regardless of actual shape similarity. This function itself only
-        takes the `shortlist_size` closest items by that distance; the
-        standardization is baked into `dists` before it gets here (see
-        recommend_many_planes - the algebraic decomposition is an exact
-        identity of this same standardized-space distance, not a
-        different, cheaper approximation of it).
+        regardless of actual shape similarity. The shortlist itself is
+        the items that are a statistically significant near-outlier on
+        the LOW side of `dists`' own distribution (_near_outlier_indices,
+        NEAR_OUTLIER_Z) - not simply the `shortlist_size` closest
+        available regardless of how close that is: with a fixed top-N,
+        an item far from the reference can still be "closest available"
+        purely because too few genuinely close items exist, and later
+        passing Stage B's angle/radius gate by coincidence doesn't make
+        it a good match. `shortlist_size` is a safety CAP on this
+        near-outlier set, not the selection mechanism itself (see
+        _near_outlier_indices).
     Stage B (angular re-rank): among that shortlist, keep the `top_k`
         whose own position in the (whitened) hue plane is angularly
         closest to the target angle - i.e. the ones that actually express
@@ -359,32 +446,33 @@ def _stage_ab_rows(
         angularly "tied" candidates together and lets the tightest radius
         win within a bucket, with the exact angle as the final tie-break.
 
-    shortlist_size: how many Stage-A candidates are eligible for Stage B.
-        Too small and Stage B may have nothing with a decent angle to pick
-        from; too large and Stage B degenerates toward "closest angle in
-        the whole catalog", losing the character guarantee Stage A gives.
-        Must be >= top_k (enforced by the callers, not here).
+    shortlist_size: safety cap on how many near-outlier candidates Stage
+        B ever has to consider (see _near_outlier_indices) - not a target
+        pool size to fill regardless of actual closeness. Must be >=
+        top_k (enforced by the callers, not here).
 
     dists: (n_items,) Stage-A distance for THIS scheme angle. The
-        ref_idx entry is overwritten with inf here (never recommend the
-        reference to itself). It stays untouched by Stage B's angular
-        re-rank - each returned row's `distance_to_target` is exactly
-        this Stage A value, not reweighted by angle/radius, so callers
-        can inspect it directly, but it is not comparable to a naive
-        `||X_a - X_b||` computed elsewhere (raw criteria units).
+        ref_idx entry is excluded from the shortlist regardless of its
+        own value (see _near_outlier_indices) - never recommend the
+        reference to itself. `dists` itself is left untouched by this
+        function; each returned row's `distance_to_target` is read
+        straight from it, so callers can inspect it directly, but it is
+        not comparable to a naive `||X_a - X_b||` computed elsewhere (raw
+        criteria units).
 
-    Returns a list of row dicts (possibly empty, if no candidate clears
-    both the angle and radius gates for this angle - see
-    /docs/math.md section 6b). Each row's `angular_error_deg` is how far
-    (in degrees, within the hue plane) the chosen item's own position
-    sits from the exact target angle - 0 would be a perfect angular
-    match.
+    Returns a list of row dicts (possibly empty, if no candidate is a
+    near-outlier at all, or none clears both the angle and radius gates
+    for this angle - see /docs/math.md section 6b). Each row's
+    `angular_error_deg` is how far (in degrees, within the hue plane) the
+    chosen item's own position sits from the exact target angle - 0 would
+    be a perfect angular match.
     """
-    dists = dists.copy()
-    dists[ref_idx] = np.inf
-    n_avail = min(shortlist_size, len(dists) - 1)
-    shortlist = np.argpartition(dists, n_avail)[:n_avail]
-    shortlist = shortlist[np.argsort(dists[shortlist])]
+    shortlist = _near_outlier_indices(dists, ref_idx, max_count=shortlist_size)
+    if shortlist.size == 0:
+        # No candidate is a statistically meaningful character match for
+        # this reference at all - report nothing rather than fall back to
+        # "closest available regardless of how close that is".
+        return []
 
     cand_r = np.hypot(z_i_all[shortlist], z_j_all[shortlist])
     angle_err = _circular_diff_rad(angle_all[shortlist], target_angle)

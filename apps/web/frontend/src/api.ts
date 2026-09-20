@@ -79,12 +79,24 @@ export interface RecommendReference {
   radius: number;
 }
 
+export interface StarfieldItem {
+  item_id: number;
+  title: string;
+  genres: string[];
+  imdb_id: string | null;
+  tmdb_id: string | null;
+  z_x: number;
+  z_y: number;
+  angle_deg: number;
+}
+
 export interface RecommendCircle {
   primary: boolean;
   axis_x: AxisConfig;
   axis_y: AxisConfig;
   reference: RecommendReference | null;
   angles: RecAngle[];
+  starfield: StarfieldItem[];
 }
 
 export interface RecommendResponse {

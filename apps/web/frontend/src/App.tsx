@@ -237,11 +237,13 @@ function AppContent() {
   // layout/legend recalculation.
   const primary = activeWheelCircle ?? fallbackPrimary ?? null;
   const primaryOverlays = primary ? findRecCircle(primary, recs)?.angles : undefined;
+  const primaryStarfield = primary ? findRecCircle(primary, recs)?.starfield : undefined;
   // Hover-preview override for the big wheel's disc only (see
   // contexts/HoverCircleContext.tsx) - the legend beside it always
   // keeps showing `primary`'s own data, never the previewed circle's.
   const hoveredWheelCircle = hoveredCircle ? toWheelCircle(hoveredCircle) : null;
   const hoveredOverlays = hoveredWheelCircle ? findRecCircle(hoveredWheelCircle, recs)?.angles : undefined;
+  const hoveredStarfield = hoveredWheelCircle ? findRecCircle(hoveredWheelCircle, recs)?.starfield : undefined;
   const hasLegend = !isWheelWrapHidden && (primaryOverlays?.some((a) => a.items.length > 0) ?? false);
   // True until a reference movie is picked - the very first thing a
   // visitor sees. In this state the header sheds its search bar and the
@@ -567,9 +569,11 @@ function AppContent() {
                         size={wheelSize}
                         title={selected?.title}
                         overlays={primaryOverlays}
+                        starfield={primaryStarfield}
                         queueCircles={populatedCircles}
                         previewCircle={hoveredWheelCircle}
                         previewOverlays={hoveredOverlays}
+                        previewStarfield={hoveredStarfield}
                       />
                     )}
                   </div>

@@ -68,6 +68,6 @@ python3 -m hyperwheel-recommender recommend artifact.npz \
 |`--exclude-components`|`1`|Components never eligible for `auto` selection (e.g. a known quality axis)|
 |`--candidate-components`|`--n-components`|Caps how far into the tail `auto` selection may look|
 |`--no-standardize`|off|Disable z-scoring criteria before PCA (on by default)|
-|`--shortlist-size`|`50`|Stage-A candidate pool (closest by full-space distance) that Stage B's angular re-rank picks `--top-k` from. Must be >= `--top-k`|
+|`--shortlist-size`|`50`|Safety cap on Stage-A's character shortlist (a statistically close match to the target, not just the closest available) that Stage B's angular re-rank picks `--top-k` from. Must be >= `--top-k`|
 
 Every run prints its fully resolved arguments (including untouched defaults) to stderr before executing, so nothing is silently assumed.

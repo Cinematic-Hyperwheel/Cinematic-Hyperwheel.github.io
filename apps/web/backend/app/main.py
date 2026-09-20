@@ -16,7 +16,7 @@ from . import pow as pow_gate
 from .config import ENABLE_API_DOCS, METADATA_PATH
 from .search import MovieIndex, load_metadata
 from .tmdb import fetch_backdrop_url, fetch_poster_url
-from hyperwheel_recommender import SCHEMES, recommend_many_planes
+from hyperwheel_recommender import SCHEMES, recommend_many_planes, find_plane_neighbors
 
 from .wheel import build_engine
 
@@ -303,6 +303,17 @@ def recommend(item_id: int, scheme: str = Query("complementary")):
     RADIUS_TOL_LOG gates, see recommend.py) is demoted below a circle
     that is less "expressive" structurally but produced a full, usable
     set of recommendations for this specific scheme.
+
+    Each circle also carries `starfield`: every catalog item that
+    matches the reference across every TAG/criterion not already
+    accounted for by that circle's own PCA axis pair (see
+    find_plane_neighbors, /docs/math.md section 7 - this is a tag-space
+    comparison, not a comparison against the other PCA components),
+    excluding items already listed above as scheme recommendations.
+    Unlike the scheme clusters, these aren't gated by angle/radius at
+    all - they scatter across the whole disc and are meant to be
+    rendered as small background points rather than the scheme's own
+    overlay dots.
     """
     if scheme not in SCHEMES:
         raise HTTPException(
@@ -328,8 +339,22 @@ def recommend(item_id: int, scheme: str = Query("complementary")):
             scheme=scheme,
             planes=planes,
             top_k=6,
-            shortlist_size=800, # ~5% of all
+            shortlist_size=800,  # safety cap on Stage A's near-outlier
+                                 # shortlist (docs/math.md section 6b) -
+                                 # not an exact pool size to fill
+                                 # 800 is ~5% of all
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # Every catalog item that shares the reference's position on every
+    # PCA component OUTSIDE each circle's own axis pair (see
+    # find_plane_neighbors, /docs/math.md section 7) - a scheme-
+    # independent field of "similar everywhere else" movies, shown as
+    # small background points scattered across that circle's disc
+    # rather than clustered at the scheme's target angles.
+    try:
+        neighbor_indices = find_plane_neighbors(_engine.basis, reference_item=item_id, planes=planes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -366,6 +391,25 @@ def recommend(item_id: int, scheme: str = Query("complementary")):
                 })
             angles.append({"angle_deg": angle_deg, "items": items})
 
+        used_ids = {item["item_id"] for a in angles for item in a["items"]}
+        starfield = []
+        for idx in neighbor_indices[(pc_x, pc_y)]:
+            iid = int(_engine.basis.items[idx])
+            if iid == item_id or iid in used_ids:
+                continue
+            record = _records_by_id.get(iid)
+            zx, zy = z(idx, pc_x), z(idx, pc_y)
+            starfield.append({
+                "item_id": iid,
+                "title": _titles.get(iid, str(iid)),
+                "genres": record.genres if record else [],
+                "imdb_id": record.imdb_id if record else None,
+                "tmdb_id": record.tmdb_id if record else None,
+                "z_x": round(zx, 4),
+                "z_y": round(zy, 4),
+                "angle_deg": round((math.degrees(math.atan2(zy, zx)) % 360), 2),
+            })
+
         reference = None
         if ridx is not None:
             zx, zy = z(ridx, pc_x), z(ridx, pc_y)
@@ -382,6 +426,7 @@ def recommend(item_id: int, scheme: str = Query("complementary")):
             "axis_y": wc["axis_y"],
             "reference": reference,
             "angles": angles,
+            "starfield": starfield,
         })
 
     circles_out = _combined_order(circles_out)

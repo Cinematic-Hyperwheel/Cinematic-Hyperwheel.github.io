@@ -1,6 +1,6 @@
 import "./WheelPointLabels.css";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RecAngle, WheelCircle } from "../api";
+import { RecAngle, StarfieldItem, WheelCircle } from "../api";
 import { COMPACT_BELOW, RING_PAD } from "./Wheel";
 import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
@@ -11,6 +11,11 @@ interface Props {
   size: number;
   title?: string;
   overlays?: RecAngle[];
+  /** Background star field for this circle - see Wheel.tsx. Hovering a
+   * star shows its title and a highlight ring, but doesn't open the
+   * recommendation info card or cross-light the Recommendations list
+   * (starfield items have no corresponding list row). */
+  starfield?: StarfieldItem[];
   /** Identity of the circle this instance belongs to (see
    * utils/circleKey.ts) - scopes this instance's hover to the shared
    * HighlightContext, so it only lights up (and only lights up) the
@@ -24,6 +29,10 @@ interface Point {
   y: number;
   title: string;
   reference: boolean;
+  /** True for a background star-field point (see Wheel.tsx) - gets a
+   * smaller radius and is excluded from cross-circle highlighting and
+   * the recommendation info card. */
+  star: boolean;
   index: number;
   itemId: number | null;
 }
@@ -68,7 +77,9 @@ function pointPosition(zx: number, zy: number, center: number, maxR: number): { 
 }
 
 function pointRadius(point: Point): number {
-  return point.reference ? 10.5 : 6;
+  if (point.reference) return 10.5;
+  if (point.star) return 3.5;
+  return 6;
 }
 
 function distanceBetween(a: Point, b: Point): number {
@@ -321,7 +332,7 @@ function referenceLabelPosition(
   };
 }
 
-export default function WheelPointLabels({ circle, size, title, overlays = [], circleKey }: Props) {
+export default function WheelPointLabels({ circle, size, title, overlays = [], starfield = [], circleKey }: Props) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -349,17 +360,22 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
     let index = 0;
     if (title) {
       const position = pointPosition(circle.z_x, circle.z_y, gCenter, gMaxR);
-      result.push({ x: position.x, y: position.y, title, reference: true, index: index++, itemId: null });
+      result.push({ x: position.x, y: position.y, title, reference: true, star: false, index: index++, itemId: null });
     }
 
     for (const angle of overlays) {
       for (const item of angle.items) {
         const position = pointPosition(item.z_x, item.z_y, gCenter, gMaxR);
-        result.push({ x: position.x, y: position.y, title: item.title, reference: false, index: index++, itemId: item.item_id });
+        result.push({ x: position.x, y: position.y, title: item.title, reference: false, star: false, index: index++, itemId: item.item_id });
       }
     }
+
+    for (const item of starfield) {
+      const position = pointPosition(item.z_x, item.z_y, gCenter, gMaxR);
+      result.push({ x: position.x, y: position.y, title: item.title, reference: false, star: true, index: index++, itemId: item.item_id });
+    }
     return result;
-  }, [circle, overlays, title, gCenter, gMaxR]);
+  }, [circle, overlays, starfield, title, gCenter, gMaxR]);
 
   const referencePoint = useMemo(
     () => points.find((point) => point.reference) ?? null,
@@ -384,7 +400,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
   // recommendation points only (reference has no itemId and never
   // appears anywhere else, so it never needs cross-surface highlight).
   useEffect(() => {
-    const itemId = localHoveredPoint?.itemId ?? null;
+    const itemId = localHoveredPoint && !localHoveredPoint.star ? localHoveredPoint.itemId : null;
     const previous = reportedItemIdRef.current;
     if (itemId === previous) return;
 
@@ -409,7 +425,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
   // (see RecommendationsPanel.tsx).
   useEffect(() => {
     if (!supportsHover()) return;
-    const itemId = localHoveredPoint?.itemId ?? null;
+    const itemId = localHoveredPoint && !localHoveredPoint.star ? localHoveredPoint.itemId : null;
 
     if (itemId === null) {
       if (reportedCardKeyRef.current) hideCard(reportedCardKeyRef.current);
@@ -459,7 +475,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], c
     const activeIndexes = new Set(
       visiblePoints.map((point) => point.index - (title ? 1 : 0))
     );
-    const allPoints = stage.querySelectorAll<SVGCircleElement>(".wheel__rec-point");
+    const allPoints = stage.querySelectorAll<SVGCircleElement>(".wheel__rec-point, .wheel__star-point");
 
     allPoints.forEach((point, index) => {
       const active = hoveredPoint !== null && !hoveredPoint.reference && activeIndexes.has(index);

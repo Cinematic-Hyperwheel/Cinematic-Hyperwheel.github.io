@@ -28,6 +28,7 @@ from .diagnose import diagnose
 from .planes import select_hue_plane
 from .recommend import recommend, recommend_on_basis, recommend_many_planes
 from .rotation import SCHEMES, rotate_whitened
+from .starfield import find_plane_neighbors
 
 __all__ = [
     "load_matrix",
@@ -42,5 +43,6 @@ __all__ = [
     "recommend",
     "recommend_on_basis",
     "recommend_many_planes",
+    "find_plane_neighbors",
     "diagnose",
 ]
