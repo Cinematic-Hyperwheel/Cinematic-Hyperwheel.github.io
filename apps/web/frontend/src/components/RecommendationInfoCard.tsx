@@ -215,9 +215,133 @@ export default function RecommendationInfoCard({
     };
   }, [mobile]);
 
+  const isTile = !mobile && target.cardStyle === "tile";
+  const extraRef = useRef<HTMLDivElement>(null);
+  // Which side the compact panel grows toward. Defaults to "down"; a
+  // layout effect (pre-paint) flips it to "up" if there isn't room
+  // below, so the poster's own on-screen position never has to be
+  // guessed before the panel's real height is known.
+  const [growDirection, setGrowDirection] = useState<"down" | "up">("down");
+
+  useLayoutEffect(() => {
+    if (!isTile) return;
+    setGrowDirection("down");
+  }, [isTile, target.key]);
+
+  useLayoutEffect(() => {
+    if (!isTile) return;
+    const extraEl = extraRef.current;
+    if (!extraEl) return;
+    const extraHeight = extraEl.offsetHeight;
+    const spaceBelow = window.innerHeight - target.rect.bottom - VIEWPORT_MARGIN;
+    const spaceAbove = target.rect.top - VIEWPORT_MARGIN;
+    if (extraHeight > spaceBelow && spaceAbove >= extraHeight) setGrowDirection("up");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTile, target.key, displayItem.genres.length]);
+
   const style: CSSProperties | undefined = mobile
     ? undefined
     : { position: "fixed", left: computeLeft(target.rect), top, width: CARD_WIDTH };
+
+    if (isTile) {
+  const posterBlock = (
+    <div className="rec-card--tile__poster" style={{ height: target.rect.height }}>
+      {posterUrl === undefined && (
+        <div className="rec-card__poster rec-card__poster--loading" aria-hidden="true" />
+      )}
+      {posterUrl && <img className="rec-card__poster" src={posterUrl} alt="" loading="lazy" />}
+      {posterUrl === null && <div className="rec-card__poster" aria-hidden="true" />}
+      <div className="rec-card--tile__scrim" aria-hidden="true" />
+      {target.tileAngleLabel ? (
+        <span
+          className="rec-card--tile__badge"
+          style={{ borderColor: target.tileSwatch, color: target.tileSwatch }}
+        >
+          {target.tileAngleLabel}
+        </span>
+      ) : (
+        <span
+          className="rec-card--tile__swatch"
+          style={{ background: target.tileSwatch, color: target.tileSwatch }}
+          aria-hidden="true"
+        />
+      )}
+      <span className="rec-card--tile__title">{displayItem.title}</span>
+    </div>
+  );
+
+  const extraBlock = (
+    <div ref={extraRef} className="rec-card--tile__extra">
+      {displayItem.genres.length > 0 && (
+        <div className="rec-card__genres">
+          {displayItem.genres.map((g) => (
+            <span key={g} className="card__genre-badge">
+              {g}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="rec-card__links">
+        <a
+          className="rec-row__extlink rec-row__extlink--imdb"
+          href={imdbUrlForItem(displayItem)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          IMDb
+        </a>
+        <a
+          className="rec-row__extlink rec-row__extlink--tmdb"
+          href={tmdbUrlForItem(displayItem)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          TMDB
+        </a>
+        <GetRecommendationsButton
+          itemId={displayItem.item_id}
+          label={t("recommendations.getRecommendations")}
+        />
+      </div>
+    </div>
+  );
+
+  // "down": container's top edge = tile's top edge (poster is the
+  // first child, so it lands exactly on the tile, unmoved); "up":
+  // container's bottom edge = tile's bottom edge (poster is the last
+  // child, so it still lands exactly on the tile) - either way the
+  // poster's own screen position never depends on the extra content's
+  // height, only which edge the container is anchored from.
+  const tileStyle: CSSProperties =
+    growDirection === "down"
+      ? { left: target.rect.left, top: target.rect.top, width: target.rect.width }
+      : { left: target.rect.left, bottom: window.innerHeight - target.rect.bottom, width: target.rect.width };
+
+  return createPortal(
+    <div className="rec-card__backdrop" onClick={onClose}>
+      <div
+        className="rec-card--tile"
+        style={tileStyle}
+        onClick={(e) => e.stopPropagation()}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
+        {growDirection === "down" ? (
+          <>
+            {posterBlock}
+            {extraBlock}
+          </>
+        ) : (
+          <>
+            {extraBlock}
+            {posterBlock}
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
 
   return createPortal(
     <div
@@ -262,13 +386,6 @@ export default function RecommendationInfoCard({
                     {g}
                   </span>
                 ))}
-              </div>
-            )}
-            {displayItem.angular_error_deg != null && !mobile && (
-              <div className="rec-card__meta">
-                Δangle: {displayItem.angular_error_deg.toFixed(1)}°
-                {displayItem.radius_ratio != null &&
-                  ` · r-ratio: ${displayItem.radius_ratio.toFixed(2)}`}
               </div>
             )}
             <div className="rec-card__links">

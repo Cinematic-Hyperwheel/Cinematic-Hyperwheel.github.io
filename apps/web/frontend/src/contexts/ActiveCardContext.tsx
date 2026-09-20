@@ -34,6 +34,20 @@ export interface CardTrigger {
    * (legend, wheel point) leave it undefined, which just hides the
    * buttons. */
   list?: RecItem[];
+  /** Rendering style for the card. "tile" pins the card exactly over
+   * the trigger's own rect (so a poster-sized rect keeps the poster in
+   * place) and grows a compact info panel out of it instead of
+   * floating a full popover beside it - used by the big wheel legend's
+   * grid layout, where tiles sit edge-to-edge and a regular popover
+   * would cover neighboring tiles. Defaults to the regular anchored
+   * popover when omitted. */
+  cardStyle?: "popover" | "tile";
+  /** Swatch color and angle-badge text this tile was drawn with (see
+   * WheelStack.tsx's LegendTile) - only used in "tile" mode, to redraw
+   * the same badge/scrim look on the floating card so it reads as the
+   * tile itself, not a different-looking card replacing it. */
+  tileSwatch?: string;
+  tileAngleLabel?: string;
 }
 
 interface ActiveCardContextValue {

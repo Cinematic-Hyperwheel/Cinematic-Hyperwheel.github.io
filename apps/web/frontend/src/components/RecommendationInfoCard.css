@@ -3,6 +3,110 @@
   pointer-events: none;
 }
 
-.rec-card__backdrop .rec-card {
+.rec-card__backdrop .rec-card,
+.rec-card__backdrop .rec-card--tile {
   pointer-events: auto;
+}
+
+/* Grid-legend hover card ("tile" variant, see ActiveCardContext's
+   cardStyle): a single seamless box pinned exactly over the hovered
+   tile, so hovering reads as that tile itself growing a bit to reveal
+   genres/links - not a separate floating card appearing near it. The
+   poster keeps the tile's own fixed size; only the compact panel below
+   (or above, depending on available space) adds height. */
+.rec-card--tile {
+  position: fixed;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(12, 16, 25, 0.97);
+  box-shadow: 0 0 0 2px rgba(232, 236, 244, 0.85), 0 16px 40px rgba(0, 0, 0, 0.5);
+  animation: rec-card-in 140ms ease;
+}
+
+.rec-card--tile__poster {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+}
+.rec-card--tile__poster .rec-card__poster {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* Same scrim/badge/title treatment as the plain (non-hovered) grid
+   tile (see WheelLegend.css's wheel-legend__tile-*) - duplicated here,
+   scaled down, so the floating card reads as that same tile rather
+   than a differently-styled element replacing it. */
+.rec-card--tile__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(6, 8, 14, 0.92) 0%, rgba(6, 8, 14, 0.35) 45%, transparent 75%);
+  pointer-events: none;
+}
+.rec-card--tile__badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  background: rgba(10, 13, 20, 0.75);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  box-shadow: 0 0 8px currentColor;
+  white-space: nowrap;
+}
+.rec-card--tile__swatch {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+.rec-card--tile__title {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 7px;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* Compact panel grown directly out of the poster, no gap - genres and
+   links only; the title is already shown on the poster itself above,
+   so it isn't repeated here. */
+.rec-card--tile__extra {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+.rec-card--tile__extra .rec-card__genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rec-card--tile__extra .rec-card__links {
+  display: flex;
+  gap: 6px;
 }

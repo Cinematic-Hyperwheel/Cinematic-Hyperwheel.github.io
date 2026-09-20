@@ -141,7 +141,7 @@ interface LegendItemProps {
   angleLabel?: string;
   swatch: string;
   isHighlighted: boolean;
-  onEnter: (blockKey: string, item: RecItem, el: HTMLElement) => void;
+  onEnter: (blockKey: string, item: RecItem, el: HTMLElement, swatch: string, angleLabel?: string) => void;
   onLeave: (blockKey: string, item: RecItem) => void;
 }
 
@@ -200,7 +200,7 @@ const LegendTile = memo(function LegendTile({
     <div
       ref={(el) => registerTile(tileKey, el)}
       className={"wheel-legend__tile" + (isHighlighted ? " wheel-legend__tile--highlighted" : "")}
-      onMouseEnter={(e) => onEnter(blockKey, item, e.currentTarget)}
+      onMouseEnter={(e) => onEnter(blockKey, item, e.currentTarget, swatch, angleLabel)}
       onMouseLeave={() => onLeave(blockKey, item)}
     >
       <div className="wheel-legend__tile-poster-wrap">
@@ -243,7 +243,7 @@ const LegendRow = memo(function LegendRow({
         (angleLabel ? "" : " rec-row--compact") +
         (isHighlighted ? " rec-row--highlighted" : "")
       }
-      onMouseEnter={(e) => onEnter(blockKey, item, e.currentTarget)}
+      onMouseEnter={(e) => onEnter(blockKey, item, e.currentTarget, swatch, angleLabel)}
       onMouseLeave={() => onLeave(blockKey, item)}
     >
       {angleLabel ? (
@@ -483,23 +483,29 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
   }, []);
 
   const handleEnter = useCallback(
-    (blockKey: string, item: RecItem, el: HTMLElement) => {
-      const cardKey = `${blockKey}:legend:${item.item_id}`;
-      setHighlighted(blockKey, item.item_id);
-      const pointEl = el
-        .closest<HTMLElement>(".wheel-stack__row")
-        ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
-      showCard({
-        key: cardKey,
-        item,
-        source: "legend",
-        rect: el.getBoundingClientRect(),
-        avoidRect: pointEl?.getBoundingClientRect(),
-      });
-      openCardKeyRef.current = cardKey;
-    },
-    [setHighlighted, showCard]
-  );
+  (blockKey: string, item: RecItem, el: HTMLElement, swatch: string, angleLabel?: string) => {
+    const cardKey = `${blockKey}:legend:${item.item_id}`;
+    setHighlighted(blockKey, item.item_id);
+    const pointEl = el
+      .closest<HTMLElement>(".wheel-stack__row")
+      ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
+    showCard({
+      key: cardKey,
+      item,
+      source: "legend",
+      rect: el.getBoundingClientRect(),
+      avoidRect: pointEl?.getBoundingClientRect(),
+      // Grid tiles sit edge-to-edge, so their hover card is pinned to
+      // the tile itself and grows out of it (see cardStyle) instead of
+      // floating beside it - the list layout keeps the regular popover.
+      cardStyle: layout === "grid" ? "tile" : "popover",
+      tileSwatch: swatch,
+      tileAngleLabel: angleLabel,
+    });
+    openCardKeyRef.current = cardKey;
+  },
+  [setHighlighted, showCard, layout]
+);
 
   const handleLeave = useCallback(
     (blockKey: string, item: RecItem) => {

@@ -1651,11 +1651,6 @@ body {
   gap: 4px;
 }
 
-.rec-card__meta {
-  font-size: 11px;
-  color: var(--muted);
-}
-
 .rec-card__links {
   display: flex;
   gap: 8px;
