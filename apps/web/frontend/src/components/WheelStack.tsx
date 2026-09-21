@@ -483,36 +483,48 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
   }, []);
 
   const handleEnter = useCallback(
-  (blockKey: string, item: RecItem, el: HTMLElement, swatch: string, angleLabel?: string) => {
-    const cardKey = `${blockKey}:legend:${item.item_id}`;
-    setHighlighted(blockKey, item.item_id);
-    const pointEl = el
-      .closest<HTMLElement>(".wheel-stack__row")
-      ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
-    showCard({
-      key: cardKey,
-      item,
-      source: "legend",
-      rect: el.getBoundingClientRect(),
-      avoidRect: pointEl?.getBoundingClientRect(),
-      // Grid tiles sit edge-to-edge, so their hover card is pinned to
-      // the tile itself and grows out of it (see cardStyle) instead of
-      // floating beside it - the list layout keeps the regular popover.
-      cardStyle: layout === "grid" ? "tile" : "popover",
-      tileSwatch: swatch,
-      tileAngleLabel: angleLabel,
-    });
-    openCardKeyRef.current = cardKey;
-  },
-  [setHighlighted, showCard, layout]
-);
+    (blockKey: string, item: RecItem, el: HTMLElement, swatch: string, angleLabel?: string) => {
+      const cardKey = `${blockKey}:legend:${item.item_id}`;
+      setHighlighted(blockKey, item.item_id);
+      const pointEl = el
+        .closest<HTMLElement>(".wheel-stack__row")
+        ?.querySelector<SVGCircleElement>(`[data-point-item-id="${item.item_id}"]`);
+      const isTileCard = layout === "grid";
+      const block = isTileCard ? blocks.find((b) => b.key === blockKey) : undefined;
+      showCard({
+        key: cardKey,
+        item,
+        source: "legend",
+        rect: el.getBoundingClientRect(),
+        avoidRect: pointEl?.getBoundingClientRect(),
+        // Grid tiles sit edge-to-edge, so their hover card is pinned to
+        // the tile itself and grows out of it (see cardStyle) instead of
+        // floating beside it - the list layout keeps the regular popover.
+        cardStyle: isTileCard ? "tile" : "popover",
+        tileSwatch: swatch,
+        tileAngleLabel: angleLabel,
+        // Only tile cards need these - see CardTrigger.circleKey/previewCircle.
+        circleKey: isTileCard ? blockKey : undefined,
+        previewCircle: isTileCard && blockKey !== activeKey ? block?.circle : undefined,
+      });
+      openCardKeyRef.current = cardKey;
+    },
+    [setHighlighted, showCard, layout, blocks, activeKey]
+  );
 
   const handleLeave = useCallback(
     (blockKey: string, item: RecItem) => {
-      clearHighlighted(blockKey, item.item_id);
+      // Tile cards fully cover their own trigger tile once mounted, so
+      // the "leave" this handler sees on the tile is often the card
+      // itself taking over hover, not a genuine hover-out - clearing the
+      // highlight here would flash it off the instant the card appears.
+      // For tile mode the highlight is instead owned by the card's own
+      // mount lifetime (see RecommendationInfoCard.tsx / circleKey
+      // above); only the card-close request stays here.
+      if (layout !== "grid") clearHighlighted(blockKey, item.item_id);
       hideCard(`${blockKey}:legend:${item.item_id}`);
     },
-    [clearHighlighted, hideCard]
+    [clearHighlighted, hideCard, layout]
   );
 
   const registerBlockRef = useCallback((key: string, el: HTMLElement | null) => {
@@ -609,10 +621,14 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
                 // hovered-circle key) highlights its own small wheel in
                 // the Recommendations list - see RecommendationsPanel.tsx.
                 onMouseEnter={() => {
-                  if (!isActive && supportsHover()) setHoveredCircle(block.circle);
+                  // Grid layout: preview is owned by the tile card's own
+                  // mount lifetime instead (see handleEnter's
+                  // previewCircle) - the card covers this block's tiles,
+                  // so its own hover events aren't a reliable signal.
+                  if (!isActive && layout !== "grid" && supportsHover()) setHoveredCircle(block.circle);
                 }}
                 onMouseLeave={() => {
-                  if (!isActive && supportsHover()) setHoveredCircle(null);
+                  if (!isActive && layout !== "grid" && supportsHover()) setHoveredCircle(null);
                 }}
               >
                 {renderBlock(

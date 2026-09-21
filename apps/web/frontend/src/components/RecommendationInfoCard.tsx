@@ -1,7 +1,9 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { CardTrigger } from "../contexts/ActiveCardContext";
+import { useHighlight } from "../contexts/HighlightContext";
+import { useHoverCircle } from "../contexts/HoverCircleContext";
 import { imdbUrlForItem } from "../utils/imdb";
 import { tmdbUrlForItem } from "../utils/tmdb";
 import { resolvePoster, getCachedPoster } from "../utils/poster";
@@ -182,6 +184,29 @@ export default function RecommendationInfoCard({
   const isTile = !mobile && target.cardStyle === "tile";
   const cardRef = useRef<HTMLDivElement>(null);
   const [top, setTop] = useState(() => naturalTop(target.rect, CARD_MAX_HEIGHT));
+
+  const { setHighlighted, clearHighlighted } = useHighlight();
+  const { setHoveredCircle } = useHoverCircle();
+
+  // See target.circleKey's own comment: owns the wheel highlight for as
+  // long as this tile card stays mounted, instead of relying on the
+  // tile's own (unreliable, once covered by this card) mouseleave.
+  useEffect(() => {
+    if (!target.circleKey) return;
+    const circleKey = target.circleKey;
+    const itemId = target.item.item_id;
+    setHighlighted(circleKey, itemId);
+    return () => clearHighlighted(circleKey, itemId);
+  }, [target.key, target.circleKey, target.item.item_id, setHighlighted, clearHighlighted]);
+
+  // Same reasoning as above, for the big wheel's hover-preview override
+  // (see target.previewCircle) - only set for a tile card belonging to
+  // an inactive circle.
+  useEffect(() => {
+    if (!target.previewCircle) return;
+    setHoveredCircle(target.previewCircle);
+    return () => setHoveredCircle(null);
+  }, [target.key, target.previewCircle, setHoveredCircle]);
 
   // Prev/next navigation within the triggering row's own item list
   // (mobile only - see the nav buttons below, and CardTrigger.list).

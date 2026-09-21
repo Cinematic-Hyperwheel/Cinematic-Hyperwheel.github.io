@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
-import type { RecItem } from "../api";
+import type { RecItem, RecommendCircle } from "../api";
 
 /**
  * Which UI surface triggered the recommendation info card - each source
@@ -48,6 +48,21 @@ export interface CardTrigger {
    * tile itself, not a different-looking card replacing it. */
   tileSwatch?: string;
   tileAngleLabel?: string;
+  /** Circle this trigger's wheel point belongs to (see
+   * contexts/HighlightContext.tsx) - set only for legend "tile" cards,
+   * where the floating card is pinned exactly over its own trigger tile
+   * and ends up intercepting hover from it, making the tile's own
+   * mouseleave unreliable as a "highlight should clear" signal. Lets
+   * RecommendationInfoCard keep the wheel highlight tied to the card's
+   * own mount lifetime instead. */
+  circleKey?: string;
+  /** Circle to preview on the big wheel (see
+   * contexts/HoverCircleContext.tsx) while this card is open - set only
+   * for a tile card belonging to a currently INACTIVE circle, for the
+   * same reason as `circleKey` above: the card covers its own trigger
+   * tile, so the preview also has to be owned by the card's mount
+   * lifetime rather than the tile's/block's own hover events. */
+  previewCircle?: RecommendCircle;
 }
 
 interface ActiveCardContextValue {
