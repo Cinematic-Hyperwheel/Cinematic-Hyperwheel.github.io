@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { CardTrigger } from "../contexts/ActiveCardContext";
 import { imdbUrlForItem } from "../utils/imdb";
 import { tmdbUrlForItem } from "../utils/tmdb";
-import { resolvePoster } from "../utils/poster";
+import { resolvePoster, getCachedPoster } from "../utils/poster";
 import "./RecommendationInfoCard.css";
 
 const CARD_WIDTH = 300;
@@ -16,6 +16,18 @@ const MOBILE_BREAKPOINT = 640;
 // VIEWPORT_MARGIN since this gap is against another UI element, not the
 // viewport edge.
 const AVOID_GAP = 50;
+
+// --- Tile-style card (grid-legend hover, see ActiveCardContext's
+// cardStyle) geometry constants ---------------------------------------
+// Horizontal padding around the poster, up to 50% of the poster's own
+// width on each side, while
+// still respecting the viewport (clamped to whatever space is actually
+// free to the left/right of the tile).
+const TILE_H_PADDING_RATIO = 0.5;
+const TILE_V_PADDING = 7;
+// Minimum vertical room required below the tile to grow downward
+// before falling back to growing upward instead - see chooseTileSide.
+const TILE_PANEL_MIN_HEIGHT = 56;
 
 function computeLeft(rect: DOMRect): number {
   let left = rect.right + 12;
@@ -65,6 +77,28 @@ function avoidOverlap(top: number, cardHeight: number, avoidRect: DOMRect): numb
   if (aboveValid) return aboveTop;
   if (belowValid) return belowTop;
   return top; // neither fits (viewport shorter than the card) - keep natural position
+}
+
+// Which side of the tile the compact panel grows toward: down by
+// default, up only if there genuinely isn't room below (and there is
+// above) - mirrors the popover's own naturalTop/avoidOverlap fallback
+// logic in spirit, just for a single vertical choice instead of a full
+// 2D placement.
+function chooseTileSide(rect: DOMRect): "bottom" | "top" {
+  const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_MARGIN;
+  const spaceAbove = rect.top - VIEWPORT_MARGIN;
+  return spaceBelow >= TILE_PANEL_MIN_HEIGHT || spaceBelow >= spaceAbove ? "bottom" : "top";
+}
+
+// Symmetric horizontal padding to add around the poster in tile mode -
+// up to 50% of the poster's own width per side, clamped by whatever
+// space is actually free to the left/right of the tile in the
+// viewport, so the card never overflows off-screen.
+function tileHorizontalPadding(rect: DOMRect): number {
+  const maxByRatio = rect.width * TILE_H_PADDING_RATIO;
+  const spaceLeft = rect.left - VIEWPORT_MARGIN;
+  const spaceRight = window.innerWidth - rect.right - VIEWPORT_MARGIN;
+  return Math.max(0, Math.min(maxByRatio, spaceLeft, spaceRight));
 }
 
 function WandIcon() {
@@ -145,6 +179,7 @@ export default function RecommendationInfoCard({
   const { t } = useTranslation();
   const [posterUrl, setPosterUrl] = useState<string | null | undefined>(undefined);
   const mobile = typeof window !== "undefined" && window.innerWidth <= MOBILE_BREAKPOINT;
+  const isTile = !mobile && target.cardStyle === "tile";
   const cardRef = useRef<HTMLDivElement>(null);
   const [top, setTop] = useState(() => naturalTop(target.rect, CARD_MAX_HEIGHT));
 
@@ -157,16 +192,27 @@ export default function RecommendationInfoCard({
   const [navIndex, setNavIndex] = useState(() =>
     list ? Math.max(0, list.findIndex((it) => it.item_id === target.item.item_id)) : 0
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Reset only when a genuinely different card is opened - target.key
     // stays constant across the buttons' own navIndex changes.
     setNavIndex(list ? Math.max(0, list.findIndex((it) => it.item_id === target.item.item_id)) : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target.key]);
   const displayItem = list?.[navIndex] ?? target.item;
+  const genresText = displayItem.genres.join(" · ");
 
-  useEffect(() => {
+  // Synchronous cache check first (see utils/poster.ts's
+  // getCachedPoster): the poster is very likely already resolved by
+  // now (e.g. the grid tile itself resolved it before it was hovered),
+  // so using it immediately, before paint, avoids flashing the loading
+  // placeholder for a value that's already known.
+  useLayoutEffect(() => {
     let cancelled = false;
+    const cached = getCachedPoster(displayItem.item_id);
+    if (cached !== undefined) {
+      setPosterUrl(cached);
+      return;
+    }
     setPosterUrl(undefined);
     resolvePoster(displayItem.item_id).then((url) => {
       if (!cancelled) setPosterUrl(url);
@@ -179,15 +225,16 @@ export default function RecommendationInfoCard({
   // Recomputes the vertical position from the card's actual rendered
   // height (via cardRef) whenever the trigger changes - runs before
   // paint, so there's no visible jump between the natural and
-  // avoidance-corrected position.
+  // avoidance-corrected position. Tile-style cards position themselves
+  // differently (see tileStyle below) and skip this entirely.
   useLayoutEffect(() => {
-    if (mobile) return;
+    if (mobile || isTile) return;
     const cardHeight = cardRef.current?.offsetHeight ?? CARD_MAX_HEIGHT;
     let nextTop = naturalTop(target.rect, cardHeight);
     if (target.avoidRect) nextTop = avoidOverlap(nextTop, cardHeight, target.avoidRect);
     setTop(nextTop);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target.key, mobile]);
+  }, [target.key, mobile, isTile]);
 
   // Vertical center of the mobile sheet card, in viewport coordinates -
   // used to position the fixed prev/next buttons level with it. A
@@ -215,133 +262,118 @@ export default function RecommendationInfoCard({
     };
   }, [mobile]);
 
-  const isTile = !mobile && target.cardStyle === "tile";
-  const extraRef = useRef<HTMLDivElement>(null);
-  // Which side the compact panel grows toward. Defaults to "down"; a
-  // layout effect (pre-paint) flips it to "up" if there isn't room
-  // below, so the poster's own on-screen position never has to be
-  // guessed before the panel's real height is known.
-  const [growDirection, setGrowDirection] = useState<"down" | "up">("down");
+  // --- Tile-style card (grid-legend hover) ------------------------
+  // Pinned exactly over the hovered tile and padded symmetrically
+  // around the poster - see the geometry helpers above. The poster
+  // itself always keeps target.rect's own width/height, so it never
+  // moves or resizes; only the padding and the panel below/above it
+  // change the card's outer box.
+  if (isTile) {
+    const tileSide = chooseTileSide(target.rect);
+    const tileHPad = tileHorizontalPadding(target.rect);
 
-  useLayoutEffect(() => {
-    if (!isTile) return;
-    setGrowDirection("down");
-  }, [isTile, target.key]);
+    const poster = (
+      <div
+        className="rec-card--tile__poster"
+        style={{ width: target.rect.width, height: target.rect.height }}
+      >
+        {posterUrl === undefined && (
+          <div className="rec-card__poster rec-card__poster--loading" aria-hidden="true" />
+        )}
+        {posterUrl && <img className="rec-card__poster" src={posterUrl} alt={displayItem.title} loading="lazy" />}
+        {posterUrl === null && <div className="rec-card__poster" aria-hidden="true" />}
+        <div className="rec-card--tile__scrim" aria-hidden="true" />
+        {target.tileAngleLabel ? (
+          <span
+            className="rec-card--tile__badge"
+            style={{ borderColor: target.tileSwatch, color: target.tileSwatch }}
+          >
+            {target.tileAngleLabel}
+          </span>
+        ) : (
+          <span
+            className="rec-card--tile__swatch"
+            style={{ background: target.tileSwatch, color: target.tileSwatch }}
+            aria-hidden="true"
+          />
+        )}
+        <span className="rec-card--tile__title">{displayItem.title}</span>
+      </div>
+    );
 
-  useLayoutEffect(() => {
-    if (!isTile) return;
-    const extraEl = extraRef.current;
-    if (!extraEl) return;
-    const extraHeight = extraEl.offsetHeight;
-    const spaceBelow = window.innerHeight - target.rect.bottom - VIEWPORT_MARGIN;
-    const spaceAbove = target.rect.top - VIEWPORT_MARGIN;
-    if (extraHeight > spaceBelow && spaceAbove >= extraHeight) setGrowDirection("up");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTile, target.key, displayItem.genres.length]);
+    const panel = (
+      <div className="rec-card--tile__panel">
+        {genresText && <p className="rec-card--tile__genres">{genresText}</p>}
+        <div className="rec-card--tile__buttons">
+          <a
+            className="rec-card--tile__link"
+            href={imdbUrlForItem(displayItem)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            IMDb
+          </a>
+          <a
+            className="rec-card--tile__link"
+            href={tmdbUrlForItem(displayItem)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            TMDB
+          </a>
+          <button
+            type="button"
+            className="rec-card--tile__brandbtn"
+            title={t("recommendations.getRecommendations")}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.open(`/${displayItem.item_id}`, "_blank", "noopener,noreferrer");
+            }}
+          >
+            OMLTP
+          </button>
+        </div>
+      </div>
+    );
+
+    // Card is padded around the poster on all sides (vertically by
+    // TILE_V_PADDING, horizontally by tileHPad) - left/top are shifted
+    // out by that padding and width grows to match, so the poster
+    // itself (fixed to its own rect.width/height) stays centered inside
+    // the wider card instead of shifting from its original on-screen
+    // position.
+    const tileStyle: CSSProperties = {
+      left: target.rect.left - tileHPad,
+      width: target.rect.width + tileHPad * 2,
+    };
+    if (tileSide === "top") {
+      tileStyle.bottom = window.innerHeight - target.rect.bottom - TILE_V_PADDING;
+    } else {
+      tileStyle.top = target.rect.top - TILE_V_PADDING;
+    }
+
+    return createPortal(
+      <div className="rec-card__backdrop" onClick={onClose}>
+        <div
+          className="rec-card--tile"
+          style={tileStyle}
+          onClick={(e) => e.stopPropagation()}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+        >
+          {tileSide === "top" && panel}
+          {poster}
+          {tileSide === "bottom" && panel}
+        </div>
+      </div>,
+      document.body
+    );
+  }
 
   const style: CSSProperties | undefined = mobile
     ? undefined
     : { position: "fixed", left: computeLeft(target.rect), top, width: CARD_WIDTH };
-
-    if (isTile) {
-  const posterBlock = (
-    <div className="rec-card--tile__poster" style={{ height: target.rect.height }}>
-      {posterUrl === undefined && (
-        <div className="rec-card__poster rec-card__poster--loading" aria-hidden="true" />
-      )}
-      {posterUrl && <img className="rec-card__poster" src={posterUrl} alt="" loading="lazy" />}
-      {posterUrl === null && <div className="rec-card__poster" aria-hidden="true" />}
-      <div className="rec-card--tile__scrim" aria-hidden="true" />
-      {target.tileAngleLabel ? (
-        <span
-          className="rec-card--tile__badge"
-          style={{ borderColor: target.tileSwatch, color: target.tileSwatch }}
-        >
-          {target.tileAngleLabel}
-        </span>
-      ) : (
-        <span
-          className="rec-card--tile__swatch"
-          style={{ background: target.tileSwatch, color: target.tileSwatch }}
-          aria-hidden="true"
-        />
-      )}
-      <span className="rec-card--tile__title">{displayItem.title}</span>
-    </div>
-  );
-
-  const extraBlock = (
-    <div ref={extraRef} className="rec-card--tile__extra">
-      {displayItem.genres.length > 0 && (
-        <div className="rec-card__genres">
-          {displayItem.genres.map((g) => (
-            <span key={g} className="card__genre-badge">
-              {g}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="rec-card__links">
-        <a
-          className="rec-row__extlink rec-row__extlink--imdb"
-          href={imdbUrlForItem(displayItem)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          IMDb
-        </a>
-        <a
-          className="rec-row__extlink rec-row__extlink--tmdb"
-          href={tmdbUrlForItem(displayItem)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          TMDB
-        </a>
-        <GetRecommendationsButton
-          itemId={displayItem.item_id}
-          label={t("recommendations.getRecommendations")}
-        />
-      </div>
-    </div>
-  );
-
-  // "down": container's top edge = tile's top edge (poster is the
-  // first child, so it lands exactly on the tile, unmoved); "up":
-  // container's bottom edge = tile's bottom edge (poster is the last
-  // child, so it still lands exactly on the tile) - either way the
-  // poster's own screen position never depends on the extra content's
-  // height, only which edge the container is anchored from.
-  const tileStyle: CSSProperties =
-    growDirection === "down"
-      ? { left: target.rect.left, top: target.rect.top, width: target.rect.width }
-      : { left: target.rect.left, bottom: window.innerHeight - target.rect.bottom, width: target.rect.width };
-
-  return createPortal(
-    <div className="rec-card__backdrop" onClick={onClose}>
-      <div
-        className="rec-card--tile"
-        style={tileStyle}
-        onClick={(e) => e.stopPropagation()}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-      >
-        {growDirection === "down" ? (
-          <>
-            {posterBlock}
-            {extraBlock}
-          </>
-        ) : (
-          <>
-            {extraBlock}
-            {posterBlock}
-          </>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
-}
 
   return createPortal(
     <div

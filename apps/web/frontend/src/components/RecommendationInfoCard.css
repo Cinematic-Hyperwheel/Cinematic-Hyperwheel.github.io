@@ -9,28 +9,34 @@
 }
 
 /* Grid-legend hover card ("tile" variant, see ActiveCardContext's
-   cardStyle): a single seamless box pinned exactly over the hovered
-   tile, so hovering reads as that tile itself growing a bit to reveal
-   genres/links - not a separate floating card appearing near it. The
-   poster keeps the tile's own fixed size; only the compact panel below
-   (or above, depending on available space) adds height. */
+   cardStyle): grows straight down from the hovered tile (or up, if
+   there's no room below - see chooseTileSide in
+   RecommendationInfoCard.tsx), padded symmetrically around the poster
+   (see tileHorizontalPadding/TILE_V_PADDING there) so the card's own
+   rounded corners frame the poster instead of clipping it. The poster
+   itself never moves or resizes, so hovering reads as that tile
+   growing a bit to reveal genres and links, not a separate card
+   appearing near it. */
 .rec-card--tile {
   position: fixed;
   z-index: 61;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  border-radius: 10px;
-  overflow: hidden;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border-radius: 12px;
   background: rgba(12, 16, 25, 0.97);
-  box-shadow: 0 0 0 2px rgba(232, 236, 244, 0.85), 0 16px 40px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(110, 231, 255, 0.4);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   animation: rec-card-in 140ms ease;
 }
 
 .rec-card--tile__poster {
   position: relative;
   flex: 0 0 auto;
-  width: 100%;
+  border-radius: 7px;
+  overflow: hidden;
 }
 .rec-card--tile__poster .rec-card__poster {
   width: 100%;
@@ -38,10 +44,10 @@
   border-radius: 0;
 }
 
-/* Same scrim/badge/title treatment as the plain (non-hovered) grid
-   tile (see WheelLegend.css's wheel-legend__tile-*) - duplicated here,
-   scaled down, so the floating card reads as that same tile rather
-   than a differently-styled element replacing it. */
+/* Same scrim/badge/swatch/title treatment as the plain (non-hovered)
+   grid tile (see WheelLegend.css's wheel-legend__tile-*), so the
+   floating card reads as that same tile rather than a differently
+   styled element replacing it. */
 .rec-card--tile__scrim {
   position: absolute;
   inset: 0;
@@ -91,22 +97,69 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
-/* Compact panel grown directly out of the poster, no gap - genres and
-   links only; the title is already shown on the poster itself above,
-   so it isn't repeated here. */
-.rec-card--tile__extra {
+/* Panel below (or above) the poster: genres centered and free to wrap
+   onto multiple lines, then an evenly-spaced row of links below it.
+   width: 100% (rather than relying on the parent's align-items) is
+   what actually lets text-align: center and space-between below work -
+   without it each child shrinks to its own content width instead of
+   filling the card. */
+.rec-card--tile__panel {
   flex: 0 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+  gap: 8px;
 }
-.rec-card--tile__extra .rec-card__genres {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+
+.rec-card--tile__genres {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-.rec-card--tile__extra .rec-card__links {
+
+.rec-card--tile__buttons {
+  width: 100%;
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rec-card--tile__link {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+.rec-card--tile__link:hover {
+  color: var(--accent);
+}
+
+/* Same gradient-text brand treatment as the site header's own title
+   (see BrandTitle.tsx / .appheader__title in header.css: the gradient
+   is applied via background-clip: text, not a solid gradient fill). */
+.rec-card--tile__brandbtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background-image: linear-gradient(90deg, #ff6c3b, #9d7fff);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  transition: filter 120ms ease;
+}
+.rec-card--tile__brandbtn:hover {
+  filter: brightness(1.3);
 }

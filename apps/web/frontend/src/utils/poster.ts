@@ -23,3 +23,15 @@ export async function resolvePoster(itemId: number): Promise<string | null> {
   posterInFlight.delete(itemId);
   return url;
 }
+
+/**
+ * Synchronous cache lookup - lets a caller skip the loading placeholder
+ * entirely when the poster was already resolved earlier in the session
+ * (e.g. by the grid tile itself before it was hovered), instead of
+ * flashing "loading" for one frame while the async resolvePoster()
+ * promise settles for a value that's already known. Returns undefined
+ * only when nothing has resolved this item yet.
+ */
+export function getCachedPoster(itemId: number): string | null | undefined {
+  return posterCache.get(itemId);
+}
