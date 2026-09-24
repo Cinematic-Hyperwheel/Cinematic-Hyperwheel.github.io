@@ -1,6 +1,6 @@
 import "./WheelPointLabels.css";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RecAngle, StarfieldItem, WheelCircle } from "../api";
+import { RecAngle, RecItem, StarfieldItem, WheelCircle } from "../api";
 import { COMPACT_BELOW, RING_PAD } from "./Wheel";
 import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
@@ -400,7 +400,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], s
   // recommendation points only (reference has no itemId and never
   // appears anywhere else, so it never needs cross-surface highlight).
   useEffect(() => {
-    const itemId = localHoveredPoint && !localHoveredPoint.star ? localHoveredPoint.itemId : null;
+    const itemId = localHoveredPoint?.itemId ?? null;
     const previous = reportedItemIdRef.current;
     if (itemId === previous) return;
 
@@ -418,31 +418,70 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hovering a recommendation point directly opens the info card
-  // anchored to the point itself (see contexts/ActiveCardContext.tsx) -
-  // gated on hover support so a touch device's synthetic mouse events
-  // never half-trigger it; touch uses its own tap-to-open flow instead
-  // (see RecommendationsPanel.tsx).
-  useEffect(() => {
-    if (!supportsHover()) return;
-    const itemId = localHoveredPoint && !localHoveredPoint.star ? localHoveredPoint.itemId : null;
+    // Hovering a recommendation or starfield point directly opens the info
+    // card anchored to the point itself (see contexts/ActiveCardContext.tsx).
+    // Both point types use the same card surface; starfield items simply
+    // don't have recommendation-specific ranking fields.
+    useEffect(() => {
+      if (!supportsHover()) return;
 
-    if (itemId === null) {
-      if (reportedCardKeyRef.current) hideCard(reportedCardKeyRef.current);
-      reportedCardKeyRef.current = null;
-      return;
-    }
+      const itemId = localHoveredPoint?.itemId ?? null;
 
-    const item = overlays.flatMap((angle) => angle.items).find((candidate) => candidate.item_id === itemId);
-    const pointEl = svgRef.current?.parentElement?.querySelector<SVGCircleElement>(
-      `[data-point-item-id="${itemId}"]`
-    );
-    if (!item || !pointEl) return;
+      if (itemId === null) {
+        if (reportedCardKeyRef.current) hideCard(reportedCardKeyRef.current);
+        reportedCardKeyRef.current = null;
+        return;
+      }
 
-    const key = `${circleKey}:point:${itemId}`;
-    showCard({ key, item, source: "point", rect: pointEl.getBoundingClientRect() });
-    reportedCardKeyRef.current = key;
-  }, [localHoveredPoint, overlays, circleKey, showCard, hideCard]);
+      const recItem = overlays
+        .flatMap((angle) => angle.items)
+        .find((candidate) => candidate.item_id === itemId);
+
+      const starItem = starfield.find((candidate) => candidate.item_id === itemId);
+
+      const item: RecItem | undefined = recItem ?? (
+        starItem
+          ? {
+              item_id: starItem.item_id,
+              title: starItem.title,
+              genres: starItem.genres,
+              imdb_id: starItem.imdb_id,
+              tmdb_id: starItem.tmdb_id,
+              rank: 0,
+              distance_to_target: 0,
+              angular_error_deg: null,
+              radius_ratio: null,
+              z_x: starItem.z_x,
+              z_y: starItem.z_y,
+              angle_deg: starItem.angle_deg,
+            }
+          : undefined
+      );
+
+      if (!item) return;
+
+      const pointEl = svgRef.current?.parentElement?.querySelector<SVGCircleElement>(
+        `[data-point-item-id="${itemId}"]`
+      );
+
+      if (!pointEl) return;
+
+      const key = `${circleKey}:point:${itemId}`;
+      showCard({
+        key,
+        item,
+        source: "point",
+        rect: pointEl.getBoundingClientRect(),
+      });
+      reportedCardKeyRef.current = key;
+    }, [
+      localHoveredPoint,
+      overlays,
+      starfield,
+      circleKey,
+      showCard,
+      hideCard,
+    ]);
 
   useEffect(() => {
     return () => {
