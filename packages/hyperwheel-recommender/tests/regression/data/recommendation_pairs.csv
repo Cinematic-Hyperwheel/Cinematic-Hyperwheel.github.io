@@ -1,7 +1,10 @@
 reference_item,expected_recommendation,scheme,notes
 
 2571,541,analogous,"Matrix,The (1999)/Blade Runner (1982)"
+2571,1682,monochromatic,"Matrix,The (1999)/Truman Show, The (1998)"
+172,1037,analogous,"Johnny Mnemonic (1995)/Lawnmower Man, The (1992)"
 45668,1286,analogous,"Lake House,The (2006)/Somewhere in Time (1980)"
+45668,4823,analogous,"Lake House,The (2006)/Serendipity (2001)"
 43396,210175,analogous,"World's Fastest Indian,The (2005)/Togo (2019)"
 43396,152970,analogous,"World's Fastest Indian/Hunt for the Wilderpeople (2016)"
 5618,279812,analogous,"Spirited Away (Sen to Chihiro no kamikakushi) (2001)/The Menu (2022)"
