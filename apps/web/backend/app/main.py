@@ -339,7 +339,7 @@ def recommend(item_id: int, scheme: str = Query("complementary")):
             scheme=scheme,
             planes=planes,
             top_k=6,
-            shortlist_size=800,  # safety cap on Stage A's near-outlier
+            shortlist_size=20000,  # safety cap on Stage A's near-outlier
                                  # shortlist (docs/math.md section 6b) -
                                  # not an exact pool size to fill
                                  # 800 is ~5% of all

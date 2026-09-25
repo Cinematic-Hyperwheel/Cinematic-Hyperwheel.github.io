@@ -28,6 +28,6 @@ PC_CONFIG_PATH = Path(os.environ.get(
 
 # Test-only constants below - not env-configurable.
 TOP_K = 6 # see apps\web\backend\app\main.py def recommend
-SHORTLIST_SIZE = 800 # see apps\web\backend\app\main.py def recommend
+SHORTLIST_SIZE = 20000 # see apps\web\backend\app\main.py def recommend
 STARFIELD_MAX_SIZE = 1000
 GOLDEN_FILE = Path(__file__).parent / "data" / "recommendation_pairs.csv"
