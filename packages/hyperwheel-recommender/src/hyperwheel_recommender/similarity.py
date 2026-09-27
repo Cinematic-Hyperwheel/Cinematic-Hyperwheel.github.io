@@ -55,11 +55,45 @@ def normalize_item_tags(x: np.ndarray) -> np.ndarray:
     )
     return normalized.astype(np.float32)
 
+# Strength of the penalty for differences in tag activation.
+# 0 = no penalty; 0.5 = moderate; 1 = penalty equal in magnitude
+# to a same-strength match reward; values > 1 increasingly favor agreement.
+MISMATCH_PENALTY = 0.5
 
-def similarity_to_target(items_normalized: np.ndarray, target_normalized: np.ndarray) -> np.ndarray:
-    """S(item, target) for every item, given already-normalized tag
-    vectors (see normalize_item_tags)."""
-    return np.minimum(items_normalized, target_normalized[None, :]).mean(axis=1)
+# Minimum weight retained by criteria strongly aligned with the PC1
+# (overall quality/halo) axis. 0 = fully suppress PC1-driven criteria;
+# 1 = no PC1 downweighting.
+PC1_WEIGHT_FLOOR = 0.05
+
+def tags_similarity_to_target(items_normalized: np.ndarray, target_normalized: np.ndarray) -> np.ndarray:
+    """Compute minimum-overlap similarity between tag profiles."""
+
+    mismatch_penalty = MISMATCH_PENALTY
+
+    shared = np.multiply(items_normalized, target_normalized)
+    mismatch = np.abs(items_normalized - target_normalized)
+    return shared - mismatch_penalty * mismatch
+
+def similarity_to_target(
+    items_normalized,
+    target_normalized,
+    pc1_loadings: np.ndarray,
+):
+    """PC1-aware pronounced-attribute overlap similarity."""
+
+    tags_similarity = tags_similarity_to_target(
+        items_normalized,
+        target_normalized,
+    )
+
+    pc1_strength = np.abs(pc1_loadings)
+    max_strength = np.max(pc1_strength)
+    if max_strength > 1e-12:
+        pc1_strength = pc1_strength / max_strength
+
+    weights = 1.0 - (1.0 - PC1_WEIGHT_FLOOR) * pc1_strength
+
+    return np.average(tags_similarity, axis=1, weights=weights)
 
 
 # Threshold on the "modified z-score" (Iglewicz & Hoaglin's robust

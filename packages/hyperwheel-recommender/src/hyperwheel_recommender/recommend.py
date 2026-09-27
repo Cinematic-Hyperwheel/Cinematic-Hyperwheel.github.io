@@ -258,6 +258,7 @@ def recommend_many_planes(
                 target_r, target_angle, shortlist_size, top_k,
                 basis.items, scheme, angle_deg,
                 X_all_normalized, target_raw,
+                basis.U[0],
             ))
 
         results[plane] = pd.DataFrame(rows, columns=_RESULT_COLUMNS)
@@ -373,6 +374,7 @@ def _stage_ab_rows(
     angle_deg: float,
     items_normalized: np.ndarray,
     target_raw: np.ndarray,
+    pc1_loadings: np.ndarray,
 ) -> list[dict]:
     """
     Shared Stage A (character shortlist) + Stage B (angle/radius hard-gated
@@ -452,7 +454,11 @@ def _stage_ab_rows(
     be a perfect angular match.
     """
     target_normalized = normalize_item_tags(target_raw)
-    similarity = similarity_to_target(items_normalized, target_normalized)
+    similarity = similarity_to_target(
+        items_normalized,
+        target_normalized,
+        pc1_loadings,
+    )
 
     shortlist = high_similarity_outlier_indices(similarity, ref_idx, max_count=shortlist_size)
     if shortlist.size == 0:

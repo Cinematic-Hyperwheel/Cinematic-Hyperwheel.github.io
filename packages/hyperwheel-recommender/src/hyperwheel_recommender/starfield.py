@@ -80,7 +80,11 @@ def find_plane_neighbors(
     X = basis.L[:, None] + basis.Q
     normalized = normalize_item_tags(X)
 
-    similarity = similarity_to_target(normalized, normalized[ref_idx])
+    similarity = similarity_to_target(
+        normalized,
+        normalized[ref_idx],
+        basis.U[0],
+    )
     neighbors = high_similarity_outlier_indices(
         similarity, ref_idx, z_threshold=similarity_outlier_z, max_count=max_neighbors
     )
