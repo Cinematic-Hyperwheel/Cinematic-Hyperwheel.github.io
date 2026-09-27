@@ -118,24 +118,27 @@ tell "these two share no notable traits" apart from "these two share
 several pronounced traits".
 
 Character similarity between an item and the rotated target is instead
-measured with a fuzzy-set overlap metric (see `similarity.py`), applied
-to raw `[0, 1]` tag values:
+measured with a per-criterion agreement/disagreement metric (see
+`similarity.py`), applied directly to raw `[0, 1]` tag values:
 
-```
-S(x, y) = mean(min(N(x_i), N(y_i)))
-```
+​```
+contribution(x_i, y_i) = x_i * y_i - MISMATCH_PENALTY * |x_i - y_i|
+S(x, y) = weighted_mean(contribution(x, y))
+​```
 
-
-where `N()` independently normalizes each item's own tag vector using
-its own 5th/95th percentile (so the metric isn't skewed by one item
-simply running "hotter" or "colder" overall than another). `min()` means
-a criterion only contributes to `S` when BOTH items are pronounced on
-it — mutual near-0 values contribute almost nothing, mutual near-1
-values contribute close to their full weight. This is what "preserving
-the reference's overall character" means in this codebase: matching the
-rotated target's own pronounced attributes, not merely sitting close to
-it in an undifferentiated symmetric sense. See section 6b for how this
-feeds the actual candidate selection.
+`x_i * y_i` rewards both items being pronounced on the same criterion at
+once, while `|x_i - y_i|` penalizes disagreement on that criterion - the
+combination distinguishes "both pronounced on this trait" from "neither
+has this trait" and from "one has it, the other doesn't", none of which
+a plain symmetric distance can tell apart. Criteria are combined as a
+PC1-aware weighted average: criteria strongly aligned with PC1 (the
+general quality/halo axis) are downweighted, so a shared "everything is
+good/bad" signal doesn't dominate character similarity the way a genuine
+taste criterion does. This is what "preserving the reference's overall
+character" means in this codebase: matching the rotated target's own
+pronounced attributes, not merely sitting close to it in an
+undifferentiated symmetric sense. See section 6b for how this feeds the
+actual candidate selection.
 
 ## 6. Known limitations / open questions
 
@@ -223,9 +226,8 @@ resolves this in two stages instead of one:
   to the rotated target (robust modified z-score, median/MAD -
   `similarity.high_similarity_outlier_indices`), capped at
   `shortlist_size` as a safety ceiling rather than a fixed pool size (see
-  below). Similarity is the pronounced-attribute overlap metric
-  introduced in section 5 (`similarity.py`:
-  `S(x, y) = mean(min(N(x_i), N(y_i)))`), computed between each catalog
+  below). Similarity is the pronounced-attribute agreement/disagreement metric
+  introduced in section 5 (`similarity.py`), computed between each catalog
   item's raw `[0, 1]` tag vector and the rotated target's own
   reconstructed raw tag vector (delta reconstruction, section 5/6c) -
   NOT a distance in the standardized PCA shape space. Because the delta

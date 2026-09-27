@@ -17,7 +17,6 @@ from .rotation import SCHEMES
 from .similarity import (
     SIMILARITY_OUTLIER_Z,
     high_similarity_outlier_indices,
-    normalize_item_tags,
     similarity_to_target,
 )
 
@@ -193,11 +192,10 @@ def recommend_many_planes(
     y_ref = basis.scores[ref_idx]
 
     # Raw [0,1] tag values reconstructed from the basis (X = L + Q, see
-    # basis.py), normalized for the similarity metric once per call -
-    # shared by every plane/angle's Stage A shortlist below (only the
-    # target side of the similarity changes per angle, not the catalog).
+    # basis.py) - shared by every plane/angle's Stage A shortlist below
+    # (only the target side of the similarity changes per angle, not
+    # the catalog).
     X_all = basis.L[:, None] + basis.Q
-    X_all_normalized = normalize_item_tags(X_all)
 
     results: dict[tuple[int, int], pd.DataFrame] = {}
 
@@ -223,7 +221,7 @@ def recommend_many_planes(
             # Same rotation math as rotation.rotate_whitened, inlined here
             # to avoid materializing/copying the full y vector per angle -
             # only the two plane components ever change.
-            theta = np.radians(angle_deg)
+            theta = np.float32(np.radians(angle_deg))
             z_i, z_j = y_ref[pi] / std_i, y_ref[pj] / std_j
             c_, s_ = np.cos(theta), np.sin(theta)
             z_i_new = c_ * z_i - s_ * z_j
@@ -257,7 +255,7 @@ def recommend_many_planes(
                 dists, ref_idx, z_i_all, z_j_all, angle_all,
                 target_r, target_angle, shortlist_size, top_k,
                 basis.items, scheme, angle_deg,
-                X_all_normalized, target_raw,
+                X_all, target_raw,
                 basis.U[0],
             ))
 
@@ -372,7 +370,7 @@ def _stage_ab_rows(
     items: list,
     scheme: str,
     angle_deg: float,
-    items_normalized: np.ndarray,
+    items_raw: np.ndarray,
     target_raw: np.ndarray,
     pc1_loadings: np.ndarray,
 ) -> list[dict]:
@@ -438,13 +436,11 @@ def _stage_ab_rows(
         the rotated target for THIS scheme angle - reported in the output
         as `distance_to_target` for reference alongside the
         similarity-based ranking, but not itself what Stage A selects on.
-    items_normalized: (n_items, n_criteria) catalog raw tag values,
-        already normalized for the similarity metric (see similarity.py)
-        - shared across every angle for a given reference, computed once
-        by the caller.
+    items_raw: (n_items, n_criteria) catalog raw tag values, shared
+        across every angle for a given reference, computed once by the
+        caller.
     target_raw: (n_criteria,) the rotated target's own raw tag values,
-        used to compute its similarity-metric normalization against
-        which every catalog item is compared.
+        compared against the catalog via the similarity metric.
 
     Returns a list of row dicts (possibly empty, if no candidate is a
     similarity outlier at all, or none clears both the angle and radius
@@ -453,10 +449,9 @@ def _stage_ab_rows(
     chosen item's own position sits from the exact target angle - 0 would
     be a perfect angular match.
     """
-    target_normalized = normalize_item_tags(target_raw)
     similarity = similarity_to_target(
-        items_normalized,
-        target_normalized,
+        items_raw,
+        target_raw,
         pc1_loadings,
     )
 

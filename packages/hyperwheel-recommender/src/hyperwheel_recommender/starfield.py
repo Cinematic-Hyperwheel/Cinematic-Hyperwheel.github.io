@@ -29,7 +29,6 @@ from .basis import TasteBasis
 from .similarity import (
     SIMILARITY_OUTLIER_Z,
     high_similarity_outlier_indices,
-    normalize_item_tags,
     similarity_to_target,
 )
 
@@ -78,11 +77,10 @@ def find_plane_neighbors(
     # basis.py) - avoids re-reading the source wide table the basis was
     # already built from.
     X = basis.L[:, None] + basis.Q
-    normalized = normalize_item_tags(X)
 
     similarity = similarity_to_target(
-        normalized,
-        normalized[ref_idx],
+        X,
+        X[ref_idx],
         basis.U[0],
     )
     neighbors = high_similarity_outlier_indices(

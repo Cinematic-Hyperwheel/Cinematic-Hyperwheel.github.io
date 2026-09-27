@@ -1,6 +1,4 @@
 """
-packages/hyperwheel-recommender/src/hyperwheel_recommender/similarity.py
-
 Shared "pronounced attribute overlap" similarity metric and its adaptive
 outlier selection, used by both the Stage A character shortlist
 (recommend.py) and the plane starfield (starfield.py).
@@ -9,51 +7,25 @@ Similarity, not distance
 -------------------------
 Tag relevance values are on [0, 1]; a value close to 1 means an item
 pronouncedly HAS that attribute, a value close to 0 means it's largely
-absent. Two items BOTH lacking an attribute (both near 0) says very
-little about how alike they are - most items lack most attributes, so
-mutual absence is common ground rather than evidence of shared
-character. Two items BOTH pronouncedly having an attribute (both near 1)
-is a much stronger, rarer signal.
+absent. A symmetric Euclidean/L2 distance (used for the hue-plane
+geometry itself, see basis.py/rotation.py) treats "both near 0" and
+"both near 1" identically, so it can't tell "these two share no notable
+traits" apart from "these two share several pronounced traits".
 
-A symmetric Euclidean/L2 distance (used for the hue-plane geometry
-itself, see basis.py/rotation.py) can't distinguish these two cases -
-(x-y)^2 is identical whether x and y are both near 0 or both near 1.
-The similarity metric here is a soft, asymmetric fuzzy-set overlap
-instead:
+The metric here rewards agreement and penalizes disagreement per
+criterion, on raw [0, 1] tag values:
 
-    S(x, y) = mean(min(N(x_i), N(y_i)))
+    contribution(x_i, y_i) = x_i * y_i - MISMATCH_PENALTY * |x_i - y_i|
 
-where N() independently normalizes each item's own tag vector via its
-own 5th/95th percentile (so the metric isn't skewed by one item simply
-having a higher or lower overall tag intensity than another). min()
-means a criterion only contributes to S when BOTH items are pronounced
-on it - mutual near-0 values contribute almost nothing, mutual near-1
-values contribute close to their full weight.
+criteria are then combined as a PC1-aware weighted average (see
+_pc1_aware_weights), so an item's overall "quality" signal doesn't
+dominate the comparison the way a genuine taste criterion does.
 """
 
 from __future__ import annotations
 
 import numpy as np
-
-
-def normalize_item_tags(x: np.ndarray) -> np.ndarray:
-    """
-    Normalizes tag vector(s) along the last axis, each independently
-    using its own 5th/95th percentile. Accepts a single item's vector
-    (n_criteria,) or a batch (n_items, n_criteria).
-    """
-
-    return x
-    p5 = np.percentile(x, 0.0, axis=-1, keepdims=True)
-    p95 = np.percentile(x, 100.0, axis=-1, keepdims=True)
-    scale = p95 - p5
-    valid = scale > 1e-12
-    normalized = np.where(
-        valid,
-        np.clip((x - p5) / np.where(valid, scale, 1.0), 0.0, 1.0),
-        0.0,
-    )
-    return normalized.astype(np.float32)
+from numba import njit, prange
 
 # Strength of the penalty for differences in tag activation.
 # 0 = no penalty; 0.5 = moderate; 1 = penalty equal in magnitude
@@ -65,35 +37,75 @@ MISMATCH_PENALTY = 0.5
 # 1 = no PC1 downweighting.
 PC1_WEIGHT_FLOOR = 0.05
 
-def tags_similarity_to_target(items_normalized: np.ndarray, target_normalized: np.ndarray) -> np.ndarray:
-    """Compute minimum-overlap similarity between tag profiles."""
 
-    mismatch_penalty = MISMATCH_PENALTY
-
-    shared = np.multiply(items_normalized, target_normalized)
-    mismatch = np.abs(items_normalized - target_normalized)
-    return shared - mismatch_penalty * mismatch
-
-def similarity_to_target(
-    items_normalized,
-    target_normalized,
-    pc1_loadings: np.ndarray,
-):
-    """PC1-aware pronounced-attribute overlap similarity."""
-
-    tags_similarity = tags_similarity_to_target(
-        items_normalized,
-        target_normalized,
-    )
-
+def _pc1_aware_weights(pc1_loadings: np.ndarray) -> np.ndarray:
+    """
+    Per-criterion weight for the similarity metric: criteria strongly
+    aligned with PC1 (the overall quality/halo axis) are downweighted
+    toward PC1_WEIGHT_FLOOR, so a shared "everything is good/bad" signal
+    doesn't dominate character similarity the way a genuine taste
+    criterion does.
+    """
     pc1_strength = np.abs(pc1_loadings)
     max_strength = np.max(pc1_strength)
     if max_strength > 1e-12:
         pc1_strength = pc1_strength / max_strength
+    return (1.0 - (1.0 - PC1_WEIGHT_FLOOR) * pc1_strength).astype(np.float32)
 
-    weights = 1.0 - (1.0 - PC1_WEIGHT_FLOOR) * pc1_strength
 
-    return np.average(tags_similarity, axis=1, weights=weights)
+@njit(parallel=True, fastmath=True, cache=True)
+def _weighted_similarity_sum(
+    items: np.ndarray,
+    target: np.ndarray,
+    weights: np.ndarray,
+    mismatch_penalty: float,
+) -> np.ndarray:
+    """
+    Per-item weighted "agreement - penalty * disagreement" sum against a
+    single target (not yet divided by weights.sum() - see
+    similarity_to_target), computed in one pass over `items` with no
+    full-matrix temporary array.
+
+    A plain NumPy formulation needs a full (n_items, n_criteria)
+    temporary for |items - target| (abs has no linear decomposition
+    into a matrix product, unlike the agreement term), plus separate
+    reductions for the two weighted sums - two full memory passes over
+    the catalog matrix per call. This kernel instead accumulates both
+    terms per item within a single criteria loop, so each row of
+    `items` is read from memory exactly once. Rows are independent, so
+    the outer loop is parallelized across items - n_items is in the
+    tens of thousands, n_criteria only in the thousands, so this is the
+    axis worth splitting on.
+    """
+    n_items, n_criteria = items.shape
+    out = np.empty(n_items, dtype=np.float32)
+    for i in prange(n_items):
+        agreement = 0.0
+        disagreement = 0.0
+        for c in range(n_criteria):
+            v = items[i, c]
+            t = target[c]
+            w = weights[c]
+            agreement += v * t * w
+            disagreement += abs(v - t) * w
+        out[i] = agreement - mismatch_penalty * disagreement
+    return out
+
+
+def similarity_to_target(
+    items: np.ndarray,
+    target: np.ndarray,
+    pc1_loadings: np.ndarray,
+) -> np.ndarray:
+    """PC1-aware pronounced-attribute overlap similarity between every
+    catalog item and a single target, both on raw [0, 1] tag values."""
+    weights = _pc1_aware_weights(pc1_loadings)
+    # target is a small (n_criteria,) vector - this cast is essentially
+    # free even when it copies, and keeps the numba kernel compiled
+    # against one stable float32 signature.
+    target = np.asarray(target, dtype=np.float32)
+    weighted_sum = _weighted_similarity_sum(items, target, weights, MISMATCH_PENALTY)
+    return weighted_sum / weights.sum()
 
 
 # Threshold on the "modified z-score" (Iglewicz & Hoaglin's robust
