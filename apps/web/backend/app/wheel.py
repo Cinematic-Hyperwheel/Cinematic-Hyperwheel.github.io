@@ -28,13 +28,14 @@ from __future__ import annotations
 
 import itertools
 import math
+import sys
 from dataclasses import dataclass
 
 import numpy as np
 
-from hyperwheel_recommender import TasteBasis, build_taste_basis, load_input
+from hyperwheel_recommender import TasteBasis, build_taste_basis, load_input, load_pca_cache
 
-from .config import ARTIFACT_PATH, N_COMPONENTS, STANDARDIZE
+from .config import ARTIFACT_PATH, N_COMPONENTS, PCA_CACHE_PATH, STANDARDIZE
 from .pc_config import load_pc_config
 
 
@@ -107,7 +108,25 @@ def build_engine() -> WheelEngine:
     pc_config = load_pc_config()
     n_needed = max(N_COMPONENTS, max(pc_config))
     wide = load_input(str(ARTIFACT_PATH))
-    basis = build_taste_basis(wide, n_components=n_needed, standardize=STANDARDIZE)
+    # Skips the O(n_criteria^3) eigh call when a build-time cache exists
+    # and matches this exact artifact/n_needed/STANDARDIZE combination
+    # (see tools/build_basis_cache.py) - falls back to computing it here
+    # on a cache miss (e.g. local dev without a baked cache).
+    precomputed_pca = load_pca_cache(str(PCA_CACHE_PATH), wide, n_needed, STANDARDIZE)
+    if precomputed_pca is not None:
+        print(f"[info] PCA cache hit: {PCA_CACHE_PATH}", file=sys.stderr)
+    else:
+        # A present-but-rejected file means it was built for a different
+        # artifact, n_components or standardize flag, or before a PCA code change.
+        reason = "fingerprint mismatch" if PCA_CACHE_PATH.exists() else "file not found"
+        print(
+            f"[info] PCA cache miss ({reason}: {PCA_CACHE_PATH}) - computing the basis "
+            f"fresh (n_components={n_needed}, standardize={STANDARDIZE}).",
+            file=sys.stderr,
+        )
+    basis = build_taste_basis(
+        wide, n_components=n_needed, standardize=STANDARDIZE, precomputed_pca=precomputed_pca,
+    )
 
     # wide.index items are the raw "item" values from the CSV (see
     # data.py) - in this dataset that's the numeric MovieLens item_id,

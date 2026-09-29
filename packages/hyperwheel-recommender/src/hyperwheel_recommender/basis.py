@@ -54,9 +54,55 @@ class TasteBasis:
                               # not a fresh full-matrix norm per plane.
 
 
+
+
+def _solve_pca(Q_scaled: np.ndarray, n_components: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    PCA via eigh on the Gram matrix (n_criteria x n_criteria), rather than
+    SVD of the full (n_items x n_criteria) matrix. When n_items >>
+    n_criteria (the typical case: thousands of items, hundreds of
+    criteria), SVD still computes and materializes the left matrix U of
+    size (n_items x n_criteria), which is then discarded - this is both
+    slower (~8x on 10000x920) and requires extra memory just to hold it.
+    The Gram matrix C = Q^T @ Q is small (n_criteria x n_criteria)
+    regardless of the number of items - that's all the basis actually
+    needs.
+
+    This is the O(n_criteria^3) cost of build_taste_basis - isolated
+    into its own function so basis_cache.py can supply a precomputed
+    result instead of paying this cost on every call.
+
+    Returns (U, explained, singular_values):
+      U: (n_components, n_criteria) orthonormal basis
+      explained: (n_components,) fraction of variance explained
+      singular_values: full spectrum (length n_criteria), for diagnose
+    """
+    C = Q_scaled.T @ Q_scaled
+    eigvals, eigvecs = np.linalg.eigh(C)         # ascending order
+    order = np.argsort(eigvals)[::-1]
+    eigvals_sorted = np.clip(eigvals[order], 0, None)  # guard against small negatives from floating-point error
+    S = np.sqrt(eigvals_sorted)                   # equivalent to singular values
+    Vt = eigvecs[:, order].T                        # (n_criteria, n_criteria)
+
+    total_var = np.sum(S ** 2)
+    explained_full = (S ** 2) / total_var if total_var > 0 else S * 0
+
+    n_components = min(n_components, Vt.shape[0])
+    return Vt[:n_components], explained_full[:n_components], S
 def build_taste_basis(
-    wide: pd.DataFrame, n_components: int, standardize: bool = True
+    wide: pd.DataFrame,
+    n_components: int,
+    standardize: bool = True,
+    precomputed_pca: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> TasteBasis:
+    """
+    precomputed_pca: optional (U, explained, singular_values) from a
+    prior _solve_pca call on the exact same standardized shape space
+    (see basis_cache.py) - skips the O(n_criteria^3) eigh call below.
+    The caller is responsible for ensuring it actually matches this
+    wide table, n_components and standardize flag; basis_cache's
+    fingerprint check is what enforces that in practice.
+    """
     # float32, not float64 (was dtype=float) - on large catalogs (thousands
     # of items x hundreds of criteria) float64 on every intermediate array
     # (X, Q, Qc, Q_scaled) doubles peak RSS with no meaningful accuracy
@@ -86,28 +132,16 @@ def build_taste_basis(
 
     Q_scaled = Qc / scale
 
-    # PCA via eigh on the Gram matrix (n_criteria x n_criteria), rather than
-    # SVD of the full (n_items x n_criteria) matrix. When n_items >>
-    # n_criteria (the typical case: thousands of items, hundreds of
-    # criteria), SVD still computes and materializes the left matrix U of
-    # size (n_items x n_criteria), which is then discarded - this is both
-    # slower (~8x on 10000x920) and requires extra memory just to hold it.
-    # The Gram matrix C = Q^T @ Q is small (n_criteria x n_criteria)
-    # regardless of the number of items - that's all the basis actually
-    # needs.
-    C = Q_scaled.T @ Q_scaled
-    eigvals, eigvecs = np.linalg.eigh(C)         # ascending order
-    order = np.argsort(eigvals)[::-1]
-    eigvals_sorted = np.clip(eigvals[order], 0, None)  # guard against small negatives from floating-point error
-    S = np.sqrt(eigvals_sorted)                   # equivalent to singular values
-    Vt = eigvecs[:, order].T                        # (n_criteria, n_criteria)
-
-    total_var = np.sum(S ** 2)
-    explained_full = (S ** 2) / total_var if total_var > 0 else S * 0
-
-    n_components = min(n_components, Vt.shape[0])
-    U = Vt[:n_components]
-    explained = explained_full[:n_components]
+    if precomputed_pca is not None:
+        # Skips the O(n_criteria^3) eigh call - see basis_cache.py. The
+        # caller is responsible for ensuring the cache matches this
+        # exact wide table, n_components and standardize flag
+        # (basis_cache.compute_fingerprint checks this).
+        U, explained, S = precomputed_pca
+        n_components = min(n_components, U.shape[0])
+        U, explained = U[:n_components], explained[:n_components]
+    else:
+        U, explained, S = _solve_pca(Q_scaled, n_components)
 
     scores = Q_scaled @ U.T                 # (n_items, n_components)
     pc_std = scores.std(axis=0)

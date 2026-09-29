@@ -39,6 +39,13 @@ DATA_DIR = _env_path("HYPERWHEEL_DATA_DIR", REPO_ROOT / "data" / "ml-latest")
 # var / constant name for backward compatibility with existing deploys.
 METADATA_PATH = _env_path("HYPERWHEEL_METADATA_PATH", DATA_DIR / "movies.csv")
 ARTIFACT_PATH = _env_path("HYPERWHEEL_ARTIFACT_PATH", DATA_DIR / "artifact.npz")
+# Baked at container build time (see tools/build_basis_cache.py and
+# render.yaml/Dockerfile) - holds the precomputed eigh result for
+# ARTIFACT_PATH, so wheel.py's build_engine() can skip that step on
+# process start. Missing file (e.g. local dev without a baked cache) or
+# a fingerprint mismatch both fall back to computing it fresh - see
+# hyperwheel_recommender.basis_cache.load_pca_cache.
+PCA_CACHE_PATH = _env_path("HYPERWHEEL_PCA_CACHE_PATH", DATA_DIR / "pca_cache.npz")
 
 N_COMPONENTS = int(os.environ.get("HYPERWHEEL_N_COMPONENTS", "20"))
 STANDARDIZE = os.environ.get("HYPERWHEEL_NO_STANDARDIZE", "") == ""

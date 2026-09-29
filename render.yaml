@@ -21,6 +21,13 @@
 #      (re-run `diagnose`, re-check criteria weights and pole items).
 #   3. Upload the new artifact.npz/movies.csv and point
 #      ARTIFACT_URL/METADATA_URL at them.
+#
+# buildCommand also precomputes a PCA cache (see
+# hyperwheel_recommender.basis_cache and apps/web/README.md, "Optional:
+# precomputed PCA cache") from that same freshly downloaded artifact -
+# this is what a code or dataset change through step 3 above regenerates
+# automatically on the next deploy, with no separate cache-invalidation
+# step needed.
 services:
   - type: web
     name: cinematic-hyperwheel
@@ -38,12 +45,48 @@ services:
       mkdir -p data/ml-latest
       curl -fL -o data/ml-latest/artifact.npz "$ARTIFACT_URL"
       curl -fL -o data/ml-latest/movies.csv "$METADATA_URL"
+
+      # Precomputes the O(n_criteria^3) eigh step of build_taste_basis
+      # against the exact artifact and code this build produces an
+      # image for (see hyperwheel_recommender.basis_cache and
+      # apps/web/README.md, "Optional: precomputed PCA cache"). This is
+      # what removes the per-cold-start eigh cost on the free plan's
+      # throttled CPU on every restart, not just a one-off speedup.
+      # n_needed mirrors wheel.py's build_engine() exactly (reads the
+      # same config.py/pc_config.json this build already installed),
+      # so the cache can never silently diverge from what the running
+      # app actually asks for.
+      HYPERWHEEL_N_NEEDED=$(PYTHONPATH=apps/web/backend python -c "
+      from app.config import N_COMPONENTS
+      from app.pc_config import load_pc_config
+      print(max(N_COMPONENTS, max(load_pc_config())))
+      ")
+      python tools/build_basis_cache.py \
+        --artifact data/ml-latest/artifact.npz \
+        --n-components "$HYPERWHEEL_N_NEEDED" \
+        --out data/ml-latest/pca_cache.npz
     startCommand: cd apps/web/backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: HYPERWHEEL_N_COMPONENTS
         value: "20"
+      # Pins BLAS/LAPACK to a single thread - both for the eigh call in
+      # this buildCommand's cache-build step and for the runtime
+      # process's own build_taste_basis fallback path (used if the
+      # cache is ever missing or its fingerprint doesn't match - see
+      # basis_cache.load_pca_cache). Multi-threaded BLAS busy-spins
+      # between threads by default, which competes with itself under a
+      # throttled CPU quota instead of yielding it - see
+      # docs/performance.md.
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: NUMEXPR_NUM_THREADS
+        value: "1"
       # Direct-download URLs for the pre-built artifact and filtered
       # catalog (see the top-of-file comment) - e.g. a GitHub Release
       # asset URL. Set per-deploy in the Render dashboard.

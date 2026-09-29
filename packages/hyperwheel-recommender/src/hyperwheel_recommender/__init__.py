@@ -23,6 +23,7 @@ CLI usage:
 """
 
 from .basis import TasteBasis, build_taste_basis
+from .basis_cache import load_pca_cache, save_pca_cache
 from .data import load_artifact, load_input, load_matrix, save_artifact
 from .diagnose import diagnose
 from .planes import select_hue_plane
@@ -37,6 +38,8 @@ __all__ = [
     "save_artifact",
     "TasteBasis",
     "build_taste_basis",
+    "save_pca_cache",
+    "load_pca_cache",
     "SCHEMES",
     "rotate_whitened",
     "select_hue_plane",

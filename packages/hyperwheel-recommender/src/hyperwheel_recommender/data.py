@@ -134,11 +134,11 @@ def save_artifact(wide: pd.DataFrame, path: str) -> None:
     """
     Saves the wide table into a compact binary .npz - for the serve stage,
     so the original CSV doesn't need to be re-parsed on every web-process
-    start. The PCA basis is intentionally NOT cached separately: recomputing
-    it via eigh on the Gram matrix is now fast enough (a fraction of a
-    second even on thousands of items), and not caching it removes the
-    risk of serving recommendations from a stale version of the math after
-    a code update.
+    start. The PCA basis itself is not part of this artifact: it is
+    rebuilt from the saved table by build_taste_basis, optionally using a
+    separately cached eigendecomposition (see basis_cache.py) rather than
+    a cached basis object - basis_cache's own fingerprint check is what
+    guards against a stale cache after a code or dataset update.
     """
     np.savez_compressed(
         path,

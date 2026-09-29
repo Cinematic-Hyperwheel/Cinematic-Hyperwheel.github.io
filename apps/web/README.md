@@ -44,7 +44,45 @@ Expected under `/data/ml-latest/` by default (overridable via env vars):
   ```
 
 Paths are overridable via `HYPERWHEEL_DATA_DIR`, `HYPERWHEEL_METADATA_PATH`,
-`HYPERWHEEL_ARTIFACT_PATH`.
+`HYPERWHEEL_ARTIFACT_PATH`, `HYPERWHEEL_PCA_CACHE_PATH` (see below).
+
+### Optional: precomputed PCA cache
+
+Building the PCA basis from `artifact.npz` includes an `O(n_criteria^3)`
+eigendecomposition (see `/docs/math.md`, section 3) that the backend
+otherwise runs fresh on every process start. For a catalog with a
+sizeable number of criteria (thousands of tags), or when the host's CPU
+is throttled (e.g. a free-tier deployment - see `/docs/performance.md`),
+this can dominate startup time.
+
+`tools/build_basis_cache.py` precomputes this step once and saves the
+result to a small `.npz` file, tagged with a fingerprint of the exact
+code, dataset and PCA settings used - a mismatch (different artifact,
+`--n-components`, or a code change to the PCA algorithm) is detected
+automatically and falls back to computing the basis fresh, so a stale
+cache is never silently trusted:
+
+```bash
+python tools/build_basis_cache.py \
+  --artifact data/ml-latest/artifact.npz \
+  --n-components 20 \
+  --out data/ml-latest/pca_cache.npz
+```
+
+`--n-components` must match the value the backend actually builds the
+basis with - `max(HYPERWHEEL_N_COMPONENTS, highest PC index in
+pc_config.json)`, not just the raw `HYPERWHEEL_N_COMPONENTS` env var
+(see `wheel.py`'s `build_engine()`).
+
+Entirely optional: without it (or on a mismatch), the backend computes
+the basis the same way it always did. Point `HYPERWHEEL_PCA_CACHE_PATH`
+at the file if it isn't under `HYPERWHEEL_DATA_DIR` (the default).
+
+For Docker Compose, since `HYPERWHEEL_DATA_HOST_PATH` is a host
+directory mounted into the container, running the command above once
+against that same host directory (before or after starting the
+container) is enough - the cache persists across container restarts
+just like the artifact itself.
 
 ### External ids (`imdbId`/`tmdbId`)
 
