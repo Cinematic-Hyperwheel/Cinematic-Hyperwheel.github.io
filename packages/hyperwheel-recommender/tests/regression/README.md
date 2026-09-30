@@ -21,6 +21,12 @@ statistical distribution.
   `settings.STARFIELD_MAX_SIZE` (default 1000) items per circle, with
   the safety cap in `find_plane_neighbors` itself raised out of the way
   so the underlying near-outlier selection is what's actually measured.
+- **`test_starfield_regression.py`** - for every pair in
+  `data/recommendation_pairs.csv`, the expected recommendation is still
+  present in the reference item's plane starfield (`find_plane_neighbors`)
+  - a character match along at least one basis axis, with every other
+  axis suppressed (see `/docs/math.md` section 7). The pair's `scheme`
+  column is ignored here, since the starfield has no notion of a scheme.
 
 ## Adding a pair
 

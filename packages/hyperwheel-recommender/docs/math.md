@@ -336,31 +336,48 @@ list of planes; `recommend_on_basis` is a thin single-plane wrapper
 around it, so both share exactly one Stage A/B implementation
 (`_stage_ab_rows`).
 
-## 7. Plane starfield (whole-profile similarity neighbors)
+## 7. Plane starfield (per-axis isolation similarity neighbors)
 
 Sections 5-6c find items near a rotated TARGET within one hue plane -
 useful for the scheme's own clusters, but silent about everything else
 in the catalog. A different, complementary question: regardless of any
-hue plane, which items resemble the reference overall?
+hue plane, which items resemble the reference along one particular taste
+axis, on its own?
 
-This reuses the exact same pronounced-attribute similarity metric Stage A
-uses for scheme candidates (section 5/6b, `similarity.py`), applied
-directly to raw `[0, 1]` tag values - reference vs. every catalog item,
-with no rotation involved at all. Candidates are selected the same way
-Stage A selects its shortlist: items that are a statistically significant
-outlier on the HIGH side of the reference's own similarity distribution
-across the catalog (`similarity.high_similarity_outlier_indices`,
-section 6b) - self-calibrating per reference, same as Stage A.
+A single whole-profile similarity search (reference vs. every catalog
+item, section 5/6b's pronounced-attribute metric, PC1 always suppressed
+the same way Stage A suppresses it) requires a candidate to resemble the
+reference on EVERY axis at once. For a reference with a genuinely
+distinctive profile on several axes, that conflation can leave very few
+- or no - items standing out as a statistically significant match.
 
-Because the similarity metric is whole-profile (`min()` has no linear
-decomposition the way a Euclidean distance does, so there is no way to
-algebraically "project out" a single plane's contribution from it), a
-reference's starfield is identical regardless of which plane it's
-requested for - `find_plane_neighbors`'s `planes` argument only shapes
-which keys the returned dict has, letting a caller look up one field per
-plane the same way it looks up that plane's scheme recommendations.
+`find_plane_neighbors` instead runs one search per basis axis (aside
+from PC1 - see wheel.py's `WheelEngine.non_pc1_components`), each time
+suppressing every OTHER basis axis' own criteria weights
+(`similarity_to_target`'s `suppress_loadings`, on top of the PC1
+suppression that always applies) - isolating that one axis' own
+character contribution rather than requiring simultaneous agreement on
+all of them. Each per-axis search selects its own statistically
+significant high-similarity outliers exactly as Stage A does
+(`similarity.high_similarity_outlier_indices`, section 6b) -
+self-calibrating per (reference, axis) pair, same as Stage A; an axis a
+reference is unremarkable on can legitimately return few or no matches.
+Criteria variance the basis didn't capture in any of its components (the
+long tail beyond however many components were computed) has no loadings
+vector to suppress by, so it is never suppressed and always contributes
+to every axis' search unchanged.
 
-Unlike the scheme case, there is no Stage B angle/radius gate afterward -
-nothing here constrains where in any particular plane a candidate sits,
-so plotted on any one plane's disc these items scatter across the whole
-radius/angle range instead of clustering at scheme target angles.
+The per-axis outlier sets are unioned by item id, keeping each item's
+best similarity score across the axes it qualified on (an item can
+qualify via more than one axis), then capped at a fixed size
+(`MAX_NEIGHBORS`) as a defensive ceiling.
+
+Because this union - not any single plane's projection - decides
+membership, and because the underlying similarity metric is whole-
+profile (`min()`/mismatch-penalty terms have no linear decomposition the
+way a Euclidean distance does, so there is no way to algebraically
+"project out" a single plane's contribution from it), a reference's
+starfield is identical regardless of which plane it's requested for -
+`find_plane_neighbors`'s `planes` argument only shapes which keys the
+returned dict has, letting a caller look up one field per plane the same
+way it looks up that plane's scheme recommendations.

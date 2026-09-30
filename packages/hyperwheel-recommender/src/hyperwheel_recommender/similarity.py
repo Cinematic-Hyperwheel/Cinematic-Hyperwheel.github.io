@@ -30,7 +30,7 @@ from numba import njit, prange
 # Strength of the penalty for differences in tag activation.
 # 0 = no penalty; 0.5 = moderate; 1 = penalty equal in magnitude
 # to a same-strength match reward; values > 1 increasingly favor agreement.
-MISMATCH_PENALTY = 0.5
+MISMATCH_PENALTY = 0.15
 
 # Minimum weight retained by criteria strongly aligned with the PC1
 # (overall quality/halo) axis. 0 = fully suppress PC1-driven criteria;
@@ -38,19 +38,28 @@ MISMATCH_PENALTY = 0.5
 PC1_WEIGHT_FLOOR = 0.05
 
 
-def _pc1_aware_weights(pc1_loadings: np.ndarray) -> np.ndarray:
+def _axis_weight_factor(loadings: np.ndarray, floor: float) -> np.ndarray:
     """
-    Per-criterion weight for the similarity metric: criteria strongly
-    aligned with PC1 (the overall quality/halo axis) are downweighted
-    toward PC1_WEIGHT_FLOOR, so a shared "everything is good/bad" signal
-    doesn't dominate character similarity the way a genuine taste
-    criterion does.
+    Per-criterion downweighting factor for a single PCA axis: criteria
+    strongly aligned with `loadings` (large absolute component weight)
+    are pulled toward `floor`. floor=0 fully removes a criterion's
+    influence once it's maximally aligned with the axis; a floor close
+    to 1 barely downweights it.
     """
-    pc1_strength = np.abs(pc1_loadings)
-    max_strength = np.max(pc1_strength)
+    strength = np.abs(loadings)
+
+    max_strength = np.max(strength)
     if max_strength > 1e-12:
-        pc1_strength = pc1_strength / max_strength
-    return (1.0 - (1.0 - PC1_WEIGHT_FLOOR) * pc1_strength).astype(np.float32)
+        strength = strength / max_strength
+    return (1.0 - (1.0 - floor) * strength).astype(np.float32)
+
+
+def _pc1_aware_weights(pc1_loadings: np.ndarray) -> np.ndarray:
+    """Per-criterion weight suppressing criteria aligned with PC1 (the
+    overall quality/halo axis) toward PC1_WEIGHT_FLOOR, so a shared
+    "everything is good/bad" signal doesn't dominate character
+    similarity the way a genuine taste criterion does."""
+    return _axis_weight_factor(pc1_loadings, PC1_WEIGHT_FLOOR)
 
 
 @njit(parallel=True, fastmath=True, cache=True)
@@ -96,10 +105,26 @@ def similarity_to_target(
     items: np.ndarray,
     target: np.ndarray,
     pc1_loadings: np.ndarray,
+    suppress_loadings: np.ndarray | None = None,
 ) -> np.ndarray:
-    """PC1-aware pronounced-attribute overlap similarity between every
-    catalog item and a single target, both on raw [0, 1] tag values."""
+    """
+    PC1-aware pronounced-attribute overlap similarity between every
+    catalog item and a single target, both on raw [0, 1] tag values.
+
+    suppress_loadings: optional loadings of one or more additional PCA
+    axes to fully suppress (floor 0) on top of the PC1 downweighting
+    above - a (n_criteria,) vector for a single axis, or a
+    (n_axes, n_criteria) array for several at once. Each axis
+    contributes its own multiplicative factor, so a criterion strongly
+    aligned with ANY of them ends up strongly suppressed. Used by the
+    plane starfield's per-axis isolation search (see starfield.py) to
+    isolate a single axis' own contribution to character similarity by
+    suppressing every other axis at once.
+    """
     weights = _pc1_aware_weights(pc1_loadings)
+    if suppress_loadings is not None:
+        for axis_loadings in np.atleast_2d(suppress_loadings):
+            weights = weights * _axis_weight_factor(axis_loadings, floor=0.0)
     # target is a small (n_criteria,) vector - this cast is essentially
     # free even when it copies, and keeps the numba kernel compiled
     # against one stable float32 signature.
@@ -119,7 +144,7 @@ def similarity_to_target(
 # just testing the high tail of "similarity" instead of the low tail of
 # "distance". +2.5 is the conventional cutoff for this statistic.
 #SIMILARITY_OUTLIER_Z = 1.7
-SIMILARITY_OUTLIER_Z = 2.5
+SIMILARITY_OUTLIER_Z = 2.3
 
 
 def high_similarity_outlier_indices(

@@ -263,19 +263,19 @@ API call.
   `tmdb_id` are `null` when the dataset has no matching `links.csv` row
   for that movie, or `movies.csv` wasn't built with `--links` at all
   (see "External ids" above).
-  Each circle also carries `starfield`: every catalog item that is a
-  statistically significant near-outlier on the reference's distance
-  distribution across every TAG/criterion not already accounted for by
-  that circle's own axis pair (a tag-space comparison, not a comparison
-  against the OTHER PCA components - see `find_plane_neighbors` and
-  `docs/math.md` section 7), with duplicates of that circle's own scheme
-  recommendations excluded. This count varies per movie and per circle -
-  a distinctive reference may have very few (or zero) plane neighbors on
-  some axes and many on others; there is no fixed target size. Unlike
-  the scheme clusters, these have no angle/radius restriction and
-  scatter across the whole plane - the frontend renders them as small
-  background points on the main wheel only, not in the Recommendations
-  list.
+  Each circle also carries `starfield`: the same catalog-wide field for
+  every circle - for each PCA axis the basis has (aside from PC1,
+  always suppressed), every item that is a statistically significant
+  character match to the reference with every OTHER axis suppressed for
+  that search (see `find_plane_neighbors` and `docs/math.md` section 7),
+  unioned across axes and capped at a fixed size, with duplicates of
+  that circle's own scheme recommendations excluded. This count varies
+  per movie and per axis - an axis the reference is unremarkable on can
+  contribute few or no matches, while a genuinely distinctive axis can
+  contribute many. Unlike the scheme clusters, these have no
+  angle/radius restriction and scatter across the whole plane - the
+  frontend renders them as small background points on the main wheel
+  only, not in the Recommendations list.
 - `GET /api/movie/{item_id}/wheel` — `{ item_id, circles: [...] }`, one
   entry per circle (see below), each with `axis_x`/`axis_y` (pc index,
   colors, labels per language, explained variance), `z_x`/`z_y`, `angle_deg`,
@@ -395,19 +395,22 @@ the respective site otherwise - see "External ids" above).
 ### Plane starfield
 
 Besides the scheme's own clustered recommendations, each circle's
-response also carries a `starfield`: every catalog item that matches the
-reference across every criterion this circle's own PCA axis pair doesn't
-already account for (see
-`packages/hyperwheel-recommender/docs/math.md` section 7 - this compares
-against the underlying tags, not against the other PCA components),
-regardless of where it lands within the plane itself. Where the scheme
-clusters sit at specific target angles, starfield items scatter across
-the whole disc - a background field of movies that share the reference's
-character everywhere else. Rendered only on the main wheel, as small,
+response also carries a `starfield`: the same catalog-wide field for
+every circle (see `packages/hyperwheel-recommender/docs/math.md`
+section 7), built by running a whole-profile character search once per
+PCA axis the basis has - each time with every OTHER axis' own influence
+suppressed, on top of the general "quality" axis (PC1), which is always
+suppressed - and unioning the resulting per-axis matches. This isolates
+each axis' own character contribution instead of requiring agreement on
+every axis at once, so an item distinctive along just one taste
+direction can still surface. Where the scheme clusters sit at specific
+target angles, starfield items scatter across the whole disc - a
+background field of movies that share the reference's character along
+at least one axis on its own. Rendered only on the main wheel, as small,
 muted, non-clustered points; hovering one shows its title with the same
-highlight treatment as a scheme point, without opening the recommendation
-info card or cross-lighting the Recommendations list (starfield items
-have no corresponding list row).
+highlight treatment as a scheme point, without opening the
+recommendation info card or cross-lighting the Recommendations list
+(starfield items have no corresponding list row).
 
 ### Hover/tap info card
 

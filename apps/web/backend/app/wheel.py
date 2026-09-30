@@ -58,15 +58,34 @@ class WheelEngine:
             "explained": round(float(self.explained[pc - 1]), 4),
         }
 
+    @property
+    def curated_components(self) -> list[int]:
+        """1-based PCA component indices with a pc_config.json entry
+        that isn't excluded_from_hue - the axes eligible to form a
+        circle (see circles_for)."""
+        return sorted(
+            pc for pc, cfg in self.pc_config.items()
+            if not cfg.get("excluded_from_hue", False)
+        )
+
+    @property
+    def non_pc1_components(self) -> list[int]:
+        """Every 1-based PCA component the basis actually has, except
+        PC1 - the axes the plane starfield's per-axis isolation search
+        iterates over (see main.py's /recommend endpoint and
+        starfield.py). On each iteration one of these is the axis being
+        preserved; every other basis axis, including this list's other
+        entries, is suppressed for that iteration. PC1 itself is never
+        one of these - it always keeps its own gentler, always-applied
+        suppression instead of being isolated as the preserved axis."""
+        return list(range(2, self.basis.U.shape[0] + 1))
+
     def circles_for(self, item_id: int) -> list[dict]:
         idx = self.id_to_idx.get(item_id)
         if idx is None:
             raise KeyError(item_id)
 
-        candidates = [
-            pc for pc, cfg in self.pc_config.items()
-            if not cfg.get("excluded_from_hue", False)
-        ]
+        candidates = self.curated_components
         if len(candidates) < 2:
             raise ValueError(
                 "pc_config needs at least 2 non-excluded components to form a circle "
