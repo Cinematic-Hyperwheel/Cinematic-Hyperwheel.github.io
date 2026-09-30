@@ -36,14 +36,7 @@ def _included_components(data: dict) -> list[int]:
     return sorted(included)
 
 
-def load_circles(max_component: int | None = None) -> list[tuple[int, int]]:
-    """Returns the 1-based (i, j) plane pairs to check - every unordered
-    pair of non-excluded components from pc_config.json.
-
-    max_component, if given, filters out any pair that needs more
-    components than the basis actually has (guards against a stale
-    circles config after N_COMPONENTS is lowered for these tests).
-    """
+def _load_pc_config_data() -> dict:
     config_path = settings.PC_CONFIG_PATH
     if not config_path.exists():
         raise FileNotFoundError(
@@ -56,12 +49,24 @@ def load_circles(max_component: int | None = None) -> list[tuple[int, int]]:
             f"{config_path} is not a JSON object keyed by component "
             f"index - unexpected pc_config.json shape."
         )
+    return data
+
+
+def load_circles(max_component: int | None = None) -> list[tuple[int, int]]:
+    """Returns the 1-based (i, j) plane pairs to check - every unordered
+    pair of non-excluded components from pc_config.json.
+
+    max_component, if given, filters out any pair that needs more
+    components than the basis actually has (guards against a stale
+    circles config after N_COMPONENTS is lowered for these tests).
+    """
+    data = _load_pc_config_data()
     components = _included_components(data)
     pairs = list(itertools.combinations(components, 2))
     if not pairs:
         raise ValueError(
-            f"Fewer than 2 non-excluded components found in {config_path} - "
-            f"no circles to form."
+            f"Fewer than 2 non-excluded components found in "
+            f"{settings.PC_CONFIG_PATH} - no circles to form."
         )
 
     if max_component is not None:
@@ -70,3 +75,19 @@ def load_circles(max_component: int | None = None) -> list[tuple[int, int]]:
         raise ValueError("No usable circle definitions after filtering by max_component.")
 
     return pairs
+
+
+def load_components(max_component: int | None = None) -> list[int]:
+    """Returns the 1-based curated (non-excluded_from_hue) component
+    indices from pc_config.json - the axes the plane starfield's
+    leave-one-axis-out search iterates over (same components load_circles
+    pairs into circles, just not paired up).
+
+    max_component, if given, filters out any component the basis doesn't
+    actually have.
+    """
+    data = _load_pc_config_data()
+    components = _included_components(data)
+    if max_component is not None:
+        components = [c for c in components if c <= max_component]
+    return components

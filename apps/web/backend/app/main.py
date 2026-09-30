@@ -304,16 +304,17 @@ def recommend(item_id: int, scheme: str = Query("complementary")):
     that is less "expressive" structurally but produced a full, usable
     set of recommendations for this specific scheme.
 
-    Each circle also carries `starfield`: every catalog item that
-    matches the reference across every TAG/criterion not already
-    accounted for by that circle's own PCA axis pair (see
-    find_plane_neighbors, /docs/math.md section 7 - this is a tag-space
-    comparison, not a comparison against the other PCA components),
-    excluding items already listed above as scheme recommendations.
-    Unlike the scheme clusters, these aren't gated by angle/radius at
-    all - they scatter across the whole disc and are meant to be
-    rendered as small background points rather than the scheme's own
-    overlay dots.
+    Each circle also carries `starfield`: the same catalog-wide field of
+    items for every circle (see find_plane_neighbors, /docs/math.md
+    section 7) - for each PCA axis in the basis (aside from PC1, always
+    suppressed), every item that is a statistically significant
+    character match to the reference with every OTHER axis' own
+    influence suppressed for that search, unioned across axes and
+    capped at a fixed size - excluding items already listed above as
+    scheme recommendations. Unlike the scheme clusters, these aren't
+    gated by angle/radius at all - they scatter across the whole disc
+    and are meant to be rendered as small background points rather than
+    the scheme's own overlay dots.
     """
     if scheme not in SCHEMES:
         raise HTTPException(
@@ -347,14 +348,19 @@ def recommend(item_id: int, scheme: str = Query("complementary")):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # Every catalog item that shares the reference's position on every
-    # PCA component OUTSIDE each circle's own axis pair (see
-    # find_plane_neighbors, /docs/math.md section 7) - a scheme-
-    # independent field of "similar everywhere else" movies, shown as
-    # small background points scattered across that circle's disc
-    # rather than clustered at the scheme's target angles.
+    # Every catalog item that shares the reference's character along a
+    # single PCA axis, in turn, with every OTHER basis axis suppressed
+    # (see find_plane_neighbors, /docs/math.md section 7) - a scheme-
+    # independent field of "similar along this one taste direction"
+    # movies, shown as small background points scattered across that
+    # circle's disc rather than clustered at the scheme's target angles.
     try:
-        neighbor_indices = find_plane_neighbors(_engine.basis, reference_item=item_id, planes=planes)
+        neighbor_indices = find_plane_neighbors(
+            _engine.basis,
+            reference_item=item_id,
+            planes=planes,
+            preserve_components=_engine.non_pc1_components,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

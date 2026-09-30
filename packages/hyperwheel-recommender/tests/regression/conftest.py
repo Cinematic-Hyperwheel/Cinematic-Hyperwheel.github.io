@@ -70,6 +70,12 @@ def shortlist_size() -> int:
 def starfield_max_size() -> int:
     return settings.STARFIELD_MAX_SIZE
 
+@pytest.fixture(scope="session")
+def preserve_components(basis: TasteBasis) -> list[int]:
+    """Every PCA axis the basis has, except PC1 - the axes the plane
+    starfield's per-axis isolation search iterates over (see
+    WheelEngine.non_pc1_components)."""
+    return list(range(2, basis.U.shape[0] + 1))
 
 def load_golden_pairs() -> list[dict]:
     """Reads the reference/expected-recommendation pairs maintained by
