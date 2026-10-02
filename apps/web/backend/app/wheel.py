@@ -12,10 +12,9 @@ shown axis has a reviewed label/color for both poles, in every language.
 Among those eligible components (excluding any flagged
 excluded_from_hue, e.g. PC1 - a general "quality" axis, docs/math.md
 section 4), EVERY possible axis pair (combination) is generated, and the
-circles are ranked by descending aggregated z-score - here the item's
-summed absolute scores on the two axes, |z_a| + |z_b|. The top-ranked
-pair (the axes on which this item is most expressive overall) becomes
-the MAIN circle; the rest follow in order of decreasing aggregate.
+circles are ranked by descending radius in the whitened
+plane, hypot(z_a, z_b). The top-ranked pair (the axes on which this
+item is most expressive overall) becomes the MAIN circle; the rest follow in order of decreasing aggregate.
 
 Unlike the old consecutive-pairing rule (ranked list split into
 neighbouring pairs, ~n/2 circles, each axis used once), generating all
@@ -49,7 +48,7 @@ class WheelEngine:
     basis: TasteBasis        # prebuilt basis, reused by the recommend endpoint
     X: np.ndarray            # (n_items, n_criteria) raw criteria matrix
 
-    def _axis_payload(self, pc: int) -> dict:
+    def axis_payload(self, pc: int) -> dict:
         cfg = self.pc_config[pc]
         return {
             "pc": pc,
@@ -57,6 +56,14 @@ class WheelEngine:
             "labels": cfg["labels"],
             "explained": round(float(self.explained[pc - 1]), 4),
         }
+
+    def z_scores(self, indices, pcs: list[int]) -> list[list[float]]:
+        """Whitened scores (score / pc_std) for the given item indices: one
+        row per item, columns in `pcs` order (1-based component indices)."""
+        cols = np.asarray(pcs, dtype=int) - 1
+        rows = np.asarray(indices, dtype=int)
+        z = self.scores[np.ix_(rows, cols)].astype(np.float64) / self.pc_std[cols]
+        return np.round(z, 4).tolist()
 
     @property
     def curated_components(self) -> list[int]:
@@ -95,14 +102,12 @@ class WheelEngine:
         z = {pc: float(self.scores[idx, pc - 1] / self.pc_std[pc - 1]) for pc in candidates}
 
         # Every possible axis pair (combination), ranked by the item's
-        # aggregate z-score across the two axes (|z_a| + |z_b|). Sorting is
-        # stable, so equal aggregates keep the ascending-pc insertion order
-        # of itertools.combinations over `candidates` (dict order is already
-        # ascending) - deterministic ties.
+        # radius in the whitened plane. Sorting is stable, so equal radii keep
+        # the ascending-pc insertion order of itertools.combinations over
+        # `candidates` - deterministic ties.
         pairs = []
         for a, b in itertools.combinations(candidates, 2):
-            aggregate = abs(z[a]) + abs(z[b])
-            pairs.append((aggregate, a, b))
+            pairs.append((math.hypot(z[a], z[b]), a, b))
         pairs.sort(key=lambda t: -t[0])
 
         circles = []
@@ -113,8 +118,8 @@ class WheelEngine:
             radius = math.hypot(z_x, z_y)
             circles.append({
                 "primary": rank == 0,
-                "axis_x": self._axis_payload(pc_x),
-                "axis_y": self._axis_payload(pc_y),
+                "axis_x": self.axis_payload(pc_x),
+                "axis_y": self.axis_payload(pc_y),
                 "z_x": round(z_x, 4),
                 "z_y": round(z_y, 4),
                 "angle_deg": round(angle, 2),

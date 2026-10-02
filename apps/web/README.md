@@ -182,10 +182,9 @@ Two difficulty tiers (`SCOPES` in `pow.py`):
 
 - `light` - cheap, frequently-called endpoints (search-as-you-type, wheel
   lookup, movie metadata, backdrop/poster, random pick).
-- `heavy` - `/recommend`, the one endpoint that runs a full-catalog Stage
-  A/B pass per circle (see
-  `packages/hyperwheel-recommender/docs/math.md` section 6c) - a higher
-  difficulty and a smaller per-ticket call budget than `light`.
+- `heavy` - /recommend, the one endpoint that runs the per-axis starfield
+  search over the full catalog (see
+  packages/hyperwheel-recommender/docs/math.md section 7).
 
 A solved ticket is sent back as the `X-Pow-Ticket` header
 (`frontend/src/pow/powFetch.ts` attaches it automatically to every API
@@ -241,41 +240,20 @@ API call.
   `limit` at 25 results (both enforced server-side regardless of what's
   passed). Results do not include `imdb_id`/`tmdb_id` (see
   `/api/movie/{item_id}` for those).
-- `GET /api/movie/{item_id}/recommend?scheme=...` — color-wheel
-  recommendations (complementary/triadic/analogous/split-complementary/tetradic),
-  computed **independently for each circle** shown on `/wheel` for this
-  item. A single `recommend_many_planes` call resolves every circle's own
-  axis pair at once (see `docs/math.md` section 6c) — Stage A (character
-  shortlist in standardized shape space) and Stage B (angle+radius
-  re-rank within that shortlist, see `docs/math.md` section 6b) both run
-  fresh per circle; only the one-time reference-relative distance term is
-  now shared across circles instead of recomputed per circle. Because PCA
-  components are orthogonal, a movie well-rotated on one circle's axes
-  says nothing about its position on another circle's axes — so **each
-  circle generally returns a different set of top-5 movies**, not the
-  same 5 movies re-projected onto different axes (that was the earlier,
-  less accurate approach).
-  Response shape: `{ item_id, scheme, circles: [...] }`, one entry per
-  circle (same `axis_x`/`axis_y`/`primary` as `/wheel`), each carrying
-  its own `reference` coordinate and, per scheme angle, its own top-5
-  matches (`rank`, `title`, `genres`, `imdb_id`, `tmdb_id`, `z_x`/`z_y`, `angle_deg`,
-  `distance_to_target`, `angular_error_deg`, `radius_ratio`). `imdb_id`/
-  `tmdb_id` are `null` when the dataset has no matching `links.csv` row
-  for that movie, or `movies.csv` wasn't built with `--links` at all
-  (see "External ids" above).
-  Each circle also carries `starfield`: the same catalog-wide field for
-  every circle - for each PCA axis the basis has (aside from PC1,
-  always suppressed), every item that is a statistically significant
-  character match to the reference with every OTHER axis suppressed for
-  that search (see `find_plane_neighbors` and `docs/math.md` section 7),
-  unioned across axes and capped at a fixed size, with duplicates of
-  that circle's own scheme recommendations excluded. This count varies
-  per movie and per axis - an axis the reference is unremarkable on can
-  contribute few or no matches, while a genuinely distinctive axis can
-  contribute many. Unlike the scheme clusters, these have no
-  angle/radius restriction and scatter across the whole plane - the
-  frontend renders them as small background points on the main wheel
-  only, not in the Recommendations list.
+- `GET /api/movie/{item_id}/recommend` — scheme-independent neighbor pool
+  for one reference movie: the catalog items that share its character
+  along at least one PCA axis (`find_neighbors`, `docs/math.md` section 7),
+  ordered by descending `similarity`, each with its whitened coordinates
+  `z` on every curated component. Response shape: `{ item_id, pcs, axes,
+  reference, schemes, gate, items }` - `z` arrays and `reference` are
+  parallel to `pcs`, `axes` carries each component's colors/labels,
+  `schemes` maps scheme name to its angles, and `gate` holds the Stage B
+  tolerances (`angle_tol_rad`, `radius_tol_log`) defined in
+  `recommend.py`. Circles (every pair of curated components), per-angle
+  recommendations (angle/radius gate, top 6 per angle) and the background
+  star field are all derived client-side
+  (`frontend/src/utils/schemeGate.ts`), so changing the scheme needs no
+  request. The pool is capped at `MAX_NEIGHBORS` items.
 - `GET /api/movie/{item_id}/wheel` — `{ item_id, circles: [...] }`, one
   entry per circle (see below), each with `axis_x`/`axis_y` (pc index,
   colors, labels per language, explained variance), `z_x`/`z_y`, `angle_deg`,
@@ -340,8 +318,8 @@ reviewed.
 
 For a selected movie, the backend builds **every possible axis pair**
 (combination) from the non-excluded components in `pc_config.json` and
-ranks them by that item's aggregate z-score across the two axes
-(|z_a| + |z_b|, descending). The top-ranked pair - the axes on which the
+ranks them by the item's radius in the whitened plane (hypot(z_a, z_b),
+descending). The top-ranked pair - the axes on which the
 item is most expressive overall - is the **main circle**; the remaining
 pairs fill the **secondary circles**, shown smaller in a column on the
 right, in descending order of prominence. Generating all combinations
@@ -364,39 +342,28 @@ a circle still shows the full labels as a tooltip.
 
 ### Recommendations per circle
 
-Unlike the wheel's own point (a single fixed coordinate per circle),
-recommendations are re-derived per circle rather than shared across them.
-Earlier versions ran the color-wheel search once, on the main circle's
-plane only, and projected the resulting 5 movies onto every other
-circle's axes for display — cheap, but the projected points landed
-essentially at random on secondary circles, since a movie's position on
-one PCA plane is uninformative about its position on another orthogonal
-plane. A later version fixed the accuracy problem by calling
-`recommend_on_basis` once per circle with that circle's own axis pair,
-but at C(n,2) circles (e.g. 9 curated axes → 36) that meant redoing the
-one expensive full-catalog distance computation once per circle. The
-current backend instead calls `recommend_many_planes` once per request
-with every circle's axis pair at once (see
-`packages/hyperwheel-recommender/docs/math.md` section 6c): the
-expensive part of Stage A is shared across all circles algebraically,
-and each circle still gets its own independently optimized Stage A/B
-result — same accuracy as the per-circle-call version, without paying
-for the shared part C(n,2) times.
+Each circle's recommendations are computed on the client from the
+neighbor pool returned by `/recommend`: for every scheme angle, the
+reference is rotated in that circle's whitened plane, and pool items
+within the angle and radius tolerances of the rotated target are kept and
+ordered by angle bucket, radius mismatch, exact angle and finally
+similarity (the same Stage B gate as `recommend.py`, whose tolerances the
+server supplies). Circles are ordered with populated ones first, then by
+the reference's radius, largest first; the first is the main circle.
+Because the pool is the same for every circle, each circle's
+recommendations are a different selection from it, not the same movies
+re-projected.
 
-The left-hand "Recommendations" panel intentionally stays tied to the
-**main circle only** (its titles list is not repeated per secondary
-circle); the secondary circles still show their own, independently
-computed points as overlays with a hover tooltip, they just aren't
-duplicated as text in the side panel. Each row also links out to that
-movie's IMDb and TMDB pages (direct title-page links when the dataset
-has a matching `imdb_id`/`tmdb_id`, falling back to a title search on
-the respective site otherwise - see "External ids" above).
+The left-hand "Recommendations" panel lists every populated circle; each
+row links out to IMDb and TMDB (direct title-page links when the dataset
+has a matching `imdb_id`/`tmdb_id`, a title search otherwise - see
+"External ids" above).
 
 ### Plane starfield
 
-Besides the scheme's own clustered recommendations, each circle's
-response also carries a `starfield`: the same catalog-wide field for
-every circle (see `packages/hyperwheel-recommender/docs/math.md`
+Besides the scheme's own clustered recommendations, each circle carries
+a star field: the neighbor pool minus that circle's own recommendations
+(see `packages/hyperwheel-recommender/docs/math.md`
 section 7), built by running a whole-profile character search once per
 PCA axis the basis has - each time with every OTHER axis' own influence
 suppressed, on top of the general "quality" axis (PC1), which is always

@@ -381,3 +381,22 @@ starfield is identical regardless of which plane it's requested for -
 `find_plane_neighbors`'s `planes` argument only shapes which keys the
 returned dict has, letting a caller look up one field per plane the same
 way it looks up that plane's scheme recommendations.
+
+## 8. Scheme gate on the neighbor pool (web client)
+
+The web app does not run Stage A per scheme. It takes the section 7
+neighbor pool once per reference (scheme-independent) and, per circle
+(pair of curated components) and scheme angle, applies Stage B to it: the
+reference's whitened coordinates in the plane are rotated by the angle, and
+a pool item is eligible if its angular error is within `ANGLE_TOL_RAD` and
+`|log(cand_r / target_r)|` is within `RADIUS_TOL_LOG`. Eligible items are
+ordered by angle bucket, radius mismatch, exact angle and finally
+similarity (descending), and the top 6 are kept. The remaining pool items
+form the circle's star field. The tolerances are served by the API
+(`gate`), so they are defined only in `recommend.py`.
+
+Compared with sections 6b/6c, the candidate pool is chosen by per-axis
+isolation similarity to the reference, not by similarity to the rotated
+target: character outside the plane is verified per axis rather than
+jointly. `recommend.py`'s Stage A/B remains the reference implementation
+behind the CLI.

@@ -448,7 +448,6 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], s
               imdb_id: starItem.imdb_id,
               tmdb_id: starItem.tmdb_id,
               rank: 0,
-              distance_to_target: 0,
               angular_error_deg: null,
               radius_ratio: null,
               z_x: starItem.z_x,

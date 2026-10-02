@@ -59,7 +59,6 @@ export interface RecItem {
   imdb_id: string | null;
   tmdb_id: string | null;
   rank: number;
-  distance_to_target: number;
   angular_error_deg: number | null;
   radius_ratio: number | null;
   z_x: number;
@@ -127,8 +126,39 @@ export function toWheelCircle(rc: RecommendCircle): WheelCircle | null {
   };
 }
 
-export async function getRecommendations(itemId: number, scheme: string): Promise<RecommendResponse> {
-  const res = await powFetch("heavy", `/api/movie/${itemId}/recommend?scheme=${encodeURIComponent(scheme)}`);
+export interface NeighborItem {
+  item_id: number;
+  title: string;
+  genres: string[];
+  imdb_id: string | null;
+  tmdb_id: string | null;
+  similarity: number;
+  /** Whitened coordinates, parallel to NeighborsResponse.pcs. */
+  z: number[];
+}
+
+/**
+ * Scheme-independent neighbor pool for one reference movie. Circles,
+ * scheme recommendations and the background star field are all derived
+ * from it client-side (utils/schemeGate.ts).
+ */
+export interface NeighborsResponse {
+  item_id: number;
+  /** Curated 1-based component indices; every pair forms a circle. */
+  pcs: number[];
+  /** Parallel to `pcs`. */
+  axes: AxisConfig[];
+  /** The reference's whitened coordinates, parallel to `pcs`. */
+  reference: number[];
+  /** Scheme name -> angles in degrees. */
+  schemes: Record<string, number[]>;
+  /** Stage B tolerances, owned by the engine (recommend.py). */
+  gate: { angle_tol_rad: number; radius_tol_log: number };
+  items: NeighborItem[];
+}
+
+export async function getNeighbors(itemId: number): Promise<NeighborsResponse> {
+  const res = await powFetch("heavy", `/api/movie/${itemId}/recommend`);
   if (!res.ok) throw new Error("recommend lookup failed");
   return res.json();
 }

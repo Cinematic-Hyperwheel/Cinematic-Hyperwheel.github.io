@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";;
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import SearchBar from "./components/SearchBar";
 import AppHeader from "./components/AppHeader";
@@ -16,15 +16,17 @@ import BrandTitle from "./components/BrandTitle";
 import { HoverCircleProvider, useHoverCircle } from "./contexts/HoverCircleContext";
 import {
   MovieHit,
+  NeighborsResponse,
   RecommendCircle,
   RecommendResponse,
   WheelCircle,
   getBackdrop,
   getMovieById,
-  getRecommendations,
+  getNeighbors,
   getWheelCircles,
   toWheelCircle,
 } from "./api";
+import { buildCircles } from "./utils/schemeGate";
 
 const SCHEMES = [
   "complementary",
@@ -86,7 +88,16 @@ function AppContent() {
   const [circles, setCircles] = useState<WheelCircle[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [scheme, setScheme] = useState<string>(SCHEMES[2]);
-  const [recs, setRecs] = useState<RecommendResponse | null>(null);
+  // Fetched once per reference; the scheme is applied client-side, so
+  // switching it never hits the server.
+  const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);
+  const recs = useMemo<RecommendResponse | null>(
+    () =>
+      neighbors
+        ? { item_id: neighbors.item_id, scheme, circles: buildCircles(neighbors, scheme) }
+        : null,
+    [neighbors, scheme]
+  );
   const [recError, setRecError] = useState<string | null>(null);
   // The circle currently active in the Recommendations list (click,
   // arrow keys, or a wheel tick - see RecommendationsPanel.tsx) -
@@ -370,13 +381,12 @@ function AppContent() {
     };
   }, [isWheelWrapHidden, headerMode, headerHeight, controlsHeight, hasLegend, footerHeight]);
 
-  const fetchRecommendations = async (itemId: number, sch: string) => {
+  const fetchRecommendations = async (itemId: number) => {
     try {
-      const r = await getRecommendations(itemId, sch);
-      setRecs(r);
+      setNeighbors(await getNeighbors(itemId));
       setRecError(null);
     } catch {
-      setRecs(null);
+      setNeighbors(null);
       setRecError(t("recommendations.error"));
     }
   };
@@ -398,7 +408,7 @@ function AppContent() {
     setSelected(movie);
     setError(null);
     setRecError(null);
-    setRecs(null);
+    setNeighbors(null);
     setActiveCircle(null);
     // A fresh reference means an entirely new Recommendations list -
     // jump back to the top of the page so the list (and the big wheel,
@@ -421,7 +431,7 @@ function AppContent() {
       setCircles([]);
       setError(t("errors.wheelLookup"));
     }
-    await fetchRecommendations(movie.item_id, scheme);
+    await fetchRecommendations(movie.item_id);
   };
 
   // Resolve a reference movie from just its item_id - used both for the
@@ -446,7 +456,7 @@ function AppContent() {
       } else {
         setSelected(null);
         setCircles([]);
-        setRecs(null);
+        setNeighbors(null);
         setRecError(null);
         setError(null);
         setBackdropUrl(null);
@@ -461,7 +471,6 @@ function AppContent() {
 
   const handleSchemeChange = (sch: string) => {
     setScheme(sch);
-    if (selected) void fetchRecommendations(selected.item_id, sch);
   };
 
   const schemeSelect = (

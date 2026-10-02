@@ -1,9 +1,10 @@
 """
-packages/hyperwheel-recommender/src/hyperwheel_recommender/starfield.py
-
 Plane starfield: every catalog item that shares the reference's
 character along one PCA axis at a time, with every other axis'
 influence suppressed.
+
+The same neighbor set is also the candidate pool the web client gates by
+scheme angle/radius (see find_neighbors and apps/web/README.md).
 
 Where recommend.py/recommend_many_planes finds items near a ROTATED
 TARGET within one hue plane (see /docs/math.md section 5-6c), this
@@ -57,45 +58,24 @@ from .similarity import (
 MAX_NEIGHBORS = 1500
 
 
-def find_plane_neighbors(
+def find_neighbors(
     basis: TasteBasis,
     reference_item,
-    planes: list[tuple[int, int]],
     preserve_components: list[int],
     similarity_outlier_z: float = SIMILARITY_OUTLIER_Z,
     max_neighbors: int = MAX_NEIGHBORS,
-) -> dict[tuple[int, int], np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    For each axis in `preserve_components`, every item that is a
-    statistically significant outlier on the HIGH side of the
-    reference's similarity distribution with EVERY OTHER basis axis
-    suppressed (see module docstring), unioned across axes and ordered
-    by each item's best similarity score among the axes it qualified on.
+    Per-axis isolation search (see module docstring), unioned across axes.
 
-    preserve_components: 1-based PCA component indices to iterate over -
-        typically every component the basis has, aside from PC1 (see
-        wheel.py's WheelEngine.non_pc1_components). PC1 is never
-        included here - it is already unconditionally suppressed on
-        every iteration, the same as everywhere else this metric is
-        used, and isolating it as the one "preserved" axis would just
-        re-surface the general quality/halo signal this metric exists
-        to set aside.
-
-    `planes` only controls which keys the returned dict has - see
-    module docstring for why the neighbor set itself doesn't depend on
-    which plane it's requested for. Plane and component indices are
-    validated against the basis for API consistency with the rest of
-    the package (recommend.py, planes.py).
+    Returns (indices, similarities), both ordered by descending
+    similarity; each item's similarity is its best score among the axes it
+    qualified on. `preserve_components` is 1-based and typically every
+    component except PC1 (see wheel.py's WheelEngine.non_pc1_components).
     """
     if reference_item not in basis.items:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
 
-    for plane in planes:
-        if max(plane) > len(basis.pc_std):
-            raise ValueError(
-                f"plane={plane} requires at least {max(plane)} components "
-                f"(basis has {len(basis.pc_std)})."
-            )
     n_components = basis.U.shape[0]
     for component in preserve_components:
         if component > n_components:
@@ -107,20 +87,17 @@ def find_plane_neighbors(
     ref_idx = basis.items.index(reference_item)
 
     # Raw [0,1] tag values, reconstructed from the basis (X = L + Q, see
-    # basis.py) - avoids re-reading the source wide table the basis was
-    # already built from. Shared across every axis' search below.
+    # basis.py). Shared across every axis' search below.
     X = basis.L[:, None] + basis.Q
     target = X[ref_idx]
     pc1_loadings = basis.U[0]
 
-    # Best similarity score seen for each candidate item across every
-    # per-axis search - union by item, not by (item, axis), so an item
-    # that qualifies via more than one axis is counted once.
+    # Union by item, not by (item, axis): an item qualifying via several
+    # axes is counted once, with its best score.
     best_similarity: dict[int, float] = {}
     for component in preserve_components:
-        # Every OTHER basis axis (excluding PC1, which already has its
-        # own always-applied suppression, and excluding this axis
-        # itself, which is what this search means to preserve).
+        # Every OTHER basis axis except PC1 (already always suppressed) and
+        # except the axis this search preserves.
         other_indices = [j for j in range(1, n_components) if j != component - 1]
         other_loadings = basis.U[other_indices] if other_indices else None
 
@@ -132,6 +109,33 @@ def find_plane_neighbors(
                 best_similarity[idx] = score
 
     ordered = sorted(best_similarity, key=lambda idx: -best_similarity[idx])[:max_neighbors]
-    neighbors = np.array(ordered, dtype=int)
+    indices = np.array(ordered, dtype=int)
+    similarities = np.array([best_similarity[idx] for idx in ordered], dtype=np.float32)
+    return indices, similarities
 
-    return {plane: neighbors for plane in planes}
+
+def find_plane_neighbors(
+    basis: TasteBasis,
+    reference_item,
+    planes: list[tuple[int, int]],
+    preserve_components: list[int],
+    similarity_outlier_z: float = SIMILARITY_OUTLIER_Z,
+    max_neighbors: int = MAX_NEIGHBORS,
+) -> dict[tuple[int, int], np.ndarray]:
+    """
+    find_neighbors keyed by plane. The neighbor set is plane-independent
+    (see module docstring); `planes` only shapes the returned dict's keys
+    and is validated against the basis for consistency with the rest of
+    the package.
+    """
+    for plane in planes:
+        if max(plane) > len(basis.pc_std):
+            raise ValueError(
+                f"plane={plane} requires at least {max(plane)} components "
+                f"(basis has {len(basis.pc_std)})."
+            )
+    indices, _ = find_neighbors(
+        basis, reference_item, preserve_components,
+        similarity_outlier_z=similarity_outlier_z, max_neighbors=max_neighbors,
+    )
+    return {plane: indices for plane in planes}

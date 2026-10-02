@@ -2,20 +2,13 @@
 
 Hand-curated (reference item, expected recommendation) pairs, checked
 against the real recommendation pipeline on every run. This guards
-against regressions in Stage A/B selection, plane rotation, and
-starfield sizing that a purely synthetic unit test wouldn't catch,
+against regressions in starfield selection and sizing that a purely
+synthetic unit test wouldn't catch,
 because it exercises the pipeline on the actual catalog and its real
 statistical distribution.
 
 ## What's checked
 
-- **`test_recommendation_regression.py`** - for every pair in
-  `data/recommendation_pairs.csv`, the expected recommendation is still
-  produced for the reference item, in *some* circle (hue plane). If the
-  pair's `scheme` column is set, only that scheme is checked; otherwise
-  every scheme in `default_schemes` is checked. Rank and plane aren't
-  pinned down - only "is this pairing still reachable at all" (in the
-  applicable scheme(s)).
 - **`test_starfield_size.py`** - for every reference item that appears in
   the CSV, the plane starfield (`find_plane_neighbors`) stays within
   `settings.STARFIELD_MAX_SIZE` (default 1000) items per circle, with
@@ -38,7 +31,9 @@ reference_item,expected_recommendation,scheme,notes
 ```
 
 `reference_item` and `expected_recommendation` are movieIds (integers).
-`scheme` is optional. Set it whenever you know which scheme the pairing
+`scheme` is optional and not currently used by any test; it records the
+scheme under which the pairing was observed. `notes` is free text for the
+reviewer's own context; it isn't checked. Set it whenever you know which scheme the pairing
 was observed under - it makes the check both faster (one scheme instead
 of every scheme) and more precise. Leave it blank to fall back to
 `default_schemes` (every scheme in `SCHEMES`). `notes` is free text for
@@ -80,6 +75,5 @@ the same env vars as `apps/web/backend/app/config.py`:
 | `N_COMPONENTS` | 20 | Same var the app itself uses |
 | `STANDARDIZE` | True | Same var the app itself uses |
 
-Everything else (``TOP_K`, `SHORTLIST_SIZE`,
-`STARFIELD_MAX_SIZE`, `GOLDEN_FILE`) is a plain constant in `settings.py`
+Everything else (``STARFIELD_MAX_SIZE`, `GOLDEN_FILE`) is a plain constant in `settings.py`
 - edit that file directly to change them.

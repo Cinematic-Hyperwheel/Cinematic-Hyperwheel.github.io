@@ -50,23 +50,6 @@ def circles(basis: TasteBasis) -> list[tuple[int, int]]:
 
 
 @pytest.fixture(scope="session")
-def default_schemes() -> list[str]:
-    """Fallback scheme list for golden pairs that don't set their own
-    `scheme` column."""
-    return list(SCHEMES)
-
-
-@pytest.fixture(scope="session")
-def top_k() -> int:
-    return settings.TOP_K
-
-
-@pytest.fixture(scope="session")
-def shortlist_size() -> int:
-    return settings.SHORTLIST_SIZE
-
-
-@pytest.fixture(scope="session")
 def starfield_max_size() -> int:
     return settings.STARFIELD_MAX_SIZE
 
@@ -85,8 +68,7 @@ def load_golden_pairs() -> list[dict]:
     throughout the pipeline (see cli.py's --item, type=int). `scheme`,
     if given, restricts the check to that single scheme (fast -
     recommend_many_planes is called once per pair instead of once per
-    configured scheme); left blank, the pair falls back to
-    `default_schemes`."""
+    configured scheme)."""
     path = settings.GOLDEN_FILE
     if not path.exists():
         return []

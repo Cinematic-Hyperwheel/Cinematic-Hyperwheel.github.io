@@ -22,13 +22,16 @@ from .similarity import (
 
 ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates in Stage B;
                                    # see /docs/math.md section 6b - radius only breaks ties
-                                   # within this window, it never overrides a clearly better angle
+                                   # within this window, it never overrides a clearly better angle.
+                                   # Also served to the web client (/recommend `gate`), whose
+                                   # frontend/src/utils/schemeGate.ts applies the same gate.
 
 # HARD radius tolerance for Stage B, |log(cand_r / target_r)|. Whitened radius
 # ("saturation") has no fixed absolute scale - it varies per reference item and per
 # plane - so the gate is a dimensionless, symmetric ratio; RADIUS_TOL_LOG is tunable
 # (e.g. log(1.5) ~ +/-50%; the tighter the window, the fewer candidates pass).
 # A candidate is eligible for Stage B only if its radius is within this window.
+# Also served to the web client, see ANGLE_TOL_RAD.
 RADIUS_TOL_LOG = np.log(1.1)
 
 _RESULT_COLUMNS = [
@@ -143,9 +146,7 @@ def recommend_many_planes(
 ) -> dict[tuple[int, int], pd.DataFrame]:
     """
     Stage A/B recommendations for MANY hue planes against the SAME
-    reference item in one call - the shape a web endpoint needs when it
-    shows one circle per curated axis pair (see apps/web/backend, which
-    calls this once per /recommend request instead of once per circle).
+    reference item in one call (e.g. one circle per curated axis pair).
 
     Algebraic shortcut for `distance_to_target` (see /docs/math.md
     section 6c): for a fixed reference, a rotation confined to plane
