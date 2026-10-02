@@ -35,6 +35,10 @@ export interface WheelCircle {
   z_y: number;
   angle_deg: number;
   radius: number;
+  /** Largest whitened radius among the reference and the neighbor pool
+   * for this plane - the radial scale's normalizer (utils/radial.ts).
+   * Absent until recommendations are loaded. */
+  max_radius?: number;
 }
 
 export interface WheelResponse {
@@ -96,6 +100,7 @@ export interface RecommendCircle {
   reference: RecommendReference | null;
   angles: RecAngle[];
   starfield: StarfieldItem[];
+  max_radius?: number;
 }
 
 export interface RecommendResponse {
@@ -123,6 +128,7 @@ export function toWheelCircle(rc: RecommendCircle): WheelCircle | null {
     z_y: rc.reference.z_y,
     angle_deg: rc.reference.angle_deg,
     radius: rc.reference.radius,
+    max_radius: rc.max_radius,
   };
 }
 

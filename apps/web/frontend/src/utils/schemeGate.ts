@@ -119,6 +119,8 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         const zy = item.z[j];
         return { item, zx, zy, r: Math.hypot(zx, zy), theta: Math.atan2(zy, zx) };
       });
+      
+      const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY)); 
 
       const angles: RecAngle[] = schemeAngles.map((angleDeg) => ({
         angle_deg: angleDeg,
@@ -151,6 +153,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
           primary: false,
           axis_x: axes[i],
           axis_y: axes[j],
+          max_radius: maxRadius,
           reference: {
             z_x: refX,
             z_y: refY,

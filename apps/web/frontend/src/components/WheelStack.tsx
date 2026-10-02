@@ -717,6 +717,7 @@ export default function WheelStack({
         primary: circle.primary,
         axis_x: circle.axis_x,
         axis_y: circle.axis_y,
+        max_radius: circle.max_radius,  
         reference: {
           z_x: circle.z_x,
           z_y: circle.z_y,

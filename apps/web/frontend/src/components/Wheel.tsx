@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RecAngle, StarfieldItem, WheelCircle } from "../api";
 import { colorOnWheel } from "../utils/color";
+import { diskPosition } from "../utils/radial";
 
 interface Props {
   circle: WheelCircle;
@@ -11,8 +12,6 @@ interface Props {
   starfield?: StarfieldItem[];
 }
 
-// z-scores are unbounded in principle; clamp to a comfortable display range
-const Z_CLAMP = 3;
 // below this disc size, skip the four pole-label strings around the disc
 // (no room to render them legibly) - full labels are still available as
 // a native tooltip on hover. Also the threshold WheelPointLabels.tsx
@@ -200,29 +199,20 @@ export default function Wheel({
   const dYNeg = ringArcPath(gCenter, ringR, -HALF_PI - hTop, -HALF_PI + hTop, 1);
   const dYPos = ringArcPath(gCenter, ringR + 6, HALF_PI + hBottom, HALF_PI - hBottom, 0);
 
-  // Clamp by VECTOR MAGNITUDE, not per-axis - clamping z_x and z_y
-  // independently would let a point near the diagonal (both axes close
-  // to the clamp) land in the corner of the surrounding square, whose
-  // diagonal (maxR*sqrt(2)) is longer than the disc's radius (maxR) -
-  // i.e. visibly outside the ring. Scaling the whole vector keeps it on
-  // or inside the circle.
-  const rawR = Math.hypot(circle.z_x, circle.z_y);
-  const scale = rawR > Z_CLAMP ? Z_CLAMP / rawR : 1;
-  const zx = circle.z_x * scale;
-  const zy = circle.z_y * scale;
-
   // +x (right) = axis_x positive pole, +y (down) = axis_y positive pole -
   // screen y grows downward, so +z_y maps to +y directly.
-  const x = gCenter + (zx / Z_CLAMP) * gMaxR;
-  const y = gCenter + (zy / Z_CLAMP) * gMaxR;
+  const maxRadius = circle.max_radius;
+  const refPos = diskPosition(circle.z_x, circle.z_y, maxRadius);
+  const x = gCenter + refPos.x * gMaxR;
+  const y = gCenter + refPos.y * gMaxR;
 
   // Point color: same 4-stop interpolation as the disc's background, at
   // this point's own compass bearing - so the marker always reads as
   // "part of" the wheel under it rather than a generic white dot.
-  // atan2(dx, -dy): dx = zx (screen-right), -dy = zy negated (screen "up")
+  // atan2(dx, -dy): dx = z_x (screen-right), -dy = z_y negated (screen "up")
   // so 0deg = top/north, increasing clockwise - matches the CSS
   // conic-gradient(from 0deg, ...) orientation used for the disc.
-  const bearingDeg = (Math.atan2(zx, -zy) * 180) / Math.PI;
+  const bearingDeg = (Math.atan2(circle.z_x, -circle.z_y) * 180) / Math.PI;
   const pointColor = colorOnWheel(
     bearingDeg,
     circle.axis_x.colors.positive,
@@ -231,16 +221,12 @@ export default function Wheel({
     circle.axis_y.colors.negative
   );
 
-  // Glow grows with how far the item's UNCLAMPED vector reaches - a
-  // point sitting right on the ring because it got clamped (a strong
-  // outlier) reads as visually "hotter" than one that naturally landed
-  // near the edge with a small radius.
   const glowBase = compact ? 3 : 5;
   const glowPx = glowBase;
 
   // Recommendation overlay points - one per recommendation item (all top-k
-  // per scheme angle), drawn on the same disc with the same vector-magnitude
-  // clamp as the reference point.
+  // per scheme angle), drawn on the same disc with the same radial scale
+  // as the reference point.
   // Reference hue in the plane, converted to the disc's "compass" bearing
   // (0 = top/north, clockwise). angle_deg used by the backend is a RELATIVE
   // rotation of this hue, so the scheme target bearing =
@@ -254,8 +240,7 @@ export default function Wheel({
   // one scheme angle share the same colour.
   const recPoints = overlays.flatMap((o) =>
     o.items.map((it) => {
-      const rr = Math.hypot(it.z_x, it.z_y);
-      const rs = rr > Z_CLAMP ? Z_CLAMP / rr : 1;
+      const p = diskPosition(it.z_x, it.z_y, maxRadius);
       const color = colorOnWheel(
         refCompassBearing + o.angle_deg,
         circle.axis_x.colors.positive,
@@ -268,15 +253,15 @@ export default function Wheel({
         // is actually drawn at; the browser's own viewport scaling maps
         // this to the correct on-screen spot regardless of the wheel's
         // current displayed size.
-        cx: gCenter + ((it.z_x * rs) / Z_CLAMP) * gMaxR,
-        cy: gCenter + ((it.z_y * rs) / Z_CLAMP) * gMaxR,
+        cx: gCenter + p.x * gMaxR,
+        cy: gCenter + p.y * gMaxR,
         // Real, CSS-pixel space (current actual displayed size) - the
         // hover popup below is a plain HTML div positioned via left/top
         // relative to `.wheel__stage`'s own REAL box, not the SVG's
         // (possibly differently-scaled) internal viewport - so it needs
         // coordinates in that same real space, not the frozen one.
-        popupX: center + ((it.z_x * rs) / Z_CLAMP) * maxR,
-        popupY: center + ((it.z_y * rs) / Z_CLAMP) * maxR,
+        popupX: center + p.x * maxR,
+        popupY: center + p.y * maxR,
         angle: o.angle_deg,
         item: it,
         color,
@@ -289,11 +274,10 @@ export default function Wheel({
   // the engine) - small, muted, uncolored points scattered across the
   // disc rather than clustered at the scheme's target angles.
   const starPoints = starfield.map((it) => {
-    const rr = Math.hypot(it.z_x, it.z_y);
-    const rs = rr > Z_CLAMP ? Z_CLAMP / rr : 1;
+    const p = diskPosition(it.z_x, it.z_y, maxRadius);
     return {
-      cx: gCenter + ((it.z_x * rs) / Z_CLAMP) * gMaxR,
-      cy: gCenter + ((it.z_y * rs) / Z_CLAMP) * gMaxR,
+      cx: gCenter + p.x * gMaxR,
+      cy: gCenter + p.y * gMaxR,
       item: it,
     };
   });

@@ -5,6 +5,7 @@ import { COMPACT_BELOW, RING_PAD } from "./Wheel";
 import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
 import { supportsHover } from "../utils/hover";
+import { diskPosition } from "../utils/radial";
 
 interface Props {
   circle: WheelCircle;
@@ -37,7 +38,6 @@ interface Point {
   itemId: number | null;
 }
 
-const Z_CLAMP = 3;
 // Frozen reference space for the continuously-resized main wheel only -
 // see Wheel.tsx's own GEOMETRY_SIZE comment. Compact wheels (size 
 // COMPACT_BELOW) skip this and compute directly in real pixels instead,
@@ -67,13 +67,15 @@ const POINT_AVOID_PADDING = 4;
 // for the main wheel, real-pixel values for compact wheels - see
 // WheelPointLabels below), so this always lands on the same point
 // Wheel.tsx itself draws.
-function pointPosition(zx: number, zy: number, center: number, maxR: number): { x: number; y: number } {
-  const radius = Math.hypot(zx, zy);
-  const scale = radius > Z_CLAMP ? Z_CLAMP / radius : 1;
-  return {
-    x: center + ((zx * scale) / Z_CLAMP) * maxR,
-    y: center + ((zy * scale) / Z_CLAMP) * maxR,
-  };
+function pointPosition(
+  zx: number,
+  zy: number,
+  center: number,
+  maxR: number,
+  maxRadius?: number
+): { x: number; y: number } {
+  const p = diskPosition(zx, zy, maxRadius);
+  return { x: center + p.x * maxR, y: center + p.y * maxR };
 }
 
 function pointRadius(point: Point): number {
@@ -359,19 +361,19 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], s
     const result: Point[] = [];
     let index = 0;
     if (title) {
-      const position = pointPosition(circle.z_x, circle.z_y, gCenter, gMaxR);
+      const position = pointPosition(circle.z_x, circle.z_y, gCenter, gMaxR, circle.max_radius);
       result.push({ x: position.x, y: position.y, title, reference: true, star: false, index: index++, itemId: null });
     }
 
     for (const angle of overlays) {
       for (const item of angle.items) {
-        const position = pointPosition(item.z_x, item.z_y, gCenter, gMaxR);
+        const position = pointPosition(item.z_x, item.z_y, gCenter, gMaxR, circle.max_radius);
         result.push({ x: position.x, y: position.y, title: item.title, reference: false, star: false, index: index++, itemId: item.item_id });
       }
     }
 
     for (const item of starfield) {
-      const position = pointPosition(item.z_x, item.z_y, gCenter, gMaxR);
+      const position = pointPosition(item.z_x, item.z_y, gCenter, gMaxR, circle.max_radius);
       result.push({ x: position.x, y: position.y, title: item.title, reference: false, star: true, index: index++, itemId: item.item_id });
     }
     return result;
