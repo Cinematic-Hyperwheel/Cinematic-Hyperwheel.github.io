@@ -348,16 +348,20 @@ reference is rotated in that circle's whitened plane, and pool items
 within the angle and radius tolerances of the rotated target are kept and
 ordered by angle bucket, radius mismatch, exact angle and finally
 similarity (the same Stage B gate as `recommend.py`, whose tolerances the
-server supplies). Circles are ordered with populated ones first, then by
-the reference's radius, largest first; the first is the main circle.
-Because the pool is the same for every circle, each circle's
-recommendations are a different selection from it, not the same movies
-re-projected.
+server supplies). Every item that passes the gate is a match; the top 6
+matches per angle are listed in the legend, the Recommendations panel and
+the small per-circle wheels, while the big wheel plots all of them.
 
-The left-hand "Recommendations" panel lists every populated circle; each
-row links out to IMDb and TMDB (direct title-page links when the dataset
-has a matching `imdb_id`/`tmdb_id`, a title search otherwise - see
-"External ids" above).
+Circles are ordered by their total number of matches across all scheme
+angles, largest first, then by the reference's radius, largest first; the
+first is the main circle. Because the pool is the same for every circle,
+each circle's recommendations are a different selection from it, not the
+same movies re-projected.
+
+The left-hand "Recommendations" panel lists every circle that has at
+least one match; each row links out to IMDb and TMDB (direct title-page
+links when the dataset has a matching `imdb_id`/`tmdb_id`, a title search
+otherwise - see "External ids" above).
 
 ### Plane starfield
 

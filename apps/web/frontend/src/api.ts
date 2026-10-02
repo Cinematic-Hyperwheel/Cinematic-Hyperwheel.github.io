@@ -72,7 +72,12 @@ export interface RecItem {
 
 export interface RecAngle {
   angle_deg: number;
+  /** Top-ranked recommendations for this angle (legend, list, small wheels). */
   items: RecItem[];
+  /** Every pool item that passes the angle/radius gate, in ranking order
+   * (a superset of `items`, no TOP_K cap). Drawn as recommendation points
+   * on the big wheel. */
+  matches: RecItem[];
 }
 
 export interface RecommendReference {

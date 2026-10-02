@@ -388,12 +388,18 @@ The web app does not run Stage A per scheme. It takes the section 7
 neighbor pool once per reference (scheme-independent) and, per circle
 (pair of curated components) and scheme angle, applies Stage B to it: the
 reference's whitened coordinates in the plane are rotated by the angle, and
-a pool item is eligible if its angular error is within `ANGLE_TOL_RAD` and
-`|log(cand_r / target_r)|` is within `RADIUS_TOL_LOG`. Eligible items are
-ordered by angle bucket, radius mismatch, exact angle and finally
-similarity (descending), and the top 6 are kept. The remaining pool items
-form the circle's star field. The tolerances are served by the API
-(`gate`), so they are defined only in `recommend.py`.
+a pool item is a match if its angular error is within `ANGLE_TOL_RAD` and
+`|log(cand_r / target_r)|` is within `RADIUS_TOL_LOG`. Matches are ordered
+by angle bucket, radius mismatch, exact angle and finally similarity
+(descending). The top 6 per angle are listed in the legend, the
+Recommendations panel and the small wheels; the big wheel plots every
+match. The remaining pool items (those that matched at no angle) form the
+circle's star field. The tolerances are served by the API (`gate`), so
+they are defined only in `recommend.py`.
+
+Circles are ranked by their total match count across all scheme angles
+(descending), then by the reference's whitened radius in the plane
+(descending); the first is the main circle.
 
 Compared with sections 6b/6c, the candidate pool is chosen by per-axis
 isolation similarity to the reference, not by similarity to the rotated

@@ -81,7 +81,7 @@ function recommendAtAngle(
       b.cand.item.similarity - a.cand.item.similarity
   );
 
-  return eligible.slice(0, TOP_K).map((e, k) => ({
+  return eligible.map((e, k) => ({
     item_id: e.cand.item.item_id,
     title: e.cand.item.title,
     genres: e.cand.item.genres,
@@ -98,16 +98,17 @@ function recommendAtAngle(
 
 /**
  * Builds every circle (each pair of curated components) for a scheme from
- * the neighbor pool: per-angle recommendations plus a star field of the
- * remaining pool items. Circles with recommendations come first, most
- * expressive (largest reference radius) first; the first one is primary.
+ * the neighbor pool: per-angle recommendations (top-K for lists, all gate
+ * matches for the big wheel) plus a star field of the remaining pool items.
+ * Circles are ordered by total gate matches (descending), then by the
+ * reference radius (descending); the first one is primary.
  */
 export function buildCircles(data: NeighborsResponse, scheme: string): RecommendCircle[] {
   const schemeAngles = data.schemes[scheme];
   if (!schemeAngles) return [];
   const { pcs, axes, reference, items, gate } = data;
 
-  const built: { circle: RecommendCircle; radius: number; populated: boolean }[] = [];
+  const built: { circle: RecommendCircle; radius: number; total: number }[] = [];
 
   for (let i = 0; i < pcs.length; i++) {
     for (let j = i + 1; j < pcs.length; j++) {
@@ -122,13 +123,17 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
       
       const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY)); 
 
-      const angles: RecAngle[] = schemeAngles.map((angleDeg) => ({
-        angle_deg: angleDeg,
-        items: recommendAtAngle(cands, refX, refY, angleDeg, gate),
-      }));
+      const angles: RecAngle[] = schemeAngles.map((angleDeg) => {
+        const matches = recommendAtAngle(cands, refX, refY, angleDeg, gate);
+        return { angle_deg: angleDeg, items: matches.slice(0, TOP_K), matches };
+      });
 
       const used = new Set<number>();
-      for (const a of angles) for (const it of a.items) used.add(it.item_id);
+      let total = 0;
+      for (const a of angles) {
+        total += a.matches.length;
+        for (const it of a.matches) used.add(it.item_id);
+      }
 
       const starfield: StarfieldItem[] = [];
       for (const cand of cands) {
@@ -148,7 +153,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
       const radius = Math.hypot(refX, refY);
       built.push({
         radius,
-        populated: angles.some((a) => a.items.length > 0),
+        total,
         circle: {
           primary: false,
           axis_x: axes[i],
@@ -167,11 +172,19 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     }
   }
 
-  // Array.prototype.sort is stable: equal radii keep component-pair order.
-  built.sort((a, b) => Number(b.populated) - Number(a.populated) || b.radius - a.radius);
+  // Array.prototype.sort is stable: equal keys keep component-pair order.
+  built.sort((a, b) => b.total - a.total || b.radius - a.radius);
   const circles = built.map((b) => b.circle);
   circles.forEach((c, k) => {
     c.primary = k === 0;
   });
   return circles;
+}
+
+/**
+ * Overlays for the big wheel: same angles, but `items` carries every
+ * gate-passing match instead of the top-K subset.
+ */
+export function withAllMatches(angles: RecAngle[] | undefined): RecAngle[] | undefined {
+  return angles?.map((a) => ({ ...a, items: a.matches }));
 }

@@ -26,7 +26,7 @@ import {
   getWheelCircles,
   toWheelCircle,
 } from "./api";
-import { buildCircles } from "./utils/schemeGate";
+import { buildCircles, withAllMatches } from "./utils/schemeGate";  
 
 const SCHEMES = [
   "complementary",
@@ -255,6 +255,10 @@ function AppContent() {
   const hoveredWheelCircle = hoveredCircle ? toWheelCircle(hoveredCircle) : null;
   const hoveredOverlays = hoveredWheelCircle ? findRecCircle(hoveredWheelCircle, recs)?.angles : undefined;
   const hoveredStarfield = hoveredWheelCircle ? findRecCircle(hoveredWheelCircle, recs)?.starfield : undefined;
+  // The big wheel plots every gate match; the legend and the
+  // Recommendations list keep showing the top-K subset.
+  const bigWheelOverlays = useMemo(() => withAllMatches(primaryOverlays), [primaryOverlays]);
+  const bigWheelPreviewOverlays = useMemo(() => withAllMatches(hoveredOverlays), [hoveredOverlays]);
   const hasLegend = !isWheelWrapHidden && (primaryOverlays?.some((a) => a.items.length > 0) ?? false);
   // True until a reference movie is picked - the very first thing a
   // visitor sees. In this state the header sheds its search bar and the
@@ -577,11 +581,11 @@ function AppContent() {
                         circle={primary}
                         size={wheelSize}
                         title={selected?.title}
-                        overlays={primaryOverlays}
+                        overlays={bigWheelOverlays} 
                         starfield={primaryStarfield}
                         queueCircles={populatedCircles}
                         previewCircle={hoveredWheelCircle}
-                        previewOverlays={hoveredOverlays}
+                        previewOverlays={bigWheelPreviewOverlays}
                         previewStarfield={hoveredStarfield}
                       />
                     )}
