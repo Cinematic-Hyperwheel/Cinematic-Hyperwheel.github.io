@@ -351,12 +351,16 @@ similarity (the same Stage B gate as `recommend.py`, whose tolerances the
 server supplies). Every item that passes the gate is a match; the top 6
 matches per angle are listed in the legend, the Recommendations panel and
 the small per-circle wheels, while the big wheel plots all of them.
+A circle whose matches (across all scheme angles) are fully included in
+the matches of a higher-ranked circle is omitted, since it would only
+repeat movies already shown.
 
-Circles are ordered by their total number of matches across all scheme
-angles, largest first, then by the reference's radius, largest first; the
-first is the main circle. Because the pool is the same for every circle,
-each circle's recommendations are a different selection from it, not the
-same movies re-projected.
+Circles are ordered by the number of matches at their weakest scheme
+angle (largest first), then by their total number of matches across all
+angles, then by the reference's radius, largest first; the first is the
+main circle. Because the pool is the same for every circle, each
+circle's recommendations are a different selection from it, not the same
+movies re-projected.
 
 The left-hand "Recommendations" panel lists every circle that has at
 least one match; each row links out to IMDb and TMDB (direct title-page
