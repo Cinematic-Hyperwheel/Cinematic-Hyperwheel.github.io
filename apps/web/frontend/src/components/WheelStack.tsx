@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Children, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Wheel, { RING_PAD } from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
@@ -7,6 +7,7 @@ import { circleKey } from "../utils/circleKey";
 import { colorOnWheel } from "../utils/color";
 import { resolvePoster } from "../utils/poster";
 import { supportsHover } from "../utils/hover";
+import { TOP_K } from "../utils/schemeGate";
 import { useHighlight } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
 import { useHoverCircle } from "../contexts/HoverCircleContext";
@@ -131,6 +132,115 @@ function LegendLayoutToggle({ layout, onToggle }: { layout: LegendLayoutMode; on
   );
 }
 
+function ChevronIcon({ direction }: { direction: "prev" | "next" }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={direction === "next" ? { transform: "scaleX(-1)" } : undefined}
+    >
+      <path d="M15 5 L8 12 L15 19" />
+    </svg>
+  );
+}
+
+function scrollBehavior(): ScrollBehavior {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
+interface LegendTileStripProps {
+  /** Tiles per page: the width of one visible page and the step of the arrows. */
+  pageSize: number;
+  onScroll: () => void;
+  children: ReactNode;
+}
+
+// One scheme angle's poster tiles as a horizontally scrolling strip that
+// shows `pageSize` tiles at a time (scroll-snap keeps pages aligned for
+// native scrolling too). The arrows live in side gutters wide enough that
+// the tile hover card, which overhangs the hovered tile by up to half a
+// tile on each side, never reaches them.
+function LegendTileStrip({ pageSize, onScroll, children }: LegendTileStripProps) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ prev: false, next: false });
+  // Last published value: lets update() skip setState entirely when
+  // nothing changed, instead of relying on React to bail out.
+  const edgesRef = useRef(edges);
+  const tileCount = Children.count(children);
+
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const prev = el.scrollLeft > 1;
+    const next = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    if (edgesRef.current.prev === prev && edgesRef.current.next === next) return;
+    edgesRef.current = { prev, next };
+    setEdges(edgesRef.current);
+  }, []);
+
+  // A change in tile count produces no scroll or resize event.
+  useLayoutEffect(update, [update, tileCount]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [update]);
+
+  const page = (direction: 1 | -1) => {
+    const el = ref.current;
+    const first = el?.children[0] as HTMLElement | undefined;
+    if (!el || !first) return;
+    const second = el.children[1] as HTMLElement | undefined;
+    const step = second ? second.offsetLeft - first.offsetLeft : first.offsetWidth;
+    el.scrollBy({ left: direction * step * pageSize, behavior: scrollBehavior() });
+  };
+
+  const arrow = (direction: "prev" | "next") => {
+    const label = t(direction === "prev" ? "recommendations.previous" : "recommendations.next");
+    return (
+      <button
+        type="button"
+        className={"wheel-legend__arrow wheel-legend__arrow--" + direction}
+        onClick={() => page(direction === "prev" ? -1 : 1)}
+        disabled={!edges[direction]}
+        aria-label={label}
+        title={label}
+      >
+        <ChevronIcon direction={direction} />
+      </button>
+    );
+  };
+
+  return (
+    <div className="wheel-legend__strip">
+      {arrow("prev")}
+      <div
+        ref={ref}
+        className="wheel-legend__tiles"
+        style={{ "--legend-tiles": pageSize } as CSSProperties}
+        onScroll={() => {
+          update();
+          onScroll();
+        }}
+      >
+        {children}
+      </div>
+      {arrow("next")}
+    </div>
+  );
+}
+
 interface LegendItemProps {
   /** Circle key this item belongs to - scopes hover highlighting and
    * the info card to that circle's own surfaces, so an inactive block
@@ -196,9 +306,30 @@ const LegendTile = memo(function LegendTile({
     };
   }, [item.item_id, loadPosters]);
 
+  const elRef = useRef<HTMLDivElement | null>(null);
+
+  // A highlight can come from elsewhere (a wheel point): bring the tile
+  // into the strip's visible page if it is scrolled out of view.
+  useEffect(() => {
+    if (!isHighlighted) return;
+    const tile = elRef.current;
+    const strip = tile?.parentElement;
+    if (!tile || !strip) return;
+    const outOfView =
+      tile.offsetLeft < strip.scrollLeft ||
+      tile.offsetLeft + tile.offsetWidth > strip.scrollLeft + strip.clientWidth;
+    if (outOfView) {
+      const padLeft = parseFloat(getComputedStyle(strip).paddingLeft) || 0;
+      strip.scrollTo({ left: tile.offsetLeft - padLeft, behavior: scrollBehavior() });
+    }
+  }, [isHighlighted]);
+
   return (
     <div
-      ref={(el) => registerTile(tileKey, el)}
+      ref={(el) => {
+        elRef.current = el;
+        registerTile(tileKey, el);
+      }}
       className={"wheel-legend__tile" + (isHighlighted ? " wheel-legend__tile--highlighted" : "")}
       onMouseEnter={(e) => onEnter(blockKey, item, e.currentTarget, swatch, angleLabel)}
       onMouseLeave={() => onLeave(blockKey, item)}
@@ -506,6 +637,8 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
         // Only tile cards need these - see CardTrigger.circleKey/previewCircle.
         circleKey: isTileCard ? blockKey : undefined,
         previewCircle: isTileCard && blockKey !== activeKey ? block?.circle : undefined,
+        // Keeps a tile card inside its strip (clear of the arrow gutters).
+        boundsRect: el.closest(".wheel-legend__tiles")?.getBoundingClientRect(),
       });
       openCardKeyRef.current = cardKey;
     },
@@ -526,6 +659,11 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
     },
     [clearHighlighted, hideCard, layout]
   );
+
+  // Scrolling a tile strip moves tiles out from under a pinned tile card.
+  const closeOpenCard = useCallback(() => {
+    if (openCardKeyRef.current) closeCardNow(openCardKeyRef.current);
+  }, [closeCardNow]);
 
   const registerBlockRef = useCallback((key: string, el: HTMLElement | null) => {
     if (el) blockRefs.current.set(key, el);
@@ -552,43 +690,51 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
         axisYColors.negative
       );
       const angleText = `${Math.round(angle.angle_deg) > 0 ? "+" : ""}${Math.round(angle.angle_deg)}°`;
+      const isGrid = layout === "grid";
+      // The grid pages through every gate match; the list keeps the top-K subset.
+      const shown = isGrid ? angle.matches : angle.items;
+
+      const entries = shown.map((item, index) => {
+        const isHighlighted = highlighted?.circleKey === blockKey && highlighted.itemId === item.item_id;
+        const angleLabel = index === 0 ? angleText : undefined;
+
+        return isGrid ? (
+          <LegendTile
+            key={item.item_id}
+            tileKey={`${blockKey}:${item.item_id}`}
+            blockKey={blockKey}
+            item={item}
+            angleLabel={angleLabel}
+            swatch={swatch}
+            isHighlighted={isHighlighted}
+            onEnter={handleEnter}
+            onLeave={handleLeave}
+            registerTile={registerTile}
+            loadPosters={visibleTiles.has(`${blockKey}:${item.item_id}`)}
+          />
+        ) : (
+          <LegendRow
+            key={item.item_id}
+            blockKey={blockKey}
+            item={item}
+            angleLabel={angleLabel}
+            swatch={swatch}
+            isHighlighted={isHighlighted}
+            onEnter={handleEnter}
+            onLeave={handleLeave}
+          />
+        );
+      });
 
       return (
-        <div className={"rec-angle" + (layout === "grid" ? " rec-angle--grid" : "")} key={angle.angle_deg}>
-          <div className={layout === "grid" ? "wheel-legend__tiles" : undefined}>
-            {angle.items.map((item, index) => {
-              const isHighlighted =
-                highlighted?.circleKey === blockKey && highlighted.itemId === item.item_id;
-              const angleLabel = index === 0 ? angleText : undefined;
-
-              return layout === "grid" ? (
-                <LegendTile
-                  key={item.item_id}
-                  tileKey={`${blockKey}:${item.item_id}`}
-                  blockKey={blockKey}
-                  item={item}
-                  angleLabel={angleLabel}
-                  swatch={swatch}
-                  isHighlighted={isHighlighted}
-                  onEnter={handleEnter}
-                  onLeave={handleLeave}
-                  registerTile={registerTile}
-                  loadPosters={visibleTiles.has(`${blockKey}:${item.item_id}`)}
-                />
-              ) : (
-                <LegendRow
-                  key={item.item_id}
-                  blockKey={blockKey}
-                  item={item}
-                  angleLabel={angleLabel}
-                  swatch={swatch}
-                  isHighlighted={isHighlighted}
-                  onEnter={handleEnter}
-                  onLeave={handleLeave}
-                />
-              );
-            })}
-          </div>
+        <div className={"rec-angle" + (isGrid ? " rec-angle--grid" : "")} key={angle.angle_deg}>
+          {isGrid ? (
+            <LegendTileStrip pageSize={TOP_K} onScroll={closeOpenCard}>
+              {entries}
+            </LegendTileStrip>
+          ) : (
+            <div>{entries}</div>
+          )}
         </div>
       );
     });

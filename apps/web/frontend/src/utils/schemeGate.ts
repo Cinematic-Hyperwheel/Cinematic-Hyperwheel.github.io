@@ -7,8 +7,8 @@ import type {
   StarfieldItem,
 } from "../api";
 
-// Recommendations shown per scheme angle.
-const TOP_K = 6;
+// Recommendations shown per scheme angle (and the legend's page size).
+export const TOP_K = 6;
 
 const RAD_TO_DEG = 180 / Math.PI;
 const TWO_PI = Math.PI * 2;

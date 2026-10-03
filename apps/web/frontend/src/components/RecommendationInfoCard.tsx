@@ -295,7 +295,7 @@ export default function RecommendationInfoCard({
   // change the card's outer box.
   if (isTile) {
     const tileSide = chooseTileSide(target.rect);
-    const tileHPad = tileHorizontalPadding(target.rect);
+    const tileHPad = tileHorizontalPadding(target.rect, target.boundsRect);
 
     const poster = (
       <div

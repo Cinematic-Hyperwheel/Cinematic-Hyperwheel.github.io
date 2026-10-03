@@ -31,7 +31,7 @@ ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates
 # (e.g. log(1.5) ~ +/-50%; the tighter the window, the fewer candidates pass).
 # A candidate is eligible for Stage B only if its radius is within this window.
 # Public, like ANGLE_TOL_RAD.
-RADIUS_TOL_LOG = np.log(1.1)
+RADIUS_TOL_LOG = np.log(1.2)
 
 _RESULT_COLUMNS = [
     "scheme", "angle_deg", "rank", "item",

@@ -48,6 +48,9 @@ export interface CardTrigger {
    * tile itself, not a different-looking card replacing it. */
   tileSwatch?: string;
   tileAngleLabel?: string;
+  /** Horizontal bounds a "tile" card must stay within (e.g. the scrolling
+   * tile strip it belongs to). Defaults to the viewport when omitted. */
+  boundsRect?: DOMRect;
   /** Circle this trigger's wheel point belongs to (see
    * contexts/HighlightContext.tsx) - set only for legend "tile" cards,
    * where the floating card is pinned exactly over its own trigger tile

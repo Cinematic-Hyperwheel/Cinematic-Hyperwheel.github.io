@@ -349,8 +349,12 @@ within the angle and radius tolerances of the rotated target are kept and
 ordered by angle bucket, radius mismatch, exact angle and finally
 similarity (the same Stage B gate as `recommend.py`, whose tolerances the
 server supplies). Every item that passes the gate is a match; the top 6
-matches per angle are listed in the legend, the Recommendations panel and
-the small per-circle wheels, while the big wheel plots all of them.
+matches per angle are listed in the  Recommendations panel and
+the small per-circle wheels. The big wheel plots all matches, and its
+poster-grid legend shows them all as a horizontally scrolling row per angle,
+six tiles per page (arrow buttons, or native scroll/swipe). The legend's
+list layout keeps the top 6.
+
 A circle whose matches (across all scheme angles) are fully included in
 the matches of a higher-ranked circle is omitted, since it would only
 repeat movies already shown.

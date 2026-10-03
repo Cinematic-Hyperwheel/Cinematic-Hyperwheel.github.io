@@ -23,7 +23,9 @@
    height, so the legend is never taller than the disc beside it. */
 .wheel-stack__legend {
   flex: 0 0 auto;
-  width: min(600px, 28vw);
+  /* Set by App.tsx's wheel-sizing effect, which also reserves exactly
+     this much column width; the fallback only applies before it runs. */
+  width: var(--legend-width, min(300px, 28vw));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -160,15 +162,79 @@
   margin-top: 10px;
 }
 
+/* Side gutters hold the page arrows. Their width is the arrow (22px)
+   plus the tile hover card's overhang (up to half a tile) plus a gap, so
+   the card never covers an arrow. Reserved on every row to keep tile
+   columns aligned. */
+.wheel-legend__strip {
+  position: relative;
+  padding: 0 50px;
+}
+
+/* Horizontally scrolling strip, --legend-tiles tiles per page (set from
+   TOP_K in WheelStack.tsx). The padding gives the tile hover lift and
+   highlight glow room inside the scroller's clip box; the negative
+   margin keeps the row's layout height unchanged. */
 .wheel-legend__tiles {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  position: relative;
+  display: flex;
   gap: 8px;
+  padding: 10px 8px;
+  margin: -10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 8px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.wheel-legend__tiles::-webkit-scrollbar {
+  display: none;
 }
 
 .wheel-legend__tile {
   position: relative;
   cursor: default;
+  flex: 0 0 calc((100% - (var(--legend-tiles) - 1) * 8px) / var(--legend-tiles));
+  scroll-snap-align: start;
+}
+
+/* Page arrows: same look as .wheel-legend__layout-toggle. Faintly visible
+   while more tiles exist in that direction (hint that the row continues),
+   fully visible on row hover; hidden when there is nowhere to go. */
+/* Same look as .wheel-legend__layout-toggle. Faintly visible while more
+   tiles exist in that direction, fully visible on row hover. */
+.wheel-legend__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 150ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.wheel-legend__arrow--prev { left: 0; }
+.wheel-legend__arrow--next { right: 0; }
+.wheel-legend__strip:hover .wheel-legend__arrow:not(:disabled) {
+  opacity: 1;
+}
+.wheel-legend__arrow:not(:disabled):hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+}
+.wheel-legend__arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .wheel-legend__tile-poster-wrap {
