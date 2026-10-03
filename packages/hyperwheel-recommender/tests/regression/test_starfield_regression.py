@@ -3,8 +3,7 @@ Regression test: for every hand-curated (reference item, expected
 recommendation) pair in data/recommendation_pairs.csv, checks that the
 second item still shows up in the reference's plane starfield - a
 character match to the reference along at least one basis axis, with
-every other axis suppressed (see /docs/math.md section 7). The starfield
-is also the candidate pool the web client gates by scheme angle.
+every other axis suppressed (see /docs/math.md section 7).
 
 The pairs file's `scheme` column is ignored: the starfield has no notion
 of a scheme.

@@ -23,15 +23,14 @@ from .similarity import (
 ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates in Stage B;
                                    # see /docs/math.md section 6b - radius only breaks ties
                                    # within this window, it never overrides a clearly better angle.
-                                   # Also served to the web client (/recommend `gate`), whose
-                                   # frontend/src/utils/schemeGate.ts applies the same gate.
+                                   # Public, so callers applying the same gate can reuse it.
 
 # HARD radius tolerance for Stage B, |log(cand_r / target_r)|. Whitened radius
 # ("saturation") has no fixed absolute scale - it varies per reference item and per
 # plane - so the gate is a dimensionless, symmetric ratio; RADIUS_TOL_LOG is tunable
 # (e.g. log(1.5) ~ +/-50%; the tighter the window, the fewer candidates pass).
 # A candidate is eligible for Stage B only if its radius is within this window.
-# Also served to the web client, see ANGLE_TOL_RAD.
+# Public, like ANGLE_TOL_RAD.
 RADIUS_TOL_LOG = np.log(1.1)
 
 _RESULT_COLUMNS = [
@@ -62,8 +61,7 @@ def recommend_on_basis(
     with exactly one plane.
 
     plane: explicit 1-based (i, j) component pair forming the hue plane
-        on which to rotate (the caller decides it - typically the same
-        reviewed, labelled plane the wheel UI shows). shortlist_size:
+        on which to rotate (the caller decides it). shortlist_size:
         safety cap on the Stage-A character shortlist (see
         _stage_ab_rows) - Stage A itself already selects only items that
         are a statistically significant similarity outlier; this just
@@ -146,7 +144,7 @@ def recommend_many_planes(
 ) -> dict[tuple[int, int], pd.DataFrame]:
     """
     Stage A/B recommendations for MANY hue planes against the SAME
-    reference item in one call (e.g. one circle per curated axis pair).
+    reference item in one call (e.g. every pair of curated axes).
 
     Algebraic shortcut for `distance_to_target` (see /docs/math.md
     section 6c): for a fixed reference, a rotation confined to plane
@@ -169,9 +167,8 @@ def recommend_many_planes(
     similarity metric used throughout the package (similarity.py).
 
     planes: each entry is an explicit 1-based (i, j) component pair
-        forming a hue plane to rotate within (the caller decides it -
-        typically the same reviewed, labelled planes the wheel UI shows,
-        one per circle). shortlist_size: safety cap on the Stage-A
+        forming a hue plane to rotate within (the caller decides them).
+        shortlist_size: safety cap on the Stage-A
         character shortlist (see _stage_ab_rows), shared across every
         plane and angle in this call.
 

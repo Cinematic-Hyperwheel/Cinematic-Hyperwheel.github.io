@@ -44,8 +44,7 @@ def basis(wide) -> TasteBasis:
 @pytest.fixture(scope="session")
 def circles(basis: TasteBasis) -> list[tuple[int, int]]:
     """The hue-plane pairs ('circles') checked by these tests - every
-    recommendation circle a reference item can actually show on the
-    wheel, so 'present in some circle' matches what a user would see."""
+    pair of curated components from pc_config.json."""
     return planes_config.load_circles(max_component=basis.U.shape[0])
 
 
@@ -56,8 +55,7 @@ def starfield_max_size() -> int:
 @pytest.fixture(scope="session")
 def preserve_components(basis: TasteBasis) -> list[int]:
     """Every PCA axis the basis has, except PC1 - the axes the plane
-    starfield's per-axis isolation search iterates over (see
-    WheelEngine.non_pc1_components)."""
+    starfield's per-axis isolation search iterates over."""
     return list(range(2, basis.U.shape[0] + 1))
 
 def load_golden_pairs() -> list[dict]:

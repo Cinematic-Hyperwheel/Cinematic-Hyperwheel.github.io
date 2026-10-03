@@ -3,8 +3,9 @@ Plane starfield: every catalog item that shares the reference's
 character along one PCA axis at a time, with every other axis'
 influence suppressed.
 
-The same neighbor set is also the candidate pool the web client gates by
-scheme angle/radius (see find_neighbors and apps/web/README.md).
+The same neighbor set can serve as a scheme-independent candidate pool,
+to be gated by scheme angle and radius afterwards (recommend.py's
+Stage B).
 
 Where recommend.py/recommend_many_planes finds items near a ROTATED
 TARGET within one hue plane (see /docs/math.md section 5-6c), this
@@ -71,7 +72,7 @@ def find_neighbors(
     Returns (indices, similarities), both ordered by descending
     similarity; each item's similarity is its best score among the axes it
     qualified on. `preserve_components` is 1-based and typically every
-    component except PC1 (see wheel.py's WheelEngine.non_pc1_components).
+    component except PC1.
     """
     if reference_item not in basis.items:
         raise ValueError(f"Item '{reference_item}' not found in the data.")

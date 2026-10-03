@@ -352,7 +352,8 @@ distinctive profile on several axes, that conflation can leave very few
 - or no - items standing out as a statistically significant match.
 
 `find_plane_neighbors` instead runs one search per basis axis (aside
-from PC1 - see wheel.py's `WheelEngine.non_pc1_components`), each time
+from PC1, which keeps its own always-applied suppression instead of
+being isolated as the preserved axis), each time
 suppressing every OTHER basis axis' own criteria weights
 (`similarity_to_target`'s `suppress_loadings`, on top of the PC1
 suppression that always applies) - isolating that one axis' own
@@ -381,28 +382,3 @@ starfield is identical regardless of which plane it's requested for -
 `find_plane_neighbors`'s `planes` argument only shapes which keys the
 returned dict has, letting a caller look up one field per plane the same
 way it looks up that plane's scheme recommendations.
-
-## 8. Scheme gate on the neighbor pool (web client)
-
-The web app does not run Stage A per scheme. It takes the section 7
-neighbor pool once per reference (scheme-independent) and, per circle
-(pair of curated components) and scheme angle, applies Stage B to it: the
-reference's whitened coordinates in the plane are rotated by the angle, and
-a pool item is a match if its angular error is within `ANGLE_TOL_RAD` and
-`|log(cand_r / target_r)|` is within `RADIUS_TOL_LOG`. Matches are ordered
-by angle bucket, radius mismatch, exact angle and finally similarity
-(descending). The top 6 per angle are listed in the legend, the
-Recommendations panel and the small wheels; the big wheel plots every
-match. The remaining pool items (those that matched at no angle) form the
-circle's star field. The tolerances are served by the API (`gate`), so
-they are defined only in `recommend.py`.
-
-Circles are ranked by their total match count across all scheme angles
-(descending), then by the reference's whitened radius in the plane
-(descending); the first is the main circle.
-
-Compared with sections 6b/6c, the candidate pool is chosen by per-axis
-isolation similarity to the reference, not by similarity to the rotated
-target: character outside the plane is verified per axis rather than
-jointly. `recommend.py`'s Stage A/B remains the reference implementation
-behind the CLI.
