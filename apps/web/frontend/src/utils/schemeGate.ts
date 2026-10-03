@@ -28,6 +28,17 @@ interface Eligible {
   bucket: number;
 }
 
+interface BuiltCircle {
+  circle: RecommendCircle;
+  radius: number;
+  /** Total matches across angles, each angle capped at TOP_K. Used for ordering only. */
+  rankedTotal: number;
+  /** Match count of the weakest angle, capped at TOP_K. */
+  minPerAngle: number;
+  /** Unique matched item ids across all angles (uncapped). */
+  matched: Set<number>;
+}
+
 function circularDiff(a: number, b: number): number {
   const d = Math.abs(a - b) % TWO_PI;
   return Math.min(d, TWO_PI - d);
@@ -109,13 +120,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   if (!schemeAngles) return [];
   const { pcs, axes, reference, items, gate } = data;
   
-  const built: {
-    circle: RecommendCircle;
-    radius: number;
-    total: number;
-    minPerAngle: number;
-    matched: Set<number>;
-  }[] = [];
+  const built: BuiltCircle[] = [];
 
   for (let i = 0; i < pcs.length; i++) {
     for (let j = i + 1; j < pcs.length; j++) {
@@ -136,9 +141,11 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
       });
 
       const used = new Set<number>();
-      let total = 0;
+      // Matches beyond TOP_K are not visible in the lists, so they give no
+      // ordering advantage: each angle contributes at most TOP_K.
+      let rankedTotal = 0;
       for (const a of angles) {
-        total += a.matches.length;
+        rankedTotal += Math.min(a.matches.length, TOP_K);
         for (const it of a.matches) used.add(it.item_id);
       }
 
@@ -157,17 +164,17 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         });
       }
 
-      // Match count of the circle's weakest angle: a circle that fills
-      // every angle ranks above one concentrated on a single angle.
+      // Capped match count of the circle's weakest angle: a circle that
+      // fills every angle ranks above one concentrated on a single angle.
       const minPerAngle = angles.reduce(
-        (m, a) => Math.min(m, a.matches.length),
+        (m, a) => Math.min(m, Math.min(a.matches.length, TOP_K)),
         angles.length > 0 ? Infinity : 0
       );
 
       const radius = Math.hypot(refX, refY);
       built.push({
         radius,
-        total,
+        rankedTotal,
         minPerAngle,
         matched: used,
         circle: {
@@ -189,8 +196,10 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   }
 
   // Array.prototype.sort is stable: equal keys keep component-pair order.
+  // Match counts are capped at TOP_K per angle, so once every angle of two
+  // circles is saturated the reference radius decides.
   built.sort(
-    (a, b) => b.minPerAngle - a.minPerAngle || b.total - a.total || b.radius - a.radius
+    (a, b) => b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal || b.radius - a.radius
   );
 
   // A circle whose matches are fully contained in another circle's matches
@@ -202,7 +211,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     return true;
   };
   const kept = built.filter((b, i) => {
-    if (b.total === 0) return true;
+    if (b.matched.size === 0) return true;
     return !built.some(
       (o, k) =>
         k !== i &&

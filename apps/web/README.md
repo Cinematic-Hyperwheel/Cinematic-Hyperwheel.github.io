@@ -358,9 +358,9 @@ repeat movies already shown.
 Circles are ordered by the number of matches at their weakest scheme
 angle (largest first), then by their total number of matches across all
 angles, then by the reference's radius, largest first; the first is the
-main circle. Because the pool is the same for every circle, each
-circle's recommendations are a different selection from it, not the same
-movies re-projected.
+main circle. Match counts are capped at 6 (the number of recommendations
+shown per angle) before comparing, so matches beyond what is displayed
+give no advantage: circles that fill every angle are ordered by radius.
 
 The left-hand "Recommendations" panel lists every circle that has at
 least one match; each row links out to IMDb and TMDB (direct title-page
