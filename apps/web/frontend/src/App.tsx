@@ -68,9 +68,15 @@ const MAX_WHEEL_SIZE = 1200;
 // width up front, instead of the wheel and legend fighting over the
 // same pixels once both are laid out.
 const WHEEL_LEGEND_GAP = 24;
+// Layout gap between the recommendations column and the wheel column
+// (.layout3 in index.css).
+const LAYOUT_GAP = 32;
+// Legend width bounds. The minimum is what the legend always gets; it
+// grows up to the maximum when the row has free horizontal space.
+const LEGEND_MAX_WIDTH = 760;
 
-function legendReserveWidth(): number {
-  return Math.min(300, window.innerWidth * 0.28) + WHEEL_LEGEND_GAP;
+function legendMinWidth(): number {
+  return Math.min(300, window.innerWidth * 0.28);
 }
 
 export default function App() {
@@ -322,16 +328,25 @@ function AppContent() {
       const availableHeight = window.innerHeight - top - bottomMargin;
       const heightBased = availableHeight - RING_PAD * 2;
 
-      // Extra column width reserved for the legend WheelStack draws
-      // beside the disc (see .wheel-stack__row in WheelLegend.css) -
-      // without this, the column would be sized for the disc alone and
-      // the legend would overflow past its right edge once the disc
-      // grows large enough to fill the column (e.g. in compact header
-      // mode, where more vertical room lets the wheel grow wider).
-      const legendReserve = hasLegend ? legendReserveWidth() : 0;
+      // The row is centered, so horizontal space not claimed by the
+      // recommendations column and the disc is free: it goes to the
+      // legend (up to LEGEND_MAX_WIDTH), growing the wheel column and
+      // shifting the row's left edge outward. The disc size itself is
+      // still bound by height.
+      const heightDisc = Math.min(MAX_WHEEL_SIZE, Math.max(MIN_WHEEL_SIZE, Math.floor(heightBased)));
+      let legendWidth = 0;
+      if (hasLegend) {
+        const layoutEl = colEl.parentElement;
+        const sideEl = colEl.previousElementSibling as HTMLElement | null;
+        const sideWidth = sideEl ? sideEl.offsetWidth + LAYOUT_GAP : 0;
+        const freeForLegend =
+          (layoutEl?.clientWidth ?? 0) - sideWidth - (heightDisc + RING_PAD * 2) - WHEEL_LEGEND_GAP;
+        legendWidth = Math.floor(Math.min(LEGEND_MAX_WIDTH, Math.max(legendMinWidth(), freeForLegend)));
+      }
+      document.documentElement.style.setProperty("--legend-width", `${legendWidth}px`);
+      const legendReserve = hasLegend ? legendWidth + WHEEL_LEGEND_GAP : 0;
 
-      const heightCapPx =
-        Math.max(MIN_WHEEL_SIZE, Math.floor(heightBased)) + RING_PAD * 2 + legendReserve;
+      const heightCapPx = heightDisc + RING_PAD * 2 + legendReserve;
       colEl.style.maxWidth = `${heightCapPx}px`;
  
       if (isPinned) {
@@ -382,6 +397,7 @@ function AppContent() {
       colEl.style.maxWidth = "";
       wrapEl.style.left = "";
       wrapEl.style.width = "";
+      document.documentElement.style.removeProperty("--legend-width");
     };
   }, [isWheelWrapHidden, headerMode, headerHeight, controlsHeight, hasLegend, footerHeight]);
 
