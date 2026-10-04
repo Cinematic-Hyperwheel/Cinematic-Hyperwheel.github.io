@@ -20,7 +20,7 @@ const RESERVE_EPSILON_PX = 1;
 // before treating a scroll as settled and resuming passive tracking - a
 // debounce rather than a fixed delay, since a smooth scrollIntoView's
 // actual duration depends on distance and isn't known in advance.
-const PROGRAMMATIC_SCROLL_SETTLE_MS = 120;
+const PROGRAMMATIC_SCROLL_SETTLE_MS = 300;
 
 interface UseActiveCircleNavOptions {
   /** Circles that actually have at least one recommendation (see
