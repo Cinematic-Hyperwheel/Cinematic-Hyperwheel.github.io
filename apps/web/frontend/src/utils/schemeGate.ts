@@ -39,6 +39,28 @@ interface BuiltCircle {
   matched: Set<number>;
 }
 
+/** Gate-ordering key: (angle bucket, radius mismatch, exact angle error), smaller is closer to the rotated target. */
+type MatchKey = [number, number, number];
+
+interface ScoredMatch {
+  item: RecItem;
+  key: MatchKey;
+}
+
+interface PlaneMatches {
+  i: number;
+  j: number;
+  refX: number;
+  refY: number;
+  cands: Candidate[];
+  maxRadius: number;
+  angles: { angleDeg: number; scored: ScoredMatch[] }[];
+}
+
+function compareKeys(a: MatchKey, b: MatchKey): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+
 function circularDiff(a: number, b: number): number {
   const d = Math.abs(a - b) % TWO_PI;
   return Math.min(d, TWO_PI - d);
@@ -54,6 +76,8 @@ function bearingDeg(theta: number): number {
  * inside the angle AND radius window around the rotated target, then
  * order by angle bucket, radius mismatch, exact angle and finally
  * similarity. Tolerances come from the server so they are defined once.
+ * Each match carries its ordering key so matches can be compared across
+ * planes (see dedupeAcrossPlanes).
  */
 function recommendAtAngle(
   cands: Candidate[],
@@ -61,7 +85,7 @@ function recommendAtAngle(
   refY: number,
   schemeAngleDeg: number,
   gate: NeighborsResponse["gate"]
-): RecItem[] {
+): ScoredMatch[] {
   const rot = schemeAngleDeg / RAD_TO_DEG;
   const c = Math.cos(rot);
   const s = Math.sin(rot);
@@ -92,25 +116,58 @@ function recommendAtAngle(
       b.cand.item.similarity - a.cand.item.similarity
   );
 
-  return eligible.map((e, k) => ({
-    item_id: e.cand.item.item_id,
-    title: e.cand.item.title,
-    genres: e.cand.item.genres,
-    imdb_id: e.cand.item.imdb_id,
-    tmdb_id: e.cand.item.tmdb_id,
-    rank: k + 1,
-    angular_error_deg: e.angleErr * RAD_TO_DEG,
-    radius_ratio: hasRadius ? e.cand.r / targetR : null,
-    z_x: e.cand.zx,
-    z_y: e.cand.zy,
-    angle_deg: bearingDeg(e.cand.theta),
+  return eligible.map((e) => ({
+    key: [e.bucket, e.radiusMismatch, e.angleErr],
+    item: {
+      item_id: e.cand.item.item_id,
+      title: e.cand.item.title,
+      genres: e.cand.item.genres,
+      imdb_id: e.cand.item.imdb_id,
+      tmdb_id: e.cand.item.tmdb_id,
+      rank: 0, // assigned after cross-plane deduplication
+      angular_error_deg: e.angleErr * RAD_TO_DEG,
+      radius_ratio: hasRadius ? e.cand.r / targetR : null,
+      z_x: e.cand.zx,
+      z_y: e.cand.zy,
+      angle_deg: bearingDeg(e.cand.theta),
+    },
   }));
+}
+
+/**
+ * Keeps every item as a match in exactly one place: the (plane, angle)
+ * where it sits closest to the rotated target by the gate ordering key.
+ * Ties go to the plane that comes first in component-pair order.
+ */
+function dedupeAcrossPlanes(planes: PlaneMatches[]): void {
+  const best = new Map<number, { plane: number; angle: number; key: MatchKey }>();
+  planes.forEach((p, pi) =>
+    p.angles.forEach((a, ai) =>
+      a.scored.forEach((m) => {
+        const cur = best.get(m.item.item_id);
+        if (!cur || compareKeys(m.key, cur.key) < 0) {
+          best.set(m.item.item_id, { plane: pi, angle: ai, key: m.key });
+        }
+      })
+    )
+  );
+  planes.forEach((p, pi) =>
+    p.angles.forEach((a, ai) => {
+      a.scored = a.scored.filter((m) => {
+        const owner = best.get(m.item.item_id)!;
+        return owner.plane === pi && owner.angle === ai;
+      });
+    })
+  );
 }
 
 /**
  * Builds every circle (each pair of curated components) for a scheme from
  * the neighbor pool: per-angle recommendations (top-K for lists, all gate
  * matches for the big wheel) plus a star field of the remaining pool items.
+ * An item matched on several circles is kept only on the one where it is
+ * closest to the rotated target (see dedupeAcrossPlanes); on the others it
+ * falls back to the star field.
  * Circles are ordered by the match count of their weakest scheme angle (descending),
  * then by total matches, then by the reference radius; the first one is primary.
  * Circles whose matches are fully included in another circle's matches are omitted.
@@ -119,9 +176,8 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   const schemeAngles = data.schemes[scheme];
   if (!schemeAngles) return [];
   const { pcs, axes, reference, items, gate } = data;
-  
-  const built: BuiltCircle[] = [];
 
+  const planes: PlaneMatches[] = [];
   for (let i = 0; i < pcs.length; i++) {
     for (let j = i + 1; j < pcs.length; j++) {
       const refX = reference[i];
@@ -132,67 +188,87 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         const zy = item.z[j];
         return { item, zx, zy, r: Math.hypot(zx, zy), theta: Math.atan2(zy, zx) };
       });
-      
-      const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY)); 
+      const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY));
 
-      const angles: RecAngle[] = schemeAngles.map((angleDeg) => {
-        const matches = recommendAtAngle(cands, refX, refY, angleDeg, gate);
-        return { angle_deg: angleDeg, items: matches.slice(0, TOP_K), matches };
-      });
-
-      const used = new Set<number>();
-      // Matches beyond TOP_K are not visible in the lists, so they give no
-      // ordering advantage: each angle contributes at most TOP_K.
-      let rankedTotal = 0;
-      for (const a of angles) {
-        rankedTotal += Math.min(a.matches.length, TOP_K);
-        for (const it of a.matches) used.add(it.item_id);
-      }
-
-      const starfield: StarfieldItem[] = [];
-      for (const cand of cands) {
-        if (used.has(cand.item.item_id)) continue;
-        starfield.push({
-          item_id: cand.item.item_id,
-          title: cand.item.title,
-          genres: cand.item.genres,
-          imdb_id: cand.item.imdb_id,
-          tmdb_id: cand.item.tmdb_id,
-          z_x: cand.zx,
-          z_y: cand.zy,
-          angle_deg: bearingDeg(cand.theta),
-        });
-      }
-
-      // Capped match count of the circle's weakest angle: a circle that
-      // fills every angle ranks above one concentrated on a single angle.
-      const minPerAngle = angles.reduce(
-        (m, a) => Math.min(m, Math.min(a.matches.length, TOP_K)),
-        angles.length > 0 ? Infinity : 0
-      );
-
-      const radius = Math.hypot(refX, refY);
-      built.push({
-        radius,
-        rankedTotal,
-        minPerAngle,
-        matched: used,
-        circle: {
-          primary: false,
-          axis_x: axes[i],
-          axis_y: axes[j],
-          max_radius: maxRadius,
-          reference: {
-            z_x: refX,
-            z_y: refY,
-            angle_deg: bearingDeg(Math.atan2(refY, refX)),
-            radius,
-          },
-          angles,
-          starfield,
-        },
+      planes.push({
+        i,
+        j,
+        refX,
+        refY,
+        cands,
+        maxRadius,
+        angles: schemeAngles.map((angleDeg) => ({
+          angleDeg,
+          scored: recommendAtAngle(cands, refX, refY, angleDeg, gate),
+        })),
       });
     }
+  }
+
+  dedupeAcrossPlanes(planes);
+
+  const built: BuiltCircle[] = [];
+
+  for (const plane of planes) {
+    const { i, j, refX, refY, cands, maxRadius } = plane;
+
+    const angles: RecAngle[] = plane.angles.map(({ angleDeg, scored }) => {
+      const matches = scored.map((m, k) => ({ ...m.item, rank: k + 1 }));
+      return { angle_deg: angleDeg, items: matches.slice(0, TOP_K), matches };
+    });
+
+    const used = new Set<number>();
+    // Matches beyond TOP_K are not visible in the lists, so they give no
+    // ordering advantage: each angle contributes at most TOP_K.
+    let rankedTotal = 0;
+    for (const a of angles) {
+      rankedTotal += Math.min(a.matches.length, TOP_K);
+      for (const it of a.matches) used.add(it.item_id);
+    }
+
+    const starfield: StarfieldItem[] = [];
+    for (const cand of cands) {
+      if (used.has(cand.item.item_id)) continue;
+      starfield.push({
+        item_id: cand.item.item_id,
+        title: cand.item.title,
+        genres: cand.item.genres,
+        imdb_id: cand.item.imdb_id,
+        tmdb_id: cand.item.tmdb_id,
+        z_x: cand.zx,
+        z_y: cand.zy,
+        angle_deg: bearingDeg(cand.theta),
+      });
+    }
+
+    // Capped match count of the circle's weakest angle: a circle that
+    // fills every angle ranks above one concentrated on a single angle.
+    const minPerAngle = angles.reduce(
+      (m, a) => Math.min(m, Math.min(a.matches.length, TOP_K)),
+      angles.length > 0 ? Infinity : 0
+    );
+
+    const radius = Math.hypot(refX, refY);
+    built.push({
+      radius,
+      rankedTotal,
+      minPerAngle,
+      matched: used,
+      circle: {
+        primary: false,
+        axis_x: axes[i],
+        axis_y: axes[j],
+        max_radius: maxRadius,
+        reference: {
+          z_x: refX,
+          z_y: refY,
+          angle_deg: bearingDeg(Math.atan2(refY, refX)),
+          radius,
+        },
+        angles,
+        starfield,
+      },
+    });
   }
 
   // Array.prototype.sort is stable: equal keys keep component-pair order.
@@ -202,10 +278,9 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     (a, b) => b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal || b.radius - a.radius
   );
 
-  // A circle whose matches are fully contained in another circle's matches
-  // adds nothing new and is dropped. Of two circles with identical match
-  // sets, the higher-ranked one is kept. Circles without matches are kept
-  // as is.
+  // After deduplication matched sets are disjoint across circles, so only
+  // circles without any match could be "contained"; the subset check is
+  // kept as a guard for empty-vs-nonempty edge cases.
   const isSubset = (a: Set<number>, b: Set<number>) => {
     for (const id of a) if (!b.has(id)) return false;
     return true;
