@@ -1,7 +1,7 @@
 """
 Plane starfield: every catalog item that shares the reference's
-character along one PCA axis at a time, with every other axis'
-influence suppressed.
+character once one PCA axis at a time is dropped from the comparison,
+unioned over all such axes.
 
 The same neighbor set can serve as a scheme-independent candidate pool,
 to be gated by scheme angle and radius afterwards (recommend.py's
@@ -10,20 +10,19 @@ Stage B).
 Where recommend.py/recommend_many_planes finds items near a ROTATED
 TARGET within one hue plane (see /docs/math.md section 5-6c), this
 module answers a different question: which items resemble the reference
-along a single axis' own character, regardless of any other axis?
+everywhere except along a given axis?
 
 A single whole-profile similarity search (PC1 always suppressed, see
 similarity.py) requires a candidate to resemble the reference on every
 axis at once, which can leave very few matches for a reference with a
 genuinely distinctive profile on several axes. This module instead runs
-one search per axis in `preserve_components`, each time suppressing
-every OTHER basis axis' own criteria weights (on top of the PC1
-suppression that always applies) via `similarity_to_target`'s
-`suppress_loadings` - isolating that one axis' own contribution to
-character similarity rather than requiring agreement on all of them at
-once. The per-axis outlier sets are then unioned by item id, keeping
-each item's best similarity score across the axes it qualified on, and
-capped at MAX_NEIGHBORS.
+one search per axis in `drop_components`, each time suppressing that
+axis' own criteria weights (on top of the PC1 suppression that always
+applies) via `similarity_to_target`'s `suppress_loadings`. A candidate
+may therefore differ from the reference along the dropped axis, which is
+what lets such items surface as neighbors. The per-axis outlier sets are
+then unioned by item id, keeping each item's best similarity score
+across the axes it qualified on, and capped at MAX_NEIGHBORS.
 
 Criteria variance not captured by any of the basis' components (the
 long tail beyond however many components were computed - see
@@ -52,7 +51,7 @@ from .similarity import (
 
 # Hard ceiling only, guarding against a degenerate distribution (e.g. a
 # tight near-duplicate cluster in the catalog, or an unusually large
-# number of axes to isolate) returning an unreasonably large field.
+# number of axes to drop) returning an unreasonably large field.
 # SIMILARITY_OUTLIER_Z is what actually decides "similar enough" for an
 # ordinary reference on any one axis; this should essentially never bind
 # in practice.
@@ -62,27 +61,28 @@ MAX_NEIGHBORS = 1500
 def find_neighbors(
     basis: TasteBasis,
     reference_item,
-    preserve_components: list[int],
+    drop_components: list[int],
     similarity_outlier_z: float = SIMILARITY_OUTLIER_Z,
     max_neighbors: int = MAX_NEIGHBORS,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, list[list[int]]]:
     """
-    Per-axis isolation search (see module docstring), unioned across axes.
+    Per-axis drop search (see module docstring), unioned across axes.
 
-    Returns (indices, similarities), both ordered by descending
-    similarity; each item's similarity is its best score among the axes it
-    qualified on. `preserve_components` is 1-based and typically every
-    component except PC1.
+    Returns (indices, similarities, dropped), all ordered by descending
+    similarity; each item's similarity is its best score among the axes
+    it qualified on, and `dropped[k]` lists (ascending, 1-based) every
+    axis whose drop made item `indices[k]` qualify. `drop_components` is
+    1-based and typically every component except PC1.
     """
     if reference_item not in basis.items:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
 
     n_components = basis.U.shape[0]
-    for component in preserve_components:
-        if component > n_components:
+    for component in drop_components:
+        if component < 1 or component > n_components:
             raise ValueError(
-                f"preserve_components contains {component}, but the basis "
-                f"only has {n_components} components."
+                f"drop_components contains {component}, but the basis "
+                f"has components 1..{n_components}."
             )
 
     ref_idx = basis.items.index(reference_item)
@@ -94,17 +94,18 @@ def find_neighbors(
     pc1_loadings = basis.U[0]
 
     # Union by item, not by (item, axis): an item qualifying via several
-    # axes is counted once, with its best score.
+    # axes is counted once, with its best score and every axis it
+    # qualified on.
     best_similarity: dict[int, float] = {}
-    for component in preserve_components:
-        # Every OTHER basis axis except PC1 (already always suppressed) and
-        # except the axis this search preserves.
-        other_indices = [j for j in range(1, n_components) if j != component - 1]
-        other_loadings = basis.U[other_indices] if other_indices else None
-
-        similarity = similarity_to_target(X, target, pc1_loadings, suppress_loadings=other_loadings)
+    dropped_by_item: dict[int, list[int]] = {}
+    for component in sorted(set(drop_components)):
+        similarity = similarity_to_target(
+            X, target, pc1_loadings, suppress_loadings=basis.U[component - 1]
+        )
         outliers = high_similarity_outlier_indices(similarity, ref_idx, z_threshold=similarity_outlier_z)
         for idx in outliers:
+            idx = int(idx)
+            dropped_by_item.setdefault(idx, []).append(component)
             score = float(similarity[idx])
             if score > best_similarity.get(idx, -np.inf):
                 best_similarity[idx] = score
@@ -112,14 +113,15 @@ def find_neighbors(
     ordered = sorted(best_similarity, key=lambda idx: -best_similarity[idx])[:max_neighbors]
     indices = np.array(ordered, dtype=int)
     similarities = np.array([best_similarity[idx] for idx in ordered], dtype=np.float32)
-    return indices, similarities
+    dropped = [dropped_by_item[idx] for idx in ordered]
+    return indices, similarities, dropped
 
 
 def find_plane_neighbors(
     basis: TasteBasis,
     reference_item,
     planes: list[tuple[int, int]],
-    preserve_components: list[int],
+    drop_components: list[int],
     similarity_outlier_z: float = SIMILARITY_OUTLIER_Z,
     max_neighbors: int = MAX_NEIGHBORS,
 ) -> dict[tuple[int, int], np.ndarray]:
@@ -135,8 +137,8 @@ def find_plane_neighbors(
                 f"plane={plane} requires at least {max(plane)} components "
                 f"(basis has {len(basis.pc_std)})."
             )
-    indices, _ = find_neighbors(
-        basis, reference_item, preserve_components,
+    indices, _, _ = find_neighbors(
+        basis, reference_item, drop_components,
         similarity_outlier_z=similarity_outlier_z, max_neighbors=max_neighbors,
     )
     return {plane: indices for plane in planes}

@@ -78,13 +78,11 @@ class WheelEngine:
     @property
     def non_pc1_components(self) -> list[int]:
         """Every 1-based PCA component the basis actually has, except
-        PC1 - the axes the plane starfield's per-axis isolation search
+        PC1 - the axes the plane starfield's per-axis drop search
         iterates over (see main.py's /recommend endpoint and
-        starfield.py). On each iteration one of these is the axis being
-        preserved; every other basis axis, including this list's other
-        entries, is suppressed for that iteration. PC1 itself is never
-        one of these - it always keeps its own gentler, always-applied
-        suppression instead of being isolated as the preserved axis."""
+        starfield.py). On each iteration one of these is dropped from
+        the similarity comparison. PC1 itself is never one of these - it
+        always keeps its own gentler, always-applied suppression."""
         return list(range(2, self.basis.U.shape[0] + 1))
 
     def circles_for(self, item_id: int) -> list[dict]:

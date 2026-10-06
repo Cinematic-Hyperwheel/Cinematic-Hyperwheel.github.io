@@ -180,9 +180,16 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   const planes: PlaneMatches[] = [];
   for (let i = 0; i < pcs.length; i++) {
     for (let j = i + 1; j < pcs.length; j++) {
-      const refX = reference[i];
-      const refY = reference[j];
+      const refX = reference[pcs[i] - 1];
+      const refY = reference[pcs[j] - 1];
 
+      // A circle only uses items that qualified with one of its own axes
+      // dropped: they may differ from the reference along this plane
+      // while still matching it elsewhere.
+      // const planeItems = items.filter(
+      //   (item) => item.dropped.includes(pcs[i]) || item.dropped.includes(pcs[j])
+      // );
+      // const cands: Candidate[] = planeItems.map((item) => {
       const cands: Candidate[] = items.map((item) => {
         const zx = item.z[i];
         const zy = item.z[j];

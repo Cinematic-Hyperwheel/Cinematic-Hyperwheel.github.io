@@ -74,12 +74,12 @@
     },
     "labels": {
       "en": {
-        "positive": "Serious",
-        "negative": "Comic"
+        "positive": "Harsh",
+        "negative": "Cozy"
       },
       "ru": {
-        "positive": "Серьезный",
-        "negative": "Комедийный"
+        "positive": "Суровый",
+        "negative": "Уютный"
       }
     }
   },
@@ -138,11 +138,11 @@
     },
     "labels": {
       "en": {
-        "negative": "Frightening",
+        "negative": "Empathetic",
         "positive": "Heroic"
       },
       "ru": {
-        "negative": "Пугающий",
+        "negative": "Сопереживательный",
         "positive": "Героический"
       }
     }
@@ -160,6 +160,166 @@
       "ru": {
         "negative": "Женственный",
         "positive": "Маскулинный"
+      }
+    }
+  },
+  "11": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Sentimental",
+        "positive": "Preachy"
+      },
+      "ru": {
+        "negative": "Сентиментальный",
+        "positive": "Поучительный"
+      }
+    }
+  },
+  "12": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Innocent",
+        "positive": "Sophisticated"
+      },
+      "ru": {
+        "negative": "Наивный",
+        "positive": "Искушенный"
+      }
+    }
+  },
+  "13": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Staged",
+        "positive": "Natural"
+      },
+      "ru": {
+        "negative": "Постановочный",
+        "positive": "Естественный"
+      }
+    }
+  },
+  "14": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Internal Crisis",
+        "positive": "External Conflict"
+      },
+      "ru": {
+        "negative": "Внутренний кризис",
+        "positive": "Внешний конфликт"
+      }
+    }
+  },
+  "15": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "15",
+        "positive": "15"
+      },
+      "ru": {
+        "negative": "15",
+        "positive": "15"
+      }
+    }
+  },
+  "16": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Man vs. Nature ",
+        "positive": "Man vs. System"
+      },
+      "ru": {
+        "negative": "Человека против Стихии",
+        "positive": "Человек против Системы"
+      }
+    }
+  },
+  "17": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "17",
+        "positive": "17"
+      },
+      "ru": {
+        "negative": "17",
+        "positive": "17"
+      }
+    }
+  },
+  "18": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Strategic",
+        "positive": "Opportunistic"
+      },
+      "ru": {
+        "negative": "Стратегический",
+        "positive": "Авантюрный"
+      }
+    }
+  },
+  "19": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "19",
+        "positive": "19"
+      },
+      "ru": {
+        "negative": "19",
+        "positive": "19"
+      }
+    }
+  },
+  "20": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Expressive",
+        "positive": "Narrative"
+      },
+      "ru": {
+        "negative": "Выразительный",
+        "positive": "Повествовательный"
       }
     }
   }

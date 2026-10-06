@@ -47,7 +47,7 @@ ARTIFACT_PATH = _env_path("HYPERWHEEL_ARTIFACT_PATH", DATA_DIR / "artifact.npz")
 # hyperwheel_recommender.basis_cache.load_pca_cache.
 PCA_CACHE_PATH = _env_path("HYPERWHEEL_PCA_CACHE_PATH", DATA_DIR / "pca_cache.npz")
 
-N_COMPONENTS = int(os.environ.get("HYPERWHEEL_N_COMPONENTS", "20"))
+N_COMPONENTS = int(os.environ.get("HYPERWHEEL_N_COMPONENTS", "40"))
 STANDARDIZE = os.environ.get("HYPERWHEEL_NO_STANDARDIZE", "") == ""
 
 # Human-curated per-component labels/colors (see pc_config.py) - lives

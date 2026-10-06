@@ -144,6 +144,8 @@ export interface NeighborItem {
   imdb_id: string | null;
   tmdb_id: string | null;
   similarity: number;
+  /** 1-based components whose drop made this item qualify as a neighbor. */
+  dropped: number[];
   /** Whitened coordinates, parallel to NeighborsResponse.pcs. */
   z: number[];
 }
@@ -159,7 +161,8 @@ export interface NeighborsResponse {
   pcs: number[];
   /** Parallel to `pcs`. */
   axes: AxisConfig[];
-  /** The reference's whitened coordinates, parallel to `pcs`. */
+  /** The reference's whitened coordinates on every basis component:
+   * the coordinate of component `pc` is `reference[pc - 1]`. */
   reference: number[];
   /** Scheme name -> angles in degrees. */
   schemes: Record<string, number[]>;

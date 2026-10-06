@@ -214,17 +214,20 @@ def recommend(item_id: int):
         raise HTTPException(status_code=404, detail="Item not found in the PCA basis")
 
     pcs = _engine.curated_components
+    # Every component the basis has (1-based, ascending), not just the
+    # curated ones - `reference` is indexed by component number.
+    all_pcs = list(range(1, _engine.basis.U.shape[0] + 1))
     try:
-        indices, similarities = find_neighbors(
+        indices, similarities, dropped = find_neighbors(
             _engine.basis,
             reference_item=item_id,
-            preserve_components=_engine.non_pc1_components,
+            drop_components=_engine.non_pc1_components,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
     items = []
-    for idx, sim, z in zip(indices, similarities, _engine.z_scores(indices, pcs)):
+    for idx, sim, drop, z in zip(indices, similarities, dropped, _engine.z_scores(indices, pcs)):
         iid = int(_engine.basis.items[idx])
         record = _records_by_id.get(iid)
         items.append({
@@ -234,6 +237,7 @@ def recommend(item_id: int):
             "imdb_id": record.imdb_id if record else None,
             "tmdb_id": record.tmdb_id if record else None,
             "similarity": round(float(sim), 4),
+            "dropped": drop,
             "z": z,
         })
 
@@ -241,7 +245,7 @@ def recommend(item_id: int):
         "item_id": item_id,
         "pcs": pcs,
         "axes": [_engine.axis_payload(pc) for pc in pcs],
-        "reference": _engine.z_scores([ridx], pcs)[0],
+        "reference": _engine.z_scores([ridx], all_pcs)[0],
         "schemes": SCHEMES,
         "gate": {
             "angle_tol_rad": float(ANGLE_TOL_RAD),
