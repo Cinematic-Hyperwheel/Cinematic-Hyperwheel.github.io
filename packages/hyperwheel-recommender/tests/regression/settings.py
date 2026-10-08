@@ -19,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 # Same env var names and defaults as apps/web/backend/app/config.py.
 DATA_DIR = Path(os.environ.get("HYPERWHEEL_DATA_DIR", REPO_ROOT / "data" / "ml-latest"))
 ARTIFACT_PATH = Path(os.environ.get("HYPERWHEEL_ARTIFACT_PATH", DATA_DIR / "artifact.npz"))
-N_COMPONENTS = int(os.environ.get("HYPERWHEEL_N_COMPONENTS", "40"))
+N_COMPONENTS = int(os.environ.get("HYPERWHEEL_N_COMPONENTS", "50"))
 STANDARDIZE = os.environ.get("HYPERWHEEL_NO_STANDARDIZE", "") == ""
 PC_CONFIG_PATH = Path(os.environ.get(
     "HYPERWHEEL_PC_CONFIG_PATH",

@@ -52,12 +52,6 @@ def circles(basis: TasteBasis) -> list[tuple[int, int]]:
 def starfield_max_size() -> int:
     return settings.STARFIELD_MAX_SIZE
 
-@pytest.fixture(scope="session")
-def drop_components(basis: TasteBasis) -> list[int]:
-    """Every PCA axis the basis has, except PC1 - the axes the plane
-    starfield's per-axis drop search iterates over."""
-    return list(range(2, basis.U.shape[0] + 1))
-
 def load_golden_pairs() -> list[dict]:
     """Reads the reference/expected-recommendation pairs maintained by
     hand for regression tracking. A blank reference_item, or one

@@ -214,20 +214,17 @@ def recommend(item_id: int):
         raise HTTPException(status_code=404, detail="Item not found in the PCA basis")
 
     pcs = _engine.curated_components
-    # Every component the basis has (1-based, ascending), not just the
-    # curated ones - `reference` is indexed by component number.
     all_pcs = list(range(1, _engine.basis.U.shape[0] + 1))
+    planes = _engine.starfield_pairs()
     try:
-        indices, similarities, dropped = find_neighbors(
-            _engine.basis,
-            reference_item=item_id,
-            drop_components=_engine.non_pc1_components,
+        indices, similarities, matched = find_neighbors(
+            _engine.basis, reference_item=item_id, planes=planes,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
     items = []
-    for idx, sim, drop, z in zip(indices, similarities, dropped, _engine.z_scores(indices, pcs)):
+    for idx, sim, plane_ids, z in zip(indices, similarities, matched, _engine.z_scores(indices, pcs)):
         iid = int(_engine.basis.items[idx])
         record = _records_by_id.get(iid)
         items.append({
@@ -237,7 +234,7 @@ def recommend(item_id: int):
             "imdb_id": record.imdb_id if record else None,
             "tmdb_id": record.tmdb_id if record else None,
             "similarity": round(float(sim), 4),
-            "dropped": drop,
+            "planes": plane_ids,
             "z": z,
         })
 
@@ -252,6 +249,7 @@ def recommend(item_id: int):
             "radius_tol_log": float(RADIUS_TOL_LOG),
         },
         "items": items,
+        "planes": [list(p) for p in planes],
     }
 
 

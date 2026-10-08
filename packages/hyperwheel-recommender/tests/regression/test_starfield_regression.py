@@ -14,11 +14,11 @@ from __future__ import annotations
 from ._shared import collect_starfield_items
 
 
-def test_expected_recommendation_present_in_starfield(golden_pair, basis, circles, drop_components):
+def test_expected_recommendation_present_in_starfield(golden_pair, basis, circles):
     reference = golden_pair["reference_item"]
     expected = golden_pair["expected_recommendation"]
 
-    starfield = collect_starfield_items(basis, reference, circles, drop_components)
+    starfield = collect_starfield_items(basis, reference, circles)
 
     if expected not in starfield:
         raise AssertionError(

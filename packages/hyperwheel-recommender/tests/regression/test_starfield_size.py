@@ -21,9 +21,7 @@ _UNCAPPED = 100_000
 
 def test_starfield_within_size_limit(starfield_case, basis, circles, drop_components, starfield_max_size):
     reference = starfield_case
-    by_plane = find_plane_neighbors(
-        basis, reference, circles, drop_components, max_neighbors=_UNCAPPED
-    )
+    by_plane = find_plane_neighbors(basis, reference, circles, max_neighbors=_UNCAPPED)
 
     oversized = {
         plane: len(neighbors)

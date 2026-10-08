@@ -30,12 +30,12 @@ from numba import njit, prange
 # Strength of the penalty for differences in tag activation.
 # 0 = no penalty; 0.5 = moderate; 1 = penalty equal in magnitude
 # to a same-strength match reward; values > 1 increasingly favor agreement.
-MISMATCH_PENALTY = 0.25
+MISMATCH_PENALTY = 1
 
 # Minimum weight retained by criteria strongly aligned with the PC1
 # (overall quality/halo) axis. 0 = fully suppress PC1-driven criteria;
 # 1 = no PC1 downweighting.
-PC1_WEIGHT_FLOOR = 0.05
+PC1_WEIGHT_FLOOR = 0
 
 
 def _axis_weight_factor(loadings: np.ndarray, floor: float) -> np.ndarray:
@@ -122,9 +122,9 @@ def similarity_to_target(
     suppressing every other axis at once.
     """
     weights = _pc1_aware_weights(pc1_loadings)
-    # if suppress_loadings is not None:
-    #     for axis_loadings in np.atleast_2d(suppress_loadings):
-    #         weights = weights * _axis_weight_factor(axis_loadings, floor=0.0)
+    if suppress_loadings is not None:
+        for axis_loadings in np.atleast_2d(suppress_loadings):
+            weights = weights * _axis_weight_factor(axis_loadings, floor=0)
     # target is a small (n_criteria,) vector - this cast is essentially
     # free even when it copies, and keeps the numba kernel compiled
     # against one stable float32 signature.
@@ -144,7 +144,7 @@ def similarity_to_target(
 # just testing the high tail of "similarity" instead of the low tail of
 # "distance". +2.5 is the conventional cutoff for this statistic.
 #SIMILARITY_OUTLIER_Z = 1.7
-SIMILARITY_OUTLIER_Z = 2.3
+SIMILARITY_OUTLIER_Z = 2.5
 
 
 def high_similarity_outlier_indices(

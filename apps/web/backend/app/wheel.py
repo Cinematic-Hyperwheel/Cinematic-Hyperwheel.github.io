@@ -38,6 +38,7 @@ from .config import ARTIFACT_PATH, N_COMPONENTS, PCA_CACHE_PATH, STANDARDIZE
 from .pc_config import load_pc_config
 
 
+
 @dataclass
 class WheelEngine:
     id_to_idx: dict[int, int]
@@ -47,6 +48,13 @@ class WheelEngine:
     pc_config: dict[int, dict]
     basis: TasteBasis        # prebuilt basis, reused by the recommend endpoint
     X: np.ndarray            # (n_items, n_criteria) raw criteria matrix
+
+    def starfield_pairs(self) -> list[tuple[int, int]]:
+        """Hue planes the reference gets circles for: every pair of
+        curated axes. A neighbor may be pronounced on an axis where the
+        reference is weak, so planes are not limited to the reference's
+        own strong axes."""
+        return list(itertools.combinations(self.curated_components, 2))
 
     def axis_payload(self, pc: int) -> dict:
         cfg = self.pc_config[pc]
@@ -74,16 +82,6 @@ class WheelEngine:
             pc for pc, cfg in self.pc_config.items()
             if not cfg.get("excluded_from_hue", False)
         )
-
-    @property
-    def non_pc1_components(self) -> list[int]:
-        """Every 1-based PCA component the basis actually has, except
-        PC1 - the axes the plane starfield's per-axis drop search
-        iterates over (see main.py's /recommend endpoint and
-        starfield.py). On each iteration one of these is dropped from
-        the similarity comparison. PC1 itself is never one of these - it
-        always keeps its own gentler, always-applied suppression."""
-        return list(range(2, self.basis.U.shape[0] + 1))
 
     def circles_for(self, item_id: int) -> list[dict]:
         idx = self.id_to_idx.get(item_id)

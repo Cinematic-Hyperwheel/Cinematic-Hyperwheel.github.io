@@ -144,9 +144,8 @@ export interface NeighborItem {
   imdb_id: string | null;
   tmdb_id: string | null;
   similarity: number;
-  /** 1-based components whose drop made this item qualify as a neighbor. */
-  dropped: number[];
-  /** Whitened coordinates, parallel to NeighborsResponse.pcs. */
+  /** Indices into NeighborsResponse.planes on which this item qualified. */
+  planes: number[];
   z: number[];
 }
 
@@ -169,6 +168,8 @@ export interface NeighborsResponse {
   /** Stage B tolerances, owned by the engine (recommend.py). */
   gate: { angle_tol_rad: number; radius_tol_log: number };
   items: NeighborItem[];
+  /** Hue planes (1-based component pairs) to build circles for. */
+  planes: [number, number][];
 }
 
 export async function getNeighbors(itemId: number): Promise<NeighborsResponse> {

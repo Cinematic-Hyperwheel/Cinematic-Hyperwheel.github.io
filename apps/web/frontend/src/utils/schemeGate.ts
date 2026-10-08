@@ -10,6 +10,14 @@ import type {
 // Recommendations shown per scheme angle (and the legend's page size).
 export const TOP_K = 6;
 
+// A plane becomes a circle only if the reference is pronounced on both
+// of its axes (|z| in whitened units). The pool itself is computed for
+// every plane, so neighbors that are pronounced on an axis where the
+// reference is weak are still found, but only as points on circles the
+// reference actually has a character on.
+const AXIS_Z_MIN = 0;
+const MIN_CIRCLES = 1;
+
 const RAD_TO_DEG = 180 / Math.PI;
 const TWO_PI = Math.PI * 2;
 
@@ -135,19 +143,27 @@ function recommendAtAngle(
 }
 
 /**
- * Keeps every item as a match in exactly one place: the (plane, angle)
- * where it sits closest to the rotated target by the gate ordering key.
- * Ties go to the plane that comes first in component-pair order.
+ * Keeps every item as a match in exactly one place. The owning plane is
+ * the one with the larger reference radius (the reference is more
+ * pronounced there); within that plane, the angle where the item sits
+ * closest to the rotated target by the gate ordering key. Remaining ties
+ * (equal radius, or the same plane) fall back to the ordering key, then
+ * to the plane that comes first in component-pair order.
  */
 function dedupeAcrossPlanes(planes: PlaneMatches[]): void {
+  //return;
+  
+  const radius = planes.map((p) => Math.hypot(p.refX, p.refY));
   const best = new Map<number, { plane: number; angle: number; key: MatchKey }>();
   planes.forEach((p, pi) =>
     p.angles.forEach((a, ai) =>
       a.scored.forEach((m) => {
         const cur = best.get(m.item.item_id);
-        if (!cur || compareKeys(m.key, cur.key) < 0) {
-          best.set(m.item.item_id, { plane: pi, angle: ai, key: m.key });
-        }
+        const wins =
+          !cur ||
+          radius[pi] > radius[cur.plane] ||
+          (radius[pi] === radius[cur.plane] && compareKeys(m.key, cur.key) < 0);
+        if (wins) best.set(m.item.item_id, { plane: pi, angle: ai, key: m.key });
       })
     )
   );
@@ -175,42 +191,52 @@ function dedupeAcrossPlanes(planes: PlaneMatches[]): void {
 export function buildCircles(data: NeighborsResponse, scheme: string): RecommendCircle[] {
   const schemeAngles = data.schemes[scheme];
   if (!schemeAngles) return [];
-  const { pcs, axes, reference, items, gate } = data;
+  const { pcs, axes, reference, items, gate, planes: planeDefs } = data;
+
+  const strong = (pc: number) => Math.abs(reference[pc - 1]) >= AXIS_Z_MIN;
+  let usable = planeDefs
+    .map((def, p) => ({ def, p }))
+    .filter(({ def: [a, b] }) => strong(a) && strong(b));
+
+  // Fallback so a typical reference (no pronounced axes) still gets a
+  // circle: the plane with the largest reference radius.
+  if (usable.length < MIN_CIRCLES) {
+    usable = planeDefs
+      .map((def, p) => ({ def, p }))
+      .sort(
+        (x, y) =>
+          Math.hypot(reference[y.def[0] - 1], reference[y.def[1] - 1]) -
+          Math.hypot(reference[x.def[0] - 1], reference[x.def[1] - 1])
+      )
+      .slice(0, MIN_CIRCLES);
+  }
 
   const planes: PlaneMatches[] = [];
-  for (let i = 0; i < pcs.length; i++) {
-    for (let j = i + 1; j < pcs.length; j++) {
-      const refX = reference[pcs[i] - 1];
-      const refY = reference[pcs[j] - 1];
+  usable.forEach(({ def: [pcA, pcB], p }) => {
 
-      // A circle only uses items that qualified with one of its own axes
-      // dropped: they may differ from the reference along this plane
-      // while still matching it elsewhere.
-      // const planeItems = items.filter(
-      //   (item) => item.dropped.includes(pcs[i]) || item.dropped.includes(pcs[j])
-      // );
-      // const cands: Candidate[] = planeItems.map((item) => {
-      const cands: Candidate[] = items.map((item) => {
+    const i = pcs.indexOf(pcA);
+    const j = pcs.indexOf(pcB);
+    const refX = reference[pcA - 1];
+    const refY = reference[pcB - 1];
+
+    // Only items that qualified on this exact plane.
+    const cands: Candidate[] = items
+      .filter((item) => item.planes.includes(p))
+      .map((item) => {
         const zx = item.z[i];
         const zy = item.z[j];
         return { item, zx, zy, r: Math.hypot(zx, zy), theta: Math.atan2(zy, zx) };
       });
-      const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY));
+    const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY));
 
-      planes.push({
-        i,
-        j,
-        refX,
-        refY,
-        cands,
-        maxRadius,
-        angles: schemeAngles.map((angleDeg) => ({
-          angleDeg,
-          scored: recommendAtAngle(cands, refX, refY, angleDeg, gate),
-        })),
-      });
-    }
-  }
+    planes.push({
+      i, j, refX, refY, cands, maxRadius,
+      angles: schemeAngles.map((angleDeg) => ({
+        angleDeg,
+        scored: recommendAtAngle(cands, refX, refY, angleDeg, gate),
+      })),
+    });
+  });
 
   dedupeAcrossPlanes(planes);
 
