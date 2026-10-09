@@ -5,7 +5,18 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .basis import build_taste_basis
+from .basis import build_feature_basis
+
+
+def tag_loadings(wide: pd.DataFrame, scores: np.ndarray, k: int) -> np.ndarray:
+    """Signed loading per tag: correlation of the tag's relevance with
+    the k-th (0-based) component score. U itself lives in the feature
+    space (several columns per tag), so per-tag weights are read off the
+    scores instead."""
+    X = wide.to_numpy(dtype=np.float32)
+    Xc = X - X.mean(axis=0)
+    sk = scores[:, k] - scores[:, k].mean()
+    return (Xc.T @ sk) / (np.linalg.norm(Xc, axis=0) * np.linalg.norm(sk) + 1e-12)
 
 
 def diagnose(
@@ -19,7 +30,7 @@ def diagnose(
     """Prints how many components are needed for reasonable variance
     coverage, and which criteria most strongly shape the first components
     (loadings) - to understand what these axes physically represent."""
-    basis = build_taste_basis(wide, n_components=max_components, standardize=standardize)
+    basis = build_feature_basis(wide, n_components=max_components, standardize=standardize)
     print(f"(standardize={'on' if standardize else 'off'})")
     total_var = np.sum(basis.singular_values ** 2)
     explained_full = (basis.singular_values ** 2) / total_var if total_var > 0 else basis.singular_values * 0
@@ -44,7 +55,7 @@ def diagnose(
     n_show = min(loadings_components, basis.U.shape[0])
     criteria = np.array(basis.criteria)
     print(f"\n{'='*60}")
-    print("Loadings (criteria weights) for the first components:")
+    print("Loadings (correlation of each criterion with the component score):")
     print(
         "Each component is a see-saw axis: the positive end (+) is one "
         "group of criteria, the negative end (-) is the opposite group. "
@@ -52,16 +63,16 @@ def diagnose(
         "other in the 'complementary' scheme."
     )
     for k in range(n_show):
-        loadings = basis.U[k]
+        loadings = tag_loadings(wide, basis.scores, k)
         order = np.argsort(loadings)  # ascending
         neg_idx = order[:loadings_top]
         pos_idx = order[::-1][:loadings_top]
 
         print(f"\n--- PC{k+1} (explained variance: {explained_full[k]:.1%}) ---")
-        print(f"  [+] {'criterion':<30} weight")
+        print(f"  [+] {'criterion':<30} loading")
         for idx in pos_idx:
             print(f"      {criteria[idx]:<30} {loadings[idx]:+.3f}")
-        print(f"  [-] {'criterion':<30} weight")
+        print(f"  [-] {'criterion':<30} loading")
         for idx in neg_idx:
             print(f"      {criteria[idx]:<30} {loadings[idx]:+.3f}")
 

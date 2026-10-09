@@ -1,6 +1,4 @@
 """
-packages/hyperwheel-recommender/src/hyperwheel_recommender/recommend.py
-
 Find real items matching a chosen color-wheel scheme.
 """
 
@@ -11,26 +9,17 @@ import sys
 import numpy as np
 import pandas as pd
 
-from .basis import TasteBasis, build_taste_basis
+from .basis import FeatureBasis, build_feature_basis
 from .planes import select_hue_plane
 from .rotation import SCHEMES
-from .similarity import (
-    SIMILARITY_OUTLIER_Z,
-    high_similarity_outlier_indices,
-    similarity_to_target,
-)
+from .similarity import feature_cosine, high_similarity_outlier_indices
 
-ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates in Stage B;
-                                   # see /docs/math.md section 6b - radius only breaks ties
-                                   # within this window, it never overrides a clearly better angle.
-                                   # Public, so callers applying the same gate can reuse it.
+ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates in Stage B,
+                                   # and the hard angle gate; public so callers can reuse the gate.
 
-# HARD radius tolerance for Stage B, |log(cand_r / target_r)|. Whitened radius
-# ("saturation") has no fixed absolute scale - it varies per reference item and per
-# plane - so the gate is a dimensionless, symmetric ratio; RADIUS_TOL_LOG is tunable
-# (e.g. log(1.5) ~ +/-50%; the tighter the window, the fewer candidates pass).
-# A candidate is eligible for Stage B only if its radius is within this window.
-# Public, like ANGLE_TOL_RAD.
+# HARD radius tolerance for Stage B, |log(cand_r / target_r)|. Whitened radius has no
+# fixed absolute scale (it varies per reference and plane), so the gate is a
+# dimensionless symmetric ratio. Public, like ANGLE_TOL_RAD.
 RADIUS_TOL_LOG = np.log(1.2)
 
 _RESULT_COLUMNS = [
@@ -46,7 +35,7 @@ def _circular_diff_rad(a: np.ndarray | float, b: float) -> np.ndarray | float:
 
 
 def recommend_on_basis(
-    basis: TasteBasis,
+    basis: FeatureBasis,
     reference_item: str,
     scheme: str,
     plane: tuple[int, int],
@@ -54,18 +43,12 @@ def recommend_on_basis(
     shortlist_size: int = 50,
 ) -> pd.DataFrame:
     """
-    Single-plane, single-reference recommendations. Thin wrapper around
-    recommend_many_planes([plane]) - kept as a distinct entry point
-    because it's public API (see __init__.py) and the CLI's single
-    `--hue-components i,j` path (recommend() below) calls it directly
-    with exactly one plane.
+    Single-plane recommendations; a thin wrapper around
+    recommend_many_planes([plane]).
 
-    plane: explicit 1-based (i, j) component pair forming the hue plane
-        on which to rotate (the caller decides it). shortlist_size:
-        safety cap on the Stage-A character shortlist (see
-        _stage_ab_rows) - Stage A itself already selects only items that
-        are a statistically significant similarity outlier; this just
-        bounds how many, at most, enter Stage B. Must be >= top_k.
+    plane: explicit 1-based (i, j) component pair forming the hue plane.
+    shortlist_size: safety cap on the Stage A shortlist (see
+    _stage_ab_rows); must be >= top_k.
     """
     if reference_item not in basis.items:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
@@ -85,57 +68,9 @@ def recommend_on_basis(
         top_k=top_k, shortlist_size=shortlist_size,
     )[plane]
 
-def _base_distance_sq(basis: TasteBasis, ref_idx: int) -> np.ndarray:
-    """
-    Squared standardized shape-space distance from every item to the
-    reference. No longer used to select the Stage-A shortlist (see
-    _stage_ab_rows, which selects by similarity instead) - kept to fill
-    the `distance_to_target` reporting column via the algebraic
-    per-plane shortcut in recommend_many_planes, so callers can still
-    inspect how the rotated target sits in the PCA shape space alongside
-    the similarity-based ranking. Computed once per reference - the only
-    O(n_items x n_criteria) pass this caller needs.
-    """
-    dot_ref = basis.Q_scaled @ basis.Q_scaled[ref_idx]
-    base = basis.Q_norm_sq + basis.Q_norm_sq[ref_idx] - 2.0 * dot_ref
-    return np.clip(base, 0.0, None)
-
-
-def _plane_projection_terms(
-    basis: TasteBasis, ref_idx: int, plane: tuple[int, int]
-) -> tuple[float, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Per-plane geometry shared by recommend_many_planes: the plane's own
-    two axis directions pulled back into standardized shape space
-    (v_pi, v_pj), their Gram matrix entries (vpp, vqq, vpq), and every
-    item's own dot product with each direction relative to the reference
-    (proj_i, proj_j) - see /docs/math.md section 6c for the derivation.
-    proj_i(k) is exactly <Q_scaled[k] - Q_scaled[ref], v_pi>. v_pi/v_pj
-    are also used to reconstruct the rotated target's raw tag values
-    (delta reconstruction, see recommend_many_planes) - the Stage A
-    similarity shortlist is built from that reconstruction, not from
-    this function's distance terms directly. O(n_criteria) for the
-    scalars, O(n_items) for proj_i/proj_j.
-    """
-    pi, pj = plane[0] - 1, plane[1] - 1
-    y_ref = basis.scores[ref_idx]
-
-    w_pi = basis.U[pi] * basis.scale
-    w_pj = basis.U[pj] * basis.scale
-    mw_pi, mw_pj = w_pi.mean(), w_pj.mean()
-    v_pi = (w_pi - mw_pi) * basis.inv_scale
-    v_pj = (w_pj - mw_pj) * basis.inv_scale
-    vpp = float(v_pi @ v_pi)
-    vqq = float(v_pj @ v_pj)
-    vpq = float(v_pi @ v_pj)
-
-    proj_i = (basis.scores[:, pi] - y_ref[pi]) - mw_pi * (basis.s - basis.s[ref_idx])
-    proj_j = (basis.scores[:, pj] - y_ref[pj]) - mw_pj * (basis.s - basis.s[ref_idx])
-
-    return vpp, vqq, vpq, proj_i, proj_j, v_pi, v_pj
 
 def recommend_many_planes(
-    basis: TasteBasis,
+    basis: FeatureBasis,
     reference_item: str,
     scheme: str,
     planes: list[tuple[int, int]],
@@ -144,37 +79,15 @@ def recommend_many_planes(
 ) -> dict[tuple[int, int], pd.DataFrame]:
     """
     Stage A/B recommendations for MANY hue planes against the SAME
-    reference item in one call (e.g. every pair of curated axes).
+    reference item in one call.
 
-    Algebraic shortcut for `distance_to_target` (see /docs/math.md
-    section 6c): for a fixed reference, a rotation confined to plane
-    (i, j) only ever moves the target within the 2D subspace spanned by
-    U[i], U[j]. This means the reported standardized shape-space distance
-    to every candidate decomposes into a per-item "base" term that is
-    IDENTICAL across every plane and angle (computed once here,
-    O(n_items x n_criteria)), plus per-plane scalars (O(n_criteria),
-    independent of n_items) and O(n_items) vector arithmetic per (plane,
-    angle) - an exact algebraic identity of the full-reconstruction
-    distance, not an approximation of it.
+    The rotated target is the reference's feature vector shifted along the
+    plane's two axes, Phi_t = Phi_ref + dy_i*U_i + dy_j*U_j. U is
+    orthonormal, so every inner product with the target and its squared
+    norm follow from the reference's cached inner products and the item
+    scores - no pass over the feature matrix per (plane, angle).
 
-    The same plane delta (dy_i, dy_j against the plane's own pullback
-    directions v_pi, v_pj) is also used to reconstruct the rotated
-    target's raw [0,1] tag values (delta reconstruction, /docs/math.md
-    section 5): the reference's own level and every criterion outside
-    the plane carry over unchanged, only the plane's own two directions
-    are shifted. The Stage A character shortlist (see _stage_ab_rows) is
-    built from that reconstruction, via the same pronounced-attribute
-    similarity metric used throughout the package (similarity.py).
-
-    planes: each entry is an explicit 1-based (i, j) component pair
-        forming a hue plane to rotate within (the caller decides them).
-        shortlist_size: safety cap on the Stage-A
-        character shortlist (see _stage_ab_rows), shared across every
-        plane and angle in this call.
-
-    Returns: {plane: DataFrame}, one entry per requested plane, each in
-    the same schema recommend_on_basis returns (scheme, angle_deg, rank,
-    item, distance_to_target, angular_error_deg, radius_ratio).
+    Returns: {plane: DataFrame} in the schema recommend_on_basis returns.
     """
     if reference_item not in basis.items:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
@@ -186,14 +99,10 @@ def recommend_many_planes(
         )
 
     ref_idx = basis.items.index(reference_item)
-    base = _base_distance_sq(basis, ref_idx)
-    y_ref = basis.scores[ref_idx]
-
-    # Raw [0,1] tag values reconstructed from the basis (X = L + Q, see
-    # basis.py) - shared by every plane/angle's Stage A shortlist below
-    # (only the target side of the similarity changes per angle, not
-    # the catalog).
-    X_all = basis.L[:, None] + basis.Q
+    sc = basis.scores
+    y_ref = sc[ref_idx].astype(np.float64)
+    g = basis.Phi @ basis.Phi[ref_idx]          # inner product of every item with the reference
+    n_ref = float(basis.norm_sq[ref_idx])
 
     results: dict[tuple[int, int], pd.DataFrame] = {}
 
@@ -203,23 +112,17 @@ def recommend_many_planes(
                 f"plane={plane} requires at least {max(plane)} components "
                 f"(basis has {len(basis.pc_std)})."
             )
-        pi, pj = plane[0] - 1, plane[1] - 1   # 1-based -> 0-based
-        std_i, std_j = basis.pc_std[pi], basis.pc_std[pj]
-        vpp, vqq, vpq, proj_i, proj_j, v_pi, v_pj = _plane_projection_terms(basis, ref_idx, plane)
+        pi, pj = plane[0] - 1, plane[1] - 1
+        std_i, std_j = float(basis.pc_std[pi]), float(basis.pc_std[pj])
 
-        # Precompute every item's own whitened angle in the hue plane once -
-        # basis.scores is already in the same (scaled, doubly-centered) space
-        # as y_ref/y_target, so no re-projection from X is needed here.
-        z_i_all = basis.scores[:, pi] / std_i
-        z_j_all = basis.scores[:, pj] / std_j
+        # Every item's own whitened angle in the hue plane.
+        z_i_all = sc[:, pi] / std_i
+        z_j_all = sc[:, pj] / std_j
         angle_all = np.arctan2(z_j_all, z_i_all)
 
         rows: list[dict] = []
         for angle_deg in SCHEMES[scheme]:
-            # Same rotation math as rotation.rotate_whitened, inlined here
-            # to avoid materializing/copying the full y vector per angle -
-            # only the two plane components ever change.
-            theta = np.float32(np.radians(angle_deg))
+            theta = np.radians(angle_deg)
             z_i, z_j = y_ref[pi] / std_i, y_ref[pj] / std_j
             c_, s_ = np.cos(theta), np.sin(theta)
             z_i_new = c_ * z_i - s_ * z_j
@@ -227,39 +130,27 @@ def recommend_many_planes(
             dy_i = z_i_new * std_i - y_ref[pi]
             dy_j = z_j_new * std_j - y_ref[pj]
 
-            dists_sq = (
-                base
-                - 2.0 * dy_i * proj_i
-                - 2.0 * dy_j * proj_j
-                + dy_i * dy_i * vpp
-                + dy_j * dy_j * vqq
-                + 2.0 * dy_i * dy_j * vpq
+            dot = g + dy_i * sc[:, pi] + dy_j * sc[:, pj]
+            n_t = n_ref + 2 * dy_i * y_ref[pi] + 2 * dy_j * y_ref[pj] + dy_i ** 2 + dy_j ** 2
+            dists = np.sqrt(np.clip(basis.norm_sq + n_t - 2.0 * dot, 0.0, None))
+
+            # Character similarity with PC1 projected out; the target's own
+            # PC1 score moves only if the plane contains PC1.
+            t0 = y_ref[0] + (dy_i if pi == 0 else 0.0) + (dy_j if pj == 0 else 0.0)
+            similarity = feature_cosine(
+                dot - sc[:, 0] * t0, basis.norm_sq - sc[:, 0] ** 2, n_t - t0 ** 2
             )
-            dists = np.sqrt(np.clip(dists_sq, 0.0, None))
-
-            target_r = float(np.hypot(z_i_new, z_j_new))
-            target_angle = float(np.arctan2(z_j_new, z_i_new))
-
-            # Delta reconstruction of the rotated target's raw tag values:
-            # the delta lives entirely in the plane's own two axis
-            # directions (v_pi, v_pj), pulled back through the same
-            # standardization/centering PCA was fit on; the reference's
-            # own level and every criterion outside the plane carry over
-            # unchanged.
-            target_Q_scaled = basis.Q_scaled[ref_idx] + dy_i * v_pi + dy_j * v_pj
-            target_raw = basis.L[ref_idx] + (target_Q_scaled * basis.scale + basis.M)
 
             rows.extend(_stage_ab_rows(
-                dists, ref_idx, z_i_all, z_j_all, angle_all,
-                target_r, target_angle, shortlist_size, top_k,
-                basis.items, scheme, angle_deg,
-                X_all, target_raw,
-                basis.U[0],
+                dists, similarity, ref_idx, z_i_all, z_j_all, angle_all,
+                float(np.hypot(z_i_new, z_j_new)), float(np.arctan2(z_j_new, z_i_new)),
+                shortlist_size, top_k, basis.items, scheme, angle_deg,
             ))
 
         results[plane] = pd.DataFrame(rows, columns=_RESULT_COLUMNS)
 
     return results
+
 
 def recommend(
     wide: pd.DataFrame,
@@ -274,16 +165,11 @@ def recommend(
     shortlist_size: int = 50,
 ) -> pd.DataFrame:
     """
-    hue_components: either an explicit 1-based (i, j) pair, fixed across
-        all reference items, or the string "auto" to pick, per reference,
-        the two components on which THAT item is most expressive (see
-        planes.select_hue_plane). "auto" is generally the better default
-        when the variance spectrum is diffuse (no clearly dominant pair) -
-        see /docs/math.md, section 7.
-    exclude_components, candidate_components: only used when
-        hue_components="auto" - passed straight to select_hue_plane.
-    shortlist_size: safety cap on the Stage-A character shortlist (see
-        recommend_on_basis / _stage_ab_rows).
+    hue_components: an explicit 1-based (i, j) pair fixed across items, or
+        "auto" to pick, per reference, the two components on which THAT
+        item is most expressive (see planes.select_hue_plane).
+    exclude_components, candidate_components: only used with "auto".
+    shortlist_size: safety cap on the Stage A shortlist.
     """
     if reference_item not in wide.index:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
@@ -297,13 +183,8 @@ def recommend(
             f"{max(hue_components)} (currently {n_components})."
         )
 
-    basis = build_taste_basis(wide, n_components=n_components, standardize=standardize)
-    
+    basis = build_feature_basis(wide, n_components=n_components, standardize=standardize)
     ref_idx = basis.items.index(reference_item)
-    L_ref = basis.L[ref_idx]
-    q_ref = basis.Q[ref_idx]
-    y_ref = basis.U @ ((q_ref - basis.M) / basis.scale)   # projection in the scaled, doubly-centered space
-    S_ref = np.linalg.norm(q_ref - basis.M)
 
     if hue_components == "auto":
         resolved_components = select_hue_plane(
@@ -320,7 +201,7 @@ def recommend(
     else:
         resolved_components = hue_components
 
-    plane = (resolved_components[0] - 1, resolved_components[1] - 1)   # 1-based -> 0-based
+    plane = (resolved_components[0] - 1, resolved_components[1] - 1)
 
     aspect = basis.pc_std[plane[0]] / basis.pc_std[plane[1]] if basis.pc_std[plane[1]] > 0 else float("inf")
     if aspect > 2 or aspect < 0.5:
@@ -350,13 +231,14 @@ def recommend(
     )
     print(
         f"\nReference: {reference_item}  "
-        f"(L={L_ref:.3f}, S={S_ref:.3f}, "
-        f"PCA explained variance: {basis.explained.sum():.1%})\n"
+        f"(PCA explained variance: {basis.explained.sum():.1%})\n"
     )
     return result
-    
+
+
 def _stage_ab_rows(
     dists: np.ndarray,
+    similarity: np.ndarray,
     ref_idx: int,
     z_i_all: np.ndarray,
     z_j_all: np.ndarray,
@@ -368,96 +250,38 @@ def _stage_ab_rows(
     items: list,
     scheme: str,
     angle_deg: float,
-    items_raw: np.ndarray,
-    target_raw: np.ndarray,
-    pc1_loadings: np.ndarray,
 ) -> list[dict]:
     """
-    Shared Stage A (character shortlist) + Stage B (angle/radius hard-gated
-    re-rank) core. Used by BOTH recommend_on_basis (single plane) and
-    recommend_many_planes (many planes, same reference) - the only thing
-    that differs between callers is how `dists`/`target_raw` are computed
-    (full O(n_items x n_criteria) reconstruction vs. the algebraic
-    per-plane shortcut); this function's logic is otherwise identical
-    regardless of caller, so it lives in exactly one place instead of
-    being duplicated per caller.
+    Stage A (character shortlist) + Stage B (angle/radius hard-gated
+    re-rank) for one scheme angle.
 
     Selection is two-stage because a single full-space nearest-neighbor
-    search conflates two different things the scheme is supposed to
-    deliver at once - "still feels like the reference" and "actually sits
-    at the target angle" - and when the hue plane explains only a modest
-    share of total variance (see /docs/math.md, section 6b), the first
-    criterion silently drowns out the second: the target differs from the
-    reference in only two of hundreds of dimensions, so a naive full-space
-    distance is dominated by everything BUT the rotation.
+    search conflates "still feels like the reference" with "actually sits
+    at the target angle": the target differs from the reference along two
+    axes only, so the remaining dimensions dominate a naive distance.
 
-    Stage A (character shortlist): the real items that are a
-        statistically significant outlier on the HIGH side of the
-        catalog's own similarity distribution to the rotated target
-        (robust modified z-score, median/MAD -
+    Stage A: items that are a statistically significant HIGH outlier of
+        the catalog's similarity distribution to the rotated target
+        (robust modified z-score, see
         similarity.high_similarity_outlier_indices), capped at
-        `shortlist_size` as a safety ceiling rather than a fixed pool
-        size. Similarity here is the pronounced-attribute overlap metric
-        (similarity.py: `S(x, y) = mean(min(N(x_i), N(y_i)))`) - a
-        criterion only counts toward similarity when BOTH the candidate
-        and the target are pronounced on it, so mutual absence of an
-        attribute doesn't count as shared character the way it would
-        under a plain symmetric distance. Because the target's delta
-        from the reference lives entirely inside the hue plane, a
-        candidate similar to the target under this metric is, by
-        construction, similar to the reference on everything outside the
-        plane too - this is what enforces character preservation
-        (section 5) while still allowing the plane's own two axes to
-        differ. A fixed top-N pool alone can't tell "similar" from
-        "most similar available": if fewer than N items are genuinely
-        similar, the rest are padding that can still slip through Stage
-        B's angle/radius gate by coincidence and be reported as a match
-        despite sharing little of the target's character.
-    Stage B (angular re-rank): among that shortlist, rank by angular
-        distance (in the whitened hue plane) to the exact target angle,
-        and keep the closest `top_k`. This is what enforces the rotation
-        actually being expressed, not just "some similar item". A HARD
-        radius gate applies too: `RADIUS_TOL_LOG` is a dimensionless,
-        symmetric ratio `|log(cand_r / target_r)|` (radius has no fixed
-        absolute scale - it varies per reference and per plane - so only
-        relative deviation is meaningful); a shortlist candidate is
-        eligible for Stage B only if its radius sits within this window.
-        Angle is hard-gated too: a candidate is eligible only if its
-        angular error is within `ANGLE_TOL_RAD` of the target as well as
-        its radius being within the radius window (a genuine "sector" =
-        angle + radius). Among candidates passing both gates, the coarse
-        angle bucket (width `ANGLE_TOL_RAD`) keeps angularly "tied"
-        candidates together and lets the tightest radius win within a
-        bucket, with the exact angle as the final tie-break.
+        `shortlist_size` as a safety ceiling. Because the target differs
+        from the reference only inside the plane, a similar candidate is
+        similar to the reference everywhere else too.
+    Stage B: shortlist items are eligible only inside the angle window
+        (ANGLE_TOL_RAD) and radius window (RADIUS_TOL_LOG) around the
+        target. Among eligible items the coarse angle bucket keeps
+        angularly tied candidates together, the tightest radius wins
+        within a bucket, and the exact angle breaks the remaining ties.
 
-    dists: (n_items,) standardized shape-space distance from each item to
-        the rotated target for THIS scheme angle - reported in the output
-        as `distance_to_target` for reference alongside the
-        similarity-based ranking, but not itself what Stage A selects on.
-    items_raw: (n_items, n_criteria) catalog raw tag values, shared
-        across every angle for a given reference, computed once by the
-        caller.
-    target_raw: (n_criteria,) the rotated target's own raw tag values,
-        compared against the catalog via the similarity metric.
+    dists: (n_items,) feature-space distance to the rotated target,
+        reported as `distance_to_target` only.
+    similarity: (n_items,) cosine to the rotated target with PC1 removed.
 
-    Returns a list of row dicts (possibly empty, if no candidate is a
-    similarity outlier at all, or none clears both the angle and radius
-    gates for this angle - see /docs/math.md section 6b). Each row's
-    `angular_error_deg` is how far (in degrees, within the hue plane) the
-    chosen item's own position sits from the exact target angle - 0 would
-    be a perfect angular match.
+    Returns a list of row dicts, empty if nothing is a similarity outlier
+    or nothing clears both gates for this angle.
     """
-    similarity = similarity_to_target(
-        items_raw,
-        target_raw,
-        pc1_loadings,
-    )
-
     shortlist = high_similarity_outlier_indices(similarity, ref_idx, max_count=shortlist_size)
     if shortlist.size == 0:
-        # No candidate is a statistically meaningful character match for
-        # this rotated target at all - report nothing rather than fall
-        # back to "closest available regardless of how similar that is".
         return []
 
     cand_r = np.hypot(z_i_all[shortlist], z_j_all[shortlist])
@@ -473,8 +297,6 @@ def _stage_ab_rows(
     both = radius_ok & (angle_err <= ANGLE_TOL_RAD)
     eligible = shortlist[both]
     if eligible.size == 0:
-        # no candidates within both the radius and angle sectors: report
-        # nothing for this angle rather than substitute an unsuitable item
         return []
 
     el_angle = angle_err[both]

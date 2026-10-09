@@ -308,7 +308,8 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   // Match counts are capped at TOP_K per angle, so once every angle of two
   // circles is saturated the reference radius decides.
   built.sort(
-    (a, b) => b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal || b.radius - a.radius
+    // still experimenting with sorting
+    (a, b) => /*b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal ||*/ b.radius - a.radius
   );
 
   // After deduplication matched sets are disjoint across circles, so only

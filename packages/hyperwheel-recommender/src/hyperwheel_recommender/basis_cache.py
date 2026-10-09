@@ -29,41 +29,27 @@ import numpy as np
 import pandas as pd
 
 from . import basis as basis_module
+from . import features as features_module
 
 
 def compute_fingerprint(wide: pd.DataFrame, n_components: int, standardize: bool) -> str:
     """
     Identifies the exact (code, dataset, parameters) combination an
     eigendecomposition cache was built from:
-      - the source of _solve_pca itself, so any change to the PCA
-        algorithm invalidates old caches automatically, without relying
-        on a manually bumped version number;
-      - the wide table's shape, items and criteria, plus a strided
-        sample of its values (not the full matrix - see below), so a
-        cache from one artifact is never silently reused for a
-        different one;
-      - n_components and standardize, since both affect the result.
-
-    Hashing the full matrix here was tried first and rejected: at
-    catalog scale (thousands of items x thousands of criteria) that's
-    tens of MB, and hashlib runs single-threaded - under a throttled CPU
-    quota this fingerprint check alone took multiple seconds, eating
-    most of the time the cache was meant to save (see
-    docs/performance.md). Since this fingerprint is a defensive check
-    against a mismatched cache, not the primary correctness mechanism
-    (see module docstring), a strided sample is enough to catch the
-    kinds of mismatch this cache is actually at risk of - a different
-    artifact entirely, or different n_components/standardize - at a
-    small, size-independent cost.
+      - the source of _solve_pca, _feature_space and the feature map, so
+        any change to the PCA or to the feature space invalidates old
+        caches without a manually bumped version;
+      - the wide table's shape, items and criteria, plus a strided sample
+        of its values (a full hash was too slow under a throttled CPU);
+      - n_components and standardize.
     """
     X = wide.to_numpy(dtype=np.float32)
-    # Every 97th element (97 is prime, so it doesn't alias with common
-    # regular structure like a fixed criteria stride) - a fixed-size
-    # sample regardless of catalog size, not full coverage.
-    sample = X.reshape(-1)[::97]
+    sample = X.reshape(-1)[::97]   # 97 is prime: no aliasing with regular structure
 
     hasher = hashlib.sha256()
     hasher.update(inspect.getsource(basis_module._solve_pca).encode("utf-8"))
+    hasher.update(inspect.getsource(basis_module._feature_space).encode("utf-8"))
+    hasher.update(inspect.getsource(features_module).encode("utf-8"))
     hasher.update(f"shape={X.shape}|dtype={X.dtype}".encode("utf-8"))
     hasher.update("|".join(map(str, wide.index)).encode("utf-8"))
     hasher.update("|".join(map(str, wide.columns)).encode("utf-8"))
@@ -72,30 +58,12 @@ def compute_fingerprint(wide: pd.DataFrame, n_components: int, standardize: bool
     return hasher.hexdigest()
 
 
-def _standardized_shape_space(wide: pd.DataFrame, standardize: bool) -> np.ndarray:
-    """Reproduces the Q_scaled matrix build_taste_basis feeds into
-    _solve_pca, so save_pca_cache runs the exact same eigh input without
-    importing build_taste_basis's other, unrelated bookkeeping."""
-    X = wide.to_numpy(dtype=np.float32)
-    L = X.mean(axis=1)
-    Q = X - L[:, None]
-    M = Q.mean(axis=0)
-    Qc = Q - M[None, :]
-    if standardize:
-        scale = Qc.std(axis=0)
-        scale = np.where(scale < 1e-12, 1.0, scale)
-    else:
-        scale = np.ones(Qc.shape[1])
-    return Qc / scale
-
-
 def save_pca_cache(path: str, wide: pd.DataFrame, n_components: int, standardize: bool) -> None:
     """Runs the expensive eigh step once and saves its result, tagged
     with a fingerprint of the exact code/data/parameters used. Call this
-    at image build time (see tools/build_basis_cache.py) - never at
-    request time or on process start."""
-    Q_scaled = _standardized_shape_space(wide, standardize)
-    U, explained, S = basis_module._solve_pca(Q_scaled, n_components)
+    at image build time - never at request time or on process start."""
+    Phi, _, _ = basis_module._feature_space(wide, standardize)
+    U, explained, S = basis_module._solve_pca(Phi, n_components)
     fingerprint = compute_fingerprint(wide, n_components, standardize)
 
     np.savez_compressed(

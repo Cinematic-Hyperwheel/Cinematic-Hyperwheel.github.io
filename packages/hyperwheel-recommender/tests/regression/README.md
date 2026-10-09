@@ -10,16 +10,16 @@ statistical distribution.
 ## What's checked
 
 - **`test_starfield_size.py`** - for every reference item that appears in
-  the CSV, the plane starfield (`find_plane_neighbors`) stays within
-  `settings.STARFIELD_MAX_SIZE` (default 1000) items per circle, with
-  the safety cap in `find_plane_neighbors` itself raised out of the way
-  so the underlying near-outlier selection is what's actually measured.
+  the CSV, each plane's starfield pool (`find_plane_neighbors`) stays
+  within `settings.STARFIELD_MAX_SIZE` items, with the safety cap in
+  `find_plane_neighbors` itself raised out of the way so the underlying
+  outlier selection is what's measured.
 - **`test_starfield_regression.py`** - for every pair in
-  `data/recommendation_pairs.csv`, the expected recommendation is still
-  present in the reference item's plane starfield (`find_plane_neighbors`)
-  - a character match along at least one basis axis, with every other
-  axis suppressed (see `/docs/math.md` section 7). The pair's `scheme`
-  column is ignored here, since the starfield has no notion of a scheme.
+  `data/recommendation_pairs.csv`, the expected recommendation is present
+  in the starfield pool of at least one of the circles' planes (character
+  match to the reference with that plane projected out, see
+  `/docs/math.md` section 7). The pair's `scheme` column is ignored, since
+  the starfield has no notion of a scheme.
 
 ## Adding a pair
 

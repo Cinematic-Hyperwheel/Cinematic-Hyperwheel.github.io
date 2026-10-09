@@ -18,13 +18,24 @@ loads in a fraction of a second.
 
 The PCA basis object itself is not part of the `.npz` artifact - it is
 rebuilt from the saved table on every process start via
-`build_taste_basis`. Its own `O(n_criteria^3)` eigendecomposition step
-can optionally be supplied from a separately baked cache instead (see
-"PCA cache and threaded BLAS" below); that cache is keyed by a
-fingerprint of the exact code, dataset and PCA settings it was built
-from, so a stale cache after a code or dataset update is detected and
-falls back to computing the basis fresh rather than being silently
-trusted.
+`build_feature_basis`. Its `O(n_features^3)` eigendecomposition of the
+Gram matrix can optionally be supplied from a separately baked cache (see
+"PCA cache and threaded BLAS" below); the cache is keyed by a fingerprint
+of the exact code (PCA, feature space, feature map), dataset and PCA
+settings it was built from, so a stale cache is detected and falls back to
+computing the basis fresh.
+
+## Feature space cost
+
+Items are mapped to `tags x (1 + N_HARMONICS)` features (3 harmonics: 4
+features per tag), so the Gram matrix is 4x larger per side than the raw
+tag table's and the eigendecomposition is the dominant build-time cost
+(minutes under a throttled CPU; this is what the cache removes). At
+request time everything is matrix arithmetic on cached scores: one
+matrix-vector product per reference (`Phi @ Phi[ref]`) plus O(n_items x
+n_planes) work for the starfield of all planes, with no per-tag loops.
+The centered feature matrix stays resident (see "Memory" in
+`apps/web/README.md`).
 
 ## PCA cache and threaded BLAS
 
@@ -38,7 +49,7 @@ actually granted instead of yielding it back.
 
 Measured on a 1128-tag artifact under a simulated 0.1 vCPU / 512 MB
 constraint (Docker `--cpus=0.1 --memory=512m`, matching Render's free
-tier):
+tier, measured on the previous tag-space basis, to be updated):
 
 | Configuration | `build_taste_basis` time |
 |---|---|

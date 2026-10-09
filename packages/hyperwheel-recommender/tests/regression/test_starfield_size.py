@@ -19,7 +19,7 @@ from hyperwheel_recommender import find_plane_neighbors
 _UNCAPPED = 100_000
 
 
-def test_starfield_within_size_limit(starfield_case, basis, circles, drop_components, starfield_max_size):
+def test_starfield_within_size_limit(starfield_case, basis, circles, starfield_max_size):
     reference = starfield_case
     by_plane = find_plane_neighbors(basis, reference, circles, max_neighbors=_UNCAPPED)
 

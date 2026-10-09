@@ -14,9 +14,9 @@ shifting its "hue".
 
 | HSL (color, 3 channels) | This approach (N criteria) |
 |---|---|
-| L = mean of R,G,B for one pixel | L = mean of criteria for one item |
 | Hue = angle in a fixed 120°-apart basis (R,G,B) | Hue = direction in a data-driven plane (PCA) |
-| S = saturation | S = degree to which the "shape" is pronounced (norm of deviation from the typical profile) |
+| S = saturation | S = how pronounced the item is on that plane (whitened radius) |
+| L = mean of R,G,B | No counterpart: the overall level of an item is carried by PC1 (see section 3) and is projected out when judging character |
 
 Key difference from classic HSL: in HSL the hue basis is fixed by the
 physiology of human vision (R,G,B are equally spaced on the wheel). For
@@ -26,39 +26,84 @@ from the data**, not postulated by column order.
 ## 3. Basis-building pipeline
 
 For an item `c` (a vector of length N):
+## 3. Basis-building pipeline
 
-1. **L (lightness)** — the item's own mean across criteria:
-   `L = mean(c)`
+### 3.1 The similarity this space is built around
 
-2. **Q (shape)** — deviation from its own mean:
-   `Q = c - L`
-   (the components of Q always sum to 0 — this is the hyperplane
-   perpendicular to (1,...,1), the direct analog of the chromatic plane
-   in HSL)
+Criteria are tag relevances `x` in `[0, 1]`. A value near 1 means an item
+pronouncedly HAS the attribute, near 0 that it is largely absent. Two
+items both lacking an attribute is common ground, not evidence of shared
+character; two items both pronouncedly having it is a rare, strong
+signal. The agreement score per criterion is therefore
 
-3. **M (category-typical profile)** — the mean of Q **across all items**
-   in the category (critical!):
-   `M = mean(Q over items)`
-   Without this step, PCA picks up the shape structure common to all
-   items as the "main difference", rather than the real variation between
-   items.
+```
+s(x, y) = x*y - p*|x - y|          p = 0.15, i.e. MIN_WEIGHT / 2
+        = x*y + 2p*min(x, y) - p*(x + y)
+```
 
-4. **Standardization** — criteria are divided by their std (after
-   subtracting M), so that criteria with a larger random spread don't
-   dominate PCA purely due to scale rather than real correlation with
-   other criteria.
+The first two terms are positive-definite kernels, i.e. genuine inner
+products; the last depends on one item only. The geometry of the model is
+built so that this score is an ordinary inner product, and closeness in it
+respects the "both pronounced" principle by construction.
 
-5. **PCA / SVD** on the normalized shape vectors of all items → an
-   orthonormal basis U (the real principal axes of variation in the
-   category), together with the fraction of variance explained per
-   component.
+### 3.2 Feature map
 
-This basis (L, Q, M, standardization, U) is used exclusively for the
-**geometry of rotation** — what a hue plane is, what a 180°/120°/30°
-rotation means, where the reference and a rotated target sit relative to
-each other. It is a symmetric, Euclidean vector-space construction, and
-stays that way regardless of how "character preservation" is judged (see
-section 5).
+Per tag, `min(x, y)` has the explicit expansion (Karhunen-Loève series of
+Brownian motion on [0, 1])
+
+```
+min(x, y) = sum_k lambda_k * psi_k(x) * psi_k(y)
+psi_k(x) = sqrt(2) * sin(a_k x),   a_k = (k - 1/2) * pi,   lambda_k = 1 / a_k^2
+```
+
+truncated to `N_HARMONICS` terms (3 harmonics cover ~93% of the kernel's
+trace). With `w = 2p = MIN_WEIGHT`, the per-tag map
+
+```
+phi(x) = [ x, sqrt(2w)/a_1 * sin(a_1 x), ..., sqrt(2w)/a_K * sin(a_K x) ]
+```
+
+satisfies `<phi(x), phi(y)> = x*y + w*min(x, y)` (up to the truncation
+error). The Euclidean distance between two mapped items is
+`sqrt(sum((x - y)^2 + 2p*|x - y|))`: the disagreement penalty is part of
+the metric itself. `features.py` implements the map.
+
+### 3.3 Basis
+
+1. **Feature matrix** `Phi` — every item mapped through `phi` (tag-major:
+   each tag owns `1 + N_HARMONICS` consecutive columns).
+2. **Centering** — the category-typical profile `mu = mean(Phi)` is
+   removed. Without this, PCA picks up the profile common to all items as
+   the "main difference". There is no per-item mean removal: the item's
+   overall level stays in the data and is captured by PC1.
+3. **Per-tag standardization** — each tag's block of columns is divided by
+   the block's own standard deviation, so rare tags are not drowned out.
+   The block's internal structure (the min-kernel shape) is left intact.
+4. **PCA** — eigendecomposition of the Gram matrix `Phi^T Phi`
+   (n_features x n_features, independent of the number of items), giving an
+   orthonormal basis `U` and the share of variance per component. Item
+   coordinates are `scores = Phi @ U.T`; `pc_std` is the spread of items
+   along each component, used for whitening.
+
+The basis is used for the **geometry of rotation** (what a hue plane is,
+what a 180°/120°/30° rotation means, where the reference and a rotated
+target sit) and, because `U` is orthonormal, for exact algebraic
+shortcuts when judging character similarity (sections 5-7).
+
+### 3.4 PC1
+
+PC1 typically captures overall pronouncedness / reception: items with many
+strongly expressed tags versus few. It is not a taste axis (section 4).
+Whenever character similarity is judged, PC1 is projected out of both
+items exactly (a subtraction of one score product, see section 5), and it
+is never a hue axis.
+
+### 3.5 Interpreting components
+
+`U` lives in the feature space, so a component has several weights per
+tag. For `diagnose`, a tag's loading on a component is the correlation of
+the tag's relevance with the component score; the items at each pole are
+listed alongside.
 
 ## 4. Choosing the hue plane
 
@@ -79,66 +124,50 @@ they're kept close to the reference via the delta mechanism (section 5).
 
 For a chosen pair of components (i, j):
 
-1. Whitening — normalize each axis by its actual std across items
-   (otherwise, when the explained-variance share differs strongly between
-   components, a 90-120° rotation pushes the target into a region where
-   hardly any real items exist).
-2. Rotate by the scheme's angle (180° complementary, ±120° triadic, ±30°
-   analogous, etc.) in whitened coordinates.
-3. **Delta, not rebuild**: only the change introduced by the rotation
-   within the chosen plane is added to the reference vector; everything
-   else (including non-rotated components) stays as in the reference.
-   The delta is expressed in the plane's own two axis directions, pulled
-   back into standardized shape space and re-standardized the same way
-   `Q_scaled` is (see section 6c) — adding it to the reference's own
-   `Q_scaled` and un-standardizing/un-centering the result reconstructs
-   the rotated target's raw `[0, 1]` tag values.
-4. The target vector almost never matches a real item exactly — the
-   final step is a nearest-neighbor search for the closest real items to
-   that target, described below.
+1. **Whitening** — normalize each axis by its std across items (otherwise,
+   when the explained-variance share differs strongly between components, a
+   90-120° rotation pushes the target into a region with hardly any real
+   items).
+2. **Rotate** the reference's whitened coordinates by the scheme's angle
+   (180° complementary, ±120° triadic, ±30° analogous, ...).
+3. **Delta, not rebuild**: the target is the reference's own feature vector
+   shifted only inside the plane,
+
+```
+   Phi_t = Phi_ref + dy_i * U_i + dy_j * U_j
+```
+
+   where `dy` is the change of the reference's score on each axis caused
+   by the rotation. Everything outside the plane is identical to the
+   reference.
+4. The target almost never matches a real item exactly; real items are
+   selected by character similarity to it (below) and then by angle and
+   radius in the plane (section 6b).
 
 ### Judging "still feels like the reference"
 
-The target differs from the reference in only two of hundreds of
-dimensions, so whether a real item "still feels like" that target has to
-be judged across every OTHER dimension — everything the rotation left
-untouched.
+The target differs from the reference in two of many dimensions, so
+whether an item still feels like it is judged across everything the
+rotation left untouched. Character similarity is the **cosine** in the
+feature space, with PC1 projected out:
 
-A plain symmetric distance (e.g. Euclidean, in the standardized shape
-space PCA itself was fit on) is one way to measure that, but it has a
-blind spot: tag relevance values are on `[0, 1]`, where a value near 1
-means an item pronouncedly HAS that attribute and a value near 0 means
-it's largely absent. Two items both lacking an attribute (both near 0)
-says very little — most items lack most attributes, so mutual absence is
-common ground, not evidence of shared character. Two items both
-pronouncedly having an attribute (both near 1) is a much rarer, stronger
-signal. A symmetric distance treats both cases identically — `(x-y)^2` is
-the same whether x and y are both near 0 or both near 1 — so it can't
-tell "these two share no notable traits" apart from "these two share
-several pronounced traits".
+```
+cos(a, b) = <a', b'> / (||a'|| * ||b'||),    a' = a - score_1(a) * U_1
+```
 
-Character similarity between an item and the rotated target is instead
-measured with a per-criterion agreement/disagreement metric (see
-`similarity.py`), applied directly to raw `[0, 1]` tag values:
+The inner product is the pronounced-attribute overlap of section 3.1; the
+cosine normalization removes its one-sided `-p*(x + y)` term (an item with
+many extra pronounced tags has a larger norm and a smaller cosine, which
+is the disagreement penalty). Because `U` is orthonormal, projecting PC1
+(or any further axes) out of a cosine needs no pass over the features:
 
-​```
-contribution(x_i, y_i) = x_i * y_i - MISMATCH_PENALTY * |x_i - y_i|
-S(x, y) = weighted_mean(contribution(x, y))
-​```
+```
+<a', b'> = <a, b> - sum_removed score(a) * score(b)
+||a'||^2 = ||a||^2 - sum_removed score(a)^2
+```
 
-`x_i * y_i` rewards both items being pronounced on the same criterion at
-once, while `|x_i - y_i|` penalizes disagreement on that criterion - the
-combination distinguishes "both pronounced on this trait" from "neither
-has this trait" and from "one has it, the other doesn't", none of which
-a plain symmetric distance can tell apart. Criteria are combined as a
-PC1-aware weighted average: criteria strongly aligned with PC1 (the
-general quality/halo axis) are downweighted, so a shared "everything is
-good/bad" signal doesn't dominate character similarity the way a genuine
-taste criterion does. This is what "preserving the reference's overall
-character" means in this codebase: matching the rotated target's own
-pronounced attributes, not merely sitting close to it in an
-undifferentiated symmetric sense. See section 6b for how this feeds the
-actual candidate selection.
+Items close to the category mean have tiny norms and noisy cosines; norms
+are floored at a low quantile of their distribution (`similarity.py`).
 
 ## 6. Known limitations / open questions
 
@@ -207,178 +236,113 @@ references in one test run).
 
 ### 6b. Two-stage selection: character shortlist + angular re-rank
 
-A single full-space nearest-neighbor search on `target_vec` conflates two
-different goals: "still feels like the reference" and "actually sits at
-the target angle". When the hue plane explains only a modest share of
-total variance (e.g. PC2+PC3 at ~11.6% combined, see section 6), the first
-goal dominates a naive full-space distance almost by construction -
-`target_vec` differs from the reference in only two of hundreds of
-dimensions, so the remaining dimensions decide the ranking, and the
-resulting top-k tends to land near-center with an arbitrary angle instead
-of near the intended 180°/120°/etc.
+A single full-space nearest-neighbor search on the target conflates two
+goals: "still feels like the reference" and "actually sits at the target
+angle". The target differs from the reference in only two of many
+dimensions, so the remaining dimensions dominate a naive distance and the
+top-k lands near the center with an arbitrary angle.
 
-The shared two-stage core (`_stage_ab_rows` in `recommend.py`, used by
-both `recommend_on_basis` and `recommend_many_planes` - see section 6c)
-resolves this in two stages instead of one:
+The shared two-stage core (`_stage_ab_rows` in `recommend.py`) separates
+them:
 
-- **Stage A** - the real items that are a statistically significant
-  outlier on the HIGH side of the catalog's own similarity distribution
-  to the rotated target (robust modified z-score, median/MAD -
-  `similarity.high_similarity_outlier_indices`), capped at
-  `shortlist_size` as a safety ceiling rather than a fixed pool size (see
-  below). Similarity is the pronounced-attribute agreement/disagreement metric
-  introduced in section 5 (`similarity.py`), computed between each catalog
-  item's raw `[0, 1]` tag vector and the rotated target's own
-  reconstructed raw tag vector (delta reconstruction, section 5/6c) -
-  NOT a distance in the standardized PCA shape space. Because the delta
-  is nonzero only inside the hue plane, a candidate similar to the
-  target under this metric is, by construction, similar to the reference
-  on every criterion outside the plane too - this is what enforces
-  character preservation (section 5) while still allowing the plane's
-  own two axes to differ. A fixed top-N pool alone can't tell "similar"
-  from "most similar available": if fewer than N items are genuinely
-  similar, the rest are padding that can still slip through Stage B's
-  angle/radius gate by coincidence and be reported as a match despite
-  sharing little of the target's character. The statistic is
-  self-calibrating per (reference, plane, angle) call: a target sitting
-  in a dense, typical region of tag space yields a larger shortlist, one
-  sitting in a sparse or unusual region yields a smaller one, or none at
-  all if the catalog's similarity distribution to that target is too
-  flat to produce a statistically meaningful outlier (MAD ≈ 0) - an
-  expected consequence of self-calibration, not a bug: some rotated
-  targets simply have no catalog item that stands out as meaningfully
-  more similar than the rest.
-- **Stage B** - among that shortlist, rank by angular distance (in the
-  whitened hue plane) to the exact target angle, and keep the closest
-  `top_k`. This is what enforces the rotation actually being expressed,
-  not just "some similar item".
-   Stage B now applies a HARD radius gate. `RADIUS_TOL_LOG` is a dimensionless,
-   symmetric ratio `|log(cand_r / target_r)|` (radius has no fixed absolute scale - it
-   varies per reference and per plane - so only relative deviation is meaningful). A
-   Stage-A shortlist candidate is eligible for Stage B only if its radius sits within
-   this window (e.g. `RADIUS_TOL_LOG = log(1.5)` ~ +/-50%; a tighter value like
-   `log(1.1)` ~ +/-10% is stricter, a tunable product gate).
+- **Stage A** — the items that are a statistically significant HIGH
+  outlier of the catalog's cosine similarity to the rotated target (robust
+  modified z-score, median/MAD, `similarity.high_similarity_outlier_indices`),
+  capped at `shortlist_size` as a safety ceiling rather than a fixed pool
+  size. The statistic self-calibrates per (reference, plane, angle): a
+  dense region yields a larger shortlist, a sparse one a smaller one, and
+  a flat distribution (MAD ≈ 0) yields none - an expected outcome, not a
+  bug.
+- **Stage B** — among the shortlist, a hard sector gate: an item is
+  eligible only if its angular error is within `ANGLE_TOL_RAD` of the
+  target AND its radius is within `RADIUS_TOL_LOG` (`|log(cand_r /
+  target_r)|`, a symmetric ratio, since radius has no fixed absolute
+  scale). Among eligible items, the coarse angle bucket (width
+  `ANGLE_TOL_RAD`) keeps angularly tied candidates together, the tightest
+  radius wins within a bucket, and the exact angle breaks the rest.
 
-   Angle is now HARD-gated too: a candidate is eligible only if its angular error
-   is within `ANGLE_TOL_RAD` of the target as well as its radius being within the
-   radius window (a genuine "sector" = angle + radius). Among candidates passing
-   both gates, the coarse angle bucket (width `ANGLE_TOL_RAD`) keeps angularly
-   "tied" candidates together and lets the tightest radius win within a bucket, with
-   the exact angle as the final tie-break. Because both gross outliers are already
-   excluded, these buckets only order good sector-matching candidates.
+`distance_to_target` in the output is the Euclidean distance in the
+feature space to the rotated target; it is reported for inspection only
+and is not what Stage A selects on.
 
-   The tolerance magnitudes are a tuning choice, evaluated against the target
-   behavior; tighter radius/angle windows keep well-typed references populated and
-   make extreme-saturation references (where few/no items exist near the target
-   angle/radius) visibly short or empty.
-
-`distance_to_target` in the output is the standardized PCA shape-space
-distance to the rotated target (computed via the same algebraic shortcut
-as section 6c) - reported for reference/debugging alongside the
-similarity-based ranking, but it is no longer what Stage A selects on.
-
-`shortlist_size` is a safety cap, not the selection mechanism itself -
-Stage A's own similarity-outlier test (above) decides which items are
-"similar enough" to consider at all, so the cap only matters if that test
-qualifies an unusually large number of items and mainly bounds Stage B's
-own cost in that case.
+The sector can legitimately be empty: for a reference that is extremely
+pronounced on a plane, few catalog items share its radius, and none may
+sit on the far side. Such angles are reported empty rather than filled
+with an unsuitable item.
 
 ### 6c. Batched Stage A across many planes for the same reference
 
-A single reference item may need recommendations on several different
-hue planes at once - e.g. every candidate axis pair a caller wants to
-compare (see `select_hue_plane`, section 6a, for how one such plane gets
-chosen automatically; a caller wanting several planes at once is a
-natural extension of the same idea). Recomputing the standardized-shape-
-space `distance_to_target` reporting column from scratch for every
-(plane, angle) combination is wasteful: for a fixed reference, a rotation
-confined to plane (i, j) only ever moves the target within the 2D
-subspace spanned by principal axes U[i], U[j] - every other coordinate of
-the target is identical to the reference.
-
-Writing the delta as `dy_i * v_i + dy_j * v_j` (v_i, v_j being the two
-axis directions pulled back into criteria space and re-standardized the
-same way Q_scaled is), the squared standardized shape-space distance to
-any candidate k decomposes as:
+A reference may need recommendations on several planes at once. For a
+fixed reference, a rotation confined to plane (i, j) only moves the target
+inside the 2D subspace spanned by `U_i`, `U_j`. Since `U` is orthonormal,
+for every item `k`:
 
 ```
-dist(k)^2 = base(k)
-
-2dy_iproj_i(k) - 2dy_jproj_j(k)
-dy_i^2*||v_i||^2 + dy_j^2*||v_j||^2 + 2dy_idy_j*(v_i . v_j)
+<Phi_k, Phi_t> = g_k + dy_i * s_ki + dy_j * s_kj
+||Phi_t||^2    = n_ref + 2*dy_i*y_ri + 2*dy_j*y_rj + dy_i^2 + dy_j^2
+||Phi_k - Phi_t||^2 = n_k + ||Phi_t||^2 - 2 * <Phi_k, Phi_t>
 ```
 
+with `g_k = <Phi_k, Phi_ref>` (one matrix-vector product per reference,
+shared by every plane and angle), `s` the item scores, `y_r` the
+reference's scores and `n` squared feature norms (cached in the basis).
+Per (plane, angle) the cost is O(n_items) vector arithmetic. These are
+exact identities, not approximations. The cosine used by Stage A follows
+the same way, with PC1's score product subtracted (section 5).
 
-- `base(k) = ||Q_scaled[k] - Q_scaled[ref]||^2` does not depend on the
-  plane or the rotation angle at all - the same for every plane and
-  every scheme angle for a given reference, so it's computed exactly
-  ONCE per reference (the one unavoidable O(n_items x n_criteria) pass).
-- `proj_i(k)`, `proj_j(k)`: O(n_items) per plane, reusing cached PCA scores.
-- `||v_i||^2`, `||v_j||^2`, `v_i . v_j`: O(n_criteria) per plane,
-  independent of catalog size.
+`recommend_many_planes` implements this for an arbitrary list of planes;
+`recommend_on_basis` is a thin single-plane wrapper, so both share one
+Stage A/B implementation.
 
-This is an exact algebraic identity of the full-reconstruction
-`distance_to_target` - not an approximation - verified by direct
-comparison against a full-reconstruction implementation (rebuild
-target_vec, recompute L/M, fresh O(n_items x n_criteria) norm) on
-synthetic data: identical `distance_to_target` (to floating-point
-rounding) across every plane and scheme tested. This column is reporting
-only (section 6b); Stage A's actual candidate selection uses the
-similarity metric instead, computed from the SAME delta (`dy_i, dy_j`
-against the same pullback directions `v_i, v_j`), reconstructing the
-rotated target's raw `[0, 1]` tag values via
-`target_raw = L[ref] + (Q_scaled[ref] + dy_i*v_i + dy_j*v_j) * scale + M`
-(section 5's delta reconstruction, expressed algebraically instead of by
-rebuilding the full vector through the standardization pipeline).
+## 7. Plane starfield (per-plane projection neighbors)
 
-`recommend_many_planes` (recommend.py) implements this for an arbitrary
-list of planes; `recommend_on_basis` is a thin single-plane wrapper
-around it, so both share exactly one Stage A/B implementation
-(`_stage_ab_rows`).
+Sections 5-6c find items near a ROTATED TARGET inside one hue plane. A
+rotation can only reach items that already match the reference outside the
+plane, yet such items are not "near the reference" in the full space: they
+differ from it along the plane itself. In sky terms, the neighbor we want
+is a star that looks adjacent to the reference when viewed along the
+plane, but is physically far from it - a search around the reference in the
+full space would never find it.
 
-## 7. Plane starfield (per-axis isolation similarity neighbors)
+For every hue plane (a pair of PCA axes) the starfield therefore judges
+character with the plane projected out:
 
-Sections 5-6c find items near a rotated TARGET within one hue plane -
-useful for the scheme's own clusters, but silent about everything else
-in the catalog. A different, complementary question: regardless of any
-hue plane, which items resemble the reference along one particular taste
-axis, on its own?
+```
+cos_plane(k) = cosine of (Phi_k, Phi_ref) with PC1, U_i and U_j removed
+```
 
-A single whole-profile similarity search (reference vs. every catalog
-item, section 5/6b's pronounced-attribute metric, PC1 always suppressed
-the same way Stage A suppresses it) requires a candidate to resemble the
-reference on EVERY axis at once. For a reference with a genuinely
-distinctive profile on several axes, that conflation can leave very few
-- or no - items standing out as a statistically significant match.
+computed exactly by the orthonormal-basis identities of section 5. All
+planes are evaluated as one `(n_items x n_planes)` matrix, with no pass
+over the feature matrix per plane. Per plane, items whose cosine is a high
+robust outlier (median/MAD over the catalog, threshold `PLANE_OUTLIER_Z`)
+are kept, capped per plane at `MAX_NEIGHBORS`. The per-plane sets are
+unioned by item id into one shared pool; each item records the indices of
+the planes on which it qualified, so a circle can use exactly the items
+that qualified on its own plane.
 
-`find_plane_neighbors` instead runs one search per basis axis (aside
-from PC1, which keeps its own always-applied suppression instead of
-being isolated as the preserved axis), each time
-suppressing every OTHER basis axis' own criteria weights
-(`similarity_to_target`'s `suppress_loadings`, on top of the PC1
-suppression that always applies) - isolating that one axis' own
-character contribution rather than requiring simultaneous agreement on
-all of them. Each per-axis search selects its own statistically
-significant high-similarity outliers exactly as Stage A does
-(`similarity.high_similarity_outlier_indices`, section 6b) -
-self-calibrating per (reference, axis) pair, same as Stage A; an axis a
-reference is unremarkable on can legitimately return few or no matches.
-Criteria variance the basis didn't capture in any of its components (the
-long tail beyond however many components were computed) has no loadings
-vector to suppress by, so it is never suppressed and always contributes
-to every axis' search unchanged.
+### Which planes
 
-The per-axis outlier sets are unioned by item id, keeping each item's
-best similarity score across the axes it qualified on (an item can
-qualify via more than one axis), then capped at a fixed size
-(`MAX_NEIGHBORS`) as a defensive ceiling.
+The pool is computed for EVERY pair of curated axes: a neighbor may be
+pronounced on an axis where the reference is weak, and restricting the
+search to the reference's own strong axes would miss it.
 
-Because this union - not any single plane's projection - decides
-membership, and because the underlying similarity metric is whole-
-profile (`min()`/mismatch-penalty terms have no linear decomposition the
-way a Euclidean distance does, so there is no way to algebraically
-"project out" a single plane's contribution from it), a reference's
-starfield is identical regardless of which plane it's requested for -
-`find_plane_neighbors`'s `planes` argument only shapes which keys the
-returned dict has, letting a caller look up one field per plane the same
-way it looks up that plane's scheme recommendations.
+Circles are shown only for planes on which the reference itself is
+pronounced on both axes (`|z| >= 2` in whitened units, `AXIS_Z_MIN` in
+`frontend/src/utils/schemeGate.ts`). If none qualifies, the plane with the
+largest reference radius is used, so a typical reference still gets a
+circle. A circle draws only the pool items that qualified on its plane.
+
+### Reading the result
+
+- The pool is scheme-independent; the client applies the scheme's angles
+  and the Stage B gate (angle and radius windows, supplied by the server)
+  to it, so switching the scheme needs no request.
+- An item matched on several circles is kept only on the one where the
+  reference radius is larger; within it, at the angle where the item sits
+  closest to the rotated target.
+- Items of a circle's pool that are not matches become that circle's
+  background star field.
+- A plane contributes only through the share of variance its two axes
+  carry: for tail axes (a fraction of a percent each) the projection
+  changes almost nothing, and a plane's pool then differs little from the
+  unprojected one.

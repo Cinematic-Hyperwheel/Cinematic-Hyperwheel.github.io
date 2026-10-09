@@ -90,11 +90,11 @@
     },
     "labels": {
       "en": {
-        "positive": "Existential",
+        "positive": "Contemporary",
         "negative": "Classic"
       },
       "ru": {
-        "positive": "Экзистенциальный",
+        "positive": "Современный",
         "negative": "Классический"
       }
     }
@@ -122,11 +122,11 @@
     },
     "labels": {
       "en": {
-        "negative": "Satirical",
+        "negative": "Metaphorical",
         "positive": "Mystical"
       },
       "ru": {
-        "negative": "Сатирический",
+        "negative": "Метафорический",
         "positive": "Мистический"
       }
     }
@@ -148,6 +148,8 @@
     }
   },
   "10": {
+    "excluded_from_hue": true,
+    "note": "Book adaptations/original stories",
     "colors": {
       "negative": "#E08B8B",
       "positive": "#A5442F"
@@ -164,6 +166,8 @@
     }
   },
   "11": {
+    "excluded_from_hue": true,
+    "note": "?",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -196,6 +200,8 @@
     }
   },
   "13": {
+    "excluded_from_hue": true,
+    "note": "?",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -212,6 +218,8 @@
     }
   },
   "14": {
+    "excluded_from_hue": true,
+    "note": "?",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -228,6 +236,8 @@
     }
   },
   "15": {
+    "excluded_from_hue": true,
+    "note": "?",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -292,6 +302,8 @@
     }
   },
   "19": {
+    "excluded_from_hue": true,
+    "note": "?",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"

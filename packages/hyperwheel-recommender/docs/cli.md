@@ -30,7 +30,7 @@ python3 -m hyperwheel-recommender diagnose artifact.npz \
 |`input_path`|—|CSV or `.npz` (from `build`)|
 |`--max-components`|`10`|How many components to list in the variance table|
 |`--loadings-components`|`2`|For how many first components to show criteria weights|
-|`--loadings-top`|`10`|Criteria shown at each end of the axis|
+|`--loadings-top`|`10`|Criteria shown at each end of the axis (loading = correlation of the criterion's relevance with the component score)|
 |`--items-top`|`10`|Items shown at each pole of a component|
 |`--no-standardize`|off|Disable z-scoring criteria before PCA (on by default)|
 

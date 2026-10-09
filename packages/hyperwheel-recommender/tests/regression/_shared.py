@@ -4,7 +4,7 @@ Helpers shared between the regression tests.
 
 from __future__ import annotations
 
-from hyperwheel_recommender import TasteBasis, find_plane_neighbors
+from hyperwheel_recommender import FeatureBasis, find_plane_neighbors
 
 
 def collect_starfield_items(basis, reference_item, circles) -> set[int]:

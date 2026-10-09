@@ -48,8 +48,9 @@ Paths are overridable via `HYPERWHEEL_DATA_DIR`, `HYPERWHEEL_METADATA_PATH`,
 
 ### Optional: precomputed PCA cache
 
-Building the PCA basis from `artifact.npz` includes an `O(n_criteria^3)`
-eigendecomposition (see `/docs/math.md`, section 3) that the backend
+Building the PCA basis from `artifact.npz` includes the eigendecomposition
+of the feature-space Gram matrix (docs/math.md, section 3), O(n_features^3)
+that the backend
 otherwise runs fresh on every process start. For a catalog with a
 sizeable number of criteria (thousands of tags), or when the host's CPU
 is throttled (e.g. a free-tier deployment - see `/docs/performance.md`),
@@ -58,7 +59,8 @@ this can dominate startup time.
 `tools/build_basis_cache.py` precomputes this step once and saves the
 result to a small `.npz` file, tagged with a fingerprint of the exact
 code, dataset and PCA settings used - a mismatch (different artifact,
-`--n-components`, or a code change to the PCA algorithm) is detected
+`--n-components`, a code change to the PCA algorithm or to the feature map)
+is detected
 automatically and falls back to computing the basis fresh, so a stale
 cache is never silently trusted:
 
@@ -115,6 +117,15 @@ cd apps/web/frontend
 npm install
 npm run dev   # http://localhost:5173, proxies /api to :8000
 ```
+
+### Memory
+
+The feature-space basis keeps the centered feature matrix in memory (items
+x tags x `1 + N_HARMONICS` float32 values, roughly 300 MB for the full
+catalog at 3 harmonics). Lower `N_HARMONICS` in
+`packages/hyperwheel-recommender/src/hyperwheel_recommender/features.py`
+to trade accuracy of the min-kernel expansion for memory; the PCA cache
+fingerprint covers `features.py`, so a change requires rebuilding it.
 
 ## Hero backdrop (TMDB)
 
@@ -241,19 +252,28 @@ API call.
   passed). Results do not include `imdb_id`/`tmdb_id` (see
   `/api/movie/{item_id}` for those).
 - `GET /api/movie/{item_id}/recommend` — scheme-independent neighbor pool
-  for one reference movie: the catalog items that share its character
-  along at least one PCA axis (`find_neighbors`, `docs/math.md` section 7),
-  ordered by descending `similarity`, each with its whitened coordinates
-  `z` on every curated component. Response shape: `{ item_id, pcs, axes,
-  reference, schemes, gate, items }` - `z` arrays and `reference` are
-  parallel to `pcs`, `axes` carries each component's colors/labels,
-  `schemes` maps scheme name to its angles, and `gate` holds the Stage B
-  tolerances (`angle_tol_rad`, `radius_tol_log`) defined in
-  `recommend.py`. Circles (every pair of curated components), per-angle
-  recommendations (angle/radius gate, top 6 per angle) and the background
-  star field are all derived client-side
+  for one reference movie. For every pair of curated components (a hue
+  plane) the catalog items that match the reference once that plane is
+  projected out are selected (`find_neighbors`, `docs/math.md` section 7);
+  the pool is their union. Response shape: `{ item_id, pcs, axes,
+  reference, planes, schemes, gate, items }`:
+  - `pcs` — curated 1-based component indices; `axes` carries each one's
+    colors/labels, `items[].z` is parallel to `pcs`.
+  - `reference` — the reference's whitened coordinates on every basis
+    component, indexed by component number (`reference[pc - 1]`).
+  - `planes` — the hue planes (component pairs) the pool was built for;
+    each item's `planes` holds the indices into it on which the item
+    qualified.
+  - `schemes` maps scheme name to its angles, and `gate` holds the Stage B
+    tolerances (`angle_tol_rad`, `radius_tol_log`) defined in
+    `recommend.py`.
+  - items are ordered by descending `similarity` (cosine in the feature
+    space).
+
+  Circles, per-angle recommendations (angle/radius gate, top 6 per angle)
+  and the background star field are derived client-side
   (`frontend/src/utils/schemeGate.ts`), so changing the scheme needs no
-  request. The pool is capped at `MAX_NEIGHBORS` items.
+  request.
 - `GET /api/movie/{item_id}/wheel` — `{ item_id, circles: [...] }`, one
   entry per circle (see below), each with `axis_x`/`axis_y` (pc index,
   colors, labels per language, explained variance), `z_x`/`z_y`, `angle_deg`,
@@ -314,19 +334,20 @@ every circle has a label/color for every supported language. A prefilled
 example for PC1–PC3 ships in the repo; extend it as more components get
 reviewed.
 
+Components are defined in the feature space (`docs/math.md`, section 3);
+whenever the feature map, its parameters or the number of harmonics
+change, the axes change too and every entry must be re-reviewed with
+`diagnose`.
+
 ## The wheel(s)
 
-For a selected movie, the backend builds **every possible axis pair**
-(combination) from the non-excluded components in `pc_config.json` and
-ranks them by the item's radius in the whitened plane (hypot(z_a, z_b),
-descending). The top-ranked pair - the axes on which the
-item is most expressive overall - is the **main circle**; the remaining
-pairs fill the **secondary circles**, shown smaller in a column on the
-right, in descending order of prominence. Generating all combinations
-(C(n,2) circles, e.g. 9 curated axes -> 36) means any axis can participate
-in the main circle and can later be swapped by the user to pivot the main
-plane, unlike the previous straight ranked partition that used each axis
-exactly once.
+For a selected movie, the pool is computed for every pair of curated axes,
+but circles are built only for planes on which the reference is
+pronounced on both axes (`|z| >= AXIS_Z_MIN`; with none, the plane with the
+largest reference radius is used). Circles are ranked as described below
+under "Recommendations per circle"; the first is the **main circle**, the
+rest fill the **secondary circles**, shown smaller in a column on the
+right.
 
 Each disc's fill is a decorative "mood" gradient built from that circle's
 axis colors, not a literal encoding of the values — the source of truth
@@ -343,21 +364,22 @@ a circle still shows the full labels as a tooltip.
 ### Recommendations per circle
 
 Each circle's recommendations are computed on the client from the
-neighbor pool returned by `/recommend`: for every scheme angle, the
-reference is rotated in that circle's whitened plane, and pool items
-within the angle and radius tolerances of the rotated target are kept and
-ordered by angle bucket, radius mismatch, exact angle and finally
-similarity (the same Stage B gate as `recommend.py`, whose tolerances the
-server supplies). Every item that passes the gate is a match; the top 6
-matches per angle are listed in the  Recommendations panel and
-the small per-circle wheels. The big wheel plots all matches, and its
-poster-grid legend shows them all as a horizontally scrolling row per angle,
-six tiles per page (arrow buttons, or native scroll/swipe). The legend's
-list layout keeps the top 6.
+neighbor pool returned by `/recommend`, using only the items that
+qualified on that circle's plane. For every scheme angle, the reference
+is rotated in the plane's whitened coordinates, and pool items within the
+angle and radius tolerances of the rotated target are kept and ordered by
+angle bucket, radius mismatch, exact angle and finally similarity (the
+same Stage B gate as `recommend.py`, whose tolerances the server
+supplies). Every item that passes the gate is a match; the top 6 per
+angle are listed in the Recommendations panel and the small wheels. The
+big wheel plots all matches, and its poster-grid legend shows them as a
+horizontally scrolling row per angle, six tiles per page (arrow buttons,
+or native scroll/swipe). The legend's list layout keeps the top 6.
 
-A circle whose matches (across all scheme angles) are fully included in
-the matches of a higher-ranked circle is omitted, since it would only
-repeat movies already shown.
+An item matched on several circles is kept only on the circle where the
+reference radius is larger (within it, at the angle where the item is
+closest to the rotated target); on the other circles it can still appear
+as a star field point. A circle left without matches is omitted.
 
 Circles are ordered by the number of matches at their weakest scheme
 angle (largest first), then by their total number of matches across all
@@ -373,23 +395,18 @@ otherwise - see "External ids" above).
 
 ### Plane starfield
 
-Besides the scheme's own clustered recommendations, each circle carries
-a star field: the neighbor pool minus that circle's own recommendations
-(see `packages/hyperwheel-recommender/docs/math.md`
-section 7), built by running a whole-profile character search once per
-PCA axis the basis has - each time with every OTHER axis' own influence
-suppressed, on top of the general "quality" axis (PC1), which is always
-suppressed - and unioning the resulting per-axis matches. This isolates
-each axis' own character contribution instead of requiring agreement on
-every axis at once, so an item distinctive along just one taste
-direction can still surface. Where the scheme clusters sit at specific
-target angles, starfield items scatter across the whole disc - a
-background field of movies that share the reference's character along
-at least one axis on its own. Rendered only on the main wheel, as small,
-muted, non-clustered points; hovering one shows its title with the same
-highlight treatment as a scheme point, without opening the
-recommendation info card or cross-lighting the Recommendations list
-(starfield items have no corresponding list row).
+Besides the scheme's clustered recommendations, each circle carries a
+star field: its own plane's pool items that are not matches. The pool is
+built by judging character similarity (cosine in the feature space, PC1
+removed) with the plane's two axes projected out, so it contains movies
+that match the reference everywhere except along the plane - the movies a
+rotation within that plane can reach (see
+`packages/hyperwheel-recommender/docs/math.md` section 7). Scheme clusters
+sit at specific target angles, while starfield items scatter across the
+disc. Rendered only on the main wheel as small, muted points; hovering
+one shows its title with the same highlight treatment as a scheme point,
+without opening the recommendation info card or cross-lighting the
+Recommendations list (starfield items have no list row).
 
 ### Hover/tap info card
 

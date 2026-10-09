@@ -15,7 +15,7 @@ import csv
 
 import pytest
 
-from hyperwheel_recommender import SCHEMES, TasteBasis, build_taste_basis, load_input
+from hyperwheel_recommender import SCHEMES, FeatureBasis, build_feature_basis, load_input
 
 from . import planes_config, settings
 
@@ -37,12 +37,12 @@ def wide(artifact_path: str):
 
 
 @pytest.fixture(scope="session")
-def basis(wide) -> TasteBasis:
-    return build_taste_basis(wide, n_components=settings.N_COMPONENTS, standardize=settings.STANDARDIZE)
+def basis(wide) -> FeatureBasis:
+    return build_feature_basis(wide, n_components=settings.N_COMPONENTS, standardize=settings.STANDARDIZE)
 
 
 @pytest.fixture(scope="session")
-def circles(basis: TasteBasis) -> list[tuple[int, int]]:
+def circles(basis: FeatureBasis) -> list[tuple[int, int]]:
     """The hue-plane pairs ('circles') checked by these tests - every
     pair of curated components from pc_config.json."""
     return planes_config.load_circles(max_component=basis.U.shape[0])

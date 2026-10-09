@@ -170,67 +170,32 @@ Instead:
 
 ## From movie vectors to cinematic shape
 
-For a movie represented by vector `c`:
+A movie is a vector of tag relevances in `[0, 1]`, where a value near 1
+means the movie pronouncedly HAS the attribute and a value near 0 that it
+is largely absent. Two movies both lacking an attribute share little;
+two both pronouncedly having it share a lot. The model is built so that
+this principle is part of its geometry.
 
-### 1. Mean level
+### 1. Pronounced-attribute feature space
 
-The mean of the movie's criteria is calculated:
+Each relevance is expanded into a few smooth features such that the
+ordinary inner product between two movies equals their
+pronounced-attribute overlap (agreement on strongly expressed tags,
+penalized disagreement). Distances and angles in this space respect the
+principle by construction. Details: `packages/hyperwheel-recommender/docs/math.md`,
+section 3.
 
-```
-L = mean(c)
-```
+### 2. Typical category profile
 
-This captures the overall level of the movie's tag profile.
-
-It is analogous to the lightness component in HSL, although it is not semantically identical to color lightness.
-
----
-
-### 2. Movie shape
-
-The movie's individual profile is separated from its overall level:
-
-```
-Q = c - L
-```
-
-The components of `Q` always sum to zero:
+The mean profile across the whole category is removed:
 
 ```
-sum(Q) = 0
+Phi' = Phi - mean(Phi)
 ```
 
-Therefore `Q` lies in the subspace orthogonal to:
-
-```
-(1, 1, ..., 1)
-```
-
-This is analogous to separating the neutral component from the chromatic component in RGB.
-
----
-
-### 3. Typical category profile
-
-The shape of a movie is not meaningful only in isolation.
-
-A category may have a characteristic profile shared by most of its movies.
-
-Therefore the mean shape across the entire category is calculated:
-
-```
-M = mean(Q across all movies)
-```
-
-and removed:
-
-```
-Q' = Q - M
-```
-
-This step is important.
-
-Without it, PCA can identify the structure shared by essentially all movies as the dominant direction, instead of identifying meaningful differences between movies.
+Without this step, PCA identifies the structure shared by essentially all
+movies as the dominant direction instead of meaningful differences between
+them.
 
 ---
 
@@ -247,16 +212,16 @@ Tag Genome
 movie vectors
     │
     ▼
-movie-level centering
+pronounced-attribute feature map
     │
     ▼
 category-profile centering
     │
     ▼
-feature standardization
+per-tag standardization
     │
     ▼
-PCA / SVD
+PCA
     │
     ▼
 data-driven coordinate system
@@ -310,16 +275,19 @@ For example, a component may represent a halo effect:
 
 ```
 positive pole:
-    many positively associated characteristics
+    many strongly expressed characteristics
 
 negative pole:
-    many negatively associated characteristics
+    few expressed characteristics
 ```
 
+In the feature space this is typically PC1: it separates movies by how
+pronouncedly they express tags overall (and, correlated with it, how
+broadly they are praised), rather than by what kind of movie they are.
 Such an axis may primarily represent:
 
 ```
-better ↔ worse
+better / richer ↔ weaker / sparser
 ```
 
 rather than:
@@ -332,15 +300,12 @@ Rotating a reference movie along such an axis would tend to produce a better or 
 
 That is not the goal.
 
-Therefore Cinematic-Hyperwheel currently uses an explicit component selection mechanism:
+Therefore Cinematic-Hyperwheel uses an explicit component selection mechanism:
 
-```
---hue-components
-```
+- PC1 is always projected out when character similarity is judged, and is never a hue axis;
+- the remaining components are reviewed with the diagnostic tools (a tag's loading is its correlation with the component score, plus the movies at both poles), and only those that appear to represent meaningful differences in **character, style, or cinematic direction** are curated in `pc_config.json` and become eligible for rotation.
 
-The candidate components are first examined using diagnostic tools, including their feature weights and the movies located at their poles.
-
-Only components that appear to represent meaningful differences in **character, style, or cinematic direction** are selected for rotation.
+The review has to be repeated whenever the feature map or its parameters change, because the axes change with them.
 
 ---
 
@@ -484,15 +449,19 @@ It will generally not correspond exactly to an existing movie.
 
 ## Finding a real movie
 
-The final step is therefore a nearest-neighbor search.
+The target point generally corresponds to no real movie, so the final step
+selects real movies in two stages:
 
-Given a target point `t`, the system searches the movie catalog for:
-
-```
-movie* = argmin distance(movie, t)
-```
-
-The result is a real movie whose feature representation is closest to the geometrically generated target.
+1. **Character shortlist.** Movies that are statistically significant
+   outliers in character similarity to the target (cosine in the
+   pronounced-attribute feature space, PC1 removed). Because the target
+   differs from the reference only inside the hue plane, such movies still
+   feel like the reference everywhere outside it. The number of movies
+   adapts to the data: a dense region yields more, a sparse one fewer or
+   none.
+2. **Sector gate.** Of those, only movies inside a narrow angle and
+   radius window around the target in the hue plane are kept, ordered by
+   how closely they sit to the target.
 
 Thus the overall process is:
 
@@ -500,7 +469,7 @@ Thus the overall process is:
 reference movie
        │
        ▼
-high-dimensional representation
+pronounced-attribute feature space
        │
        ▼
 PCA coordinate system
@@ -521,8 +490,19 @@ delta reconstruction
 target point
        │
        ▼
-nearest real movie
+character shortlist (cosine outliers)
+       │
+       ▼
+angle / radius sector gate
+       │
+       ▼
+real movies
 ```
+
+The sector can legitimately be empty: for a reference that is extremely
+pronounced on a plane, few movies share its radius, and none may sit on
+the far side. Such angles are reported empty rather than filled with an
+unsuitable movie.
 
 ---
 

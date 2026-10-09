@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from hyperwheel_recommender import TasteBasis, build_taste_basis, load_input, load_pca_cache
+from hyperwheel_recommender import FeatureBasis, build_feature_basis, load_input, load_pca_cache
 
 from .config import ARTIFACT_PATH, N_COMPONENTS, PCA_CACHE_PATH, STANDARDIZE
 from .pc_config import load_pc_config
@@ -46,8 +46,7 @@ class WheelEngine:
     pc_std: np.ndarray
     explained: np.ndarray
     pc_config: dict[int, dict]
-    basis: TasteBasis        # prebuilt basis, reused by the recommend endpoint
-    X: np.ndarray            # (n_items, n_criteria) raw criteria matrix
+    basis: FeatureBasis      # prebuilt basis, reused by the recommend endpoint
 
     def starfield_pairs(self) -> list[tuple[int, int]]:
         """Hue planes the reference gets circles for: every pair of
@@ -144,7 +143,7 @@ def build_engine() -> WheelEngine:
             f"fresh (n_components={n_needed}, standardize={STANDARDIZE}).",
             file=sys.stderr,
         )
-    basis = build_taste_basis(
+    basis = build_feature_basis(
         wide, n_components=n_needed, standardize=STANDARDIZE, precomputed_pca=precomputed_pca,
     )
 
@@ -160,5 +159,4 @@ def build_engine() -> WheelEngine:
         explained=basis.explained,
         pc_config=pc_config,
         basis=basis,
-        X=wide.to_numpy(dtype=np.float32),
     )

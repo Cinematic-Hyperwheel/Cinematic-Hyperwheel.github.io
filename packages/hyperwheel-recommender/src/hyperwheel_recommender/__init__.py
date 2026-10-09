@@ -22,7 +22,7 @@ CLI usage:
     python -m hyperwheel_recommender recommend artifact.npz --item "..." --scheme complementary
 """
 
-from .basis import TasteBasis, build_taste_basis
+from .basis import FeatureBasis, build_feature_basis
 from .basis_cache import load_pca_cache, save_pca_cache
 from .data import load_artifact, load_input, load_matrix, save_artifact
 from .diagnose import diagnose
@@ -36,8 +36,8 @@ __all__ = [
     "load_artifact",
     "load_input",
     "save_artifact",
-    "TasteBasis",
-    "build_taste_basis",
+    "FeatureBasis",
+    "build_feature_basis",
     "save_pca_cache",
     "load_pca_cache",
     "SCHEMES",

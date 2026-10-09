@@ -24,11 +24,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from .basis import TasteBasis
+from .basis import FeatureBasis
 
 
 def select_hue_plane(
-    basis: TasteBasis,
+    basis: FeatureBasis,
     ref_idx: int,
     exclude_components: tuple[int, ...] = (1,),
     candidate_components: int | None = None,
