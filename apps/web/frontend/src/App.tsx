@@ -32,8 +32,9 @@ const SCHEMES = [
   "complementary",
   "triadic",
   "analogous",
+  "wide-analogous",
   "split-complementary",
-  "tetradic",
+  "square",
   "monochromatic",
 ];
 

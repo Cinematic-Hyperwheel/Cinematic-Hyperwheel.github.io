@@ -73,7 +73,8 @@ def main() -> None:
     p_rec.add_argument("--item", required=True, help="Name of the reference item", type=int)
     p_rec.add_argument(
         "--scheme", required=True, choices=list(SCHEMES),
-        help="complementary / triadic / analogous / split-complementary / tetradic",
+        help="complementary / triadic / analogous / wide-analogous / "
+             "split-complementary / square / monochromatic",
     )
     p_rec.add_argument("--n-components", type=int, default=20)
     p_rec.add_argument("--top-k", type=int, default=5)

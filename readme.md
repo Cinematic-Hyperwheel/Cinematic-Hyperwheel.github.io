@@ -777,7 +777,7 @@ quality, nor a claim that the author has seen, endorses, or is actually
 recommending that anyone watch it.
 
 Schemes with a large angular offset from the reference - triadic and
-tetradic in particular - deliberately move far from the reference's own
+square in particular - deliberately move far from the reference's own
 profile and can surface movies that share little with it beyond an
 abstract geometric relationship; results can be surprising. Complementary,
 which rotates a full 180°, can be especially jarring, since it targets

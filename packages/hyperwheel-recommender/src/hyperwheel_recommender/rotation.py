@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import numpy as np
 
+# Angles are offsets from the reference, so a scheme's name counts the
+# reference too: triadic = reference + two targets at +-120 degrees.
 SCHEMES: dict[str, list[float]] = {
     "complementary": [180.0],
     "triadic": [120.0, -120.0],
     "analogous": [30.0, -30.0],
+    "wide-analogous": [60.0, -60.0],
     "split-complementary": [150.0, -150.0],
-    "tetradic": [90.0, 180.0, -90.0],
+    "square": [90.0, 180.0, -90.0],
     "monochromatic": [0.0],
 }
 

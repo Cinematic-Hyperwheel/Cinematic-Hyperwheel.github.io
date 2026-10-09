@@ -17,8 +17,9 @@
     "complementary": "Complementary",
     "triadic": "Triadic",
     "analogous": "Analogous",
+    "wide-analogous": "Wide analogous",
     "split-complementary": "Split complementary",
-    "tetradic": "Tetradic",
+    "square": "Square",
     "monochromatic": "Monochromatic"
   },
   "recommendations": {
@@ -62,7 +63,7 @@
       "heading": "Disclaimer",
       "recommendations": "\"Recommendations\" here are not editorial picks - each one comes from a purely geometric, mathematical procedure (a PCA-based rotation followed by a nearest-neighbor search), not a judgment about a movie's quality, and not a claim that the author has seen or actually recommends watching it.",
       "legality": "Movie titles surfaced by this project are drawn from a public dataset and are not vetted for legality, availability, or appropriateness in any specific jurisdiction; it is your own responsibility to comply with local laws regarding any title you choose to seek out.",
-      "schemes": "Schemes with a large angular offset - triadic and tetradic in particular - can surface movies that share little with the reference beyond an abstract geometric relationship, and results may be surprising. Complementary rotates a full 180° and can be especially jarring. Use these schemes with that in mind.",
+      "schemes": "Schemes with a large angular offset - triadic and square in particular - can surface movies that share little with the reference beyond an abstract geometric relationship, and results may be surprising. Complementary rotates a full 180° and can be especially jarring. Use these schemes with that in mind.",
       "warranty": "This project is provided for entertainment and experimentation only, \"as is\", with no warranty of any kind and no liability accepted for any damages arising from its use."
     },
     "privacy": {

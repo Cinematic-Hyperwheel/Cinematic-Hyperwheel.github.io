@@ -60,7 +60,7 @@ python3 -m hyperwheel-recommender recommend artifact.npz \
 |---|---|---|
 |`input_path`|—|CSV or `.npz` (from `build`)|
 |`--item`|—|ID of the reference item (numeric)|
-|`--scheme`|—|`complementary` / `triadic` / `analogous` / `split-complementary` / `tetradic`|
+|`--scheme`|—|`complementary` / `triadic` / `analogous` / `wide-analogous` / `split-complementary` / `square` / `monochromatic`|
 |`--n-components`|`20`|How many PCA components to compute|
 |`--top-k`|`5`|How many recommendations per angle|
 |`--out`|none|Save results to a CSV|
