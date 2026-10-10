@@ -1,4 +1,5 @@
 import type {
+  DisplacedMatch,
   NeighborItem,
   NeighborsResponse,
   RecAngle,
@@ -27,6 +28,8 @@ interface Candidate {
   zy: number;
   r: number;
   theta: number;
+  /** PC pairs of the planes this item qualified on. */
+  qualified: [number, number][];
 }
 
 interface Eligible {
@@ -63,6 +66,7 @@ interface PlaneMatches {
   cands: Candidate[];
   maxRadius: number;
   angles: { angleDeg: number; scored: ScoredMatch[] }[];
+  pcs: [number, number];
 }
 
 function compareKeys(a: MatchKey, b: MatchKey): number {
@@ -138,6 +142,8 @@ function recommendAtAngle(
       z_x: e.cand.zx,
       z_y: e.cand.zy,
       angle_deg: bearingDeg(e.cand.theta),
+      similarity: e.cand.item.similarity,
+      qualified_planes: e.cand.qualified,
     },
   }));
 }
@@ -150,9 +156,9 @@ function recommendAtAngle(
  * (equal radius, or the same plane) fall back to the ordering key, then
  * to the plane that comes first in component-pair order.
  */
-function dedupeAcrossPlanes(planes: PlaneMatches[]): void {
+function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
   //return;
-  
+
   const radius = planes.map((p) => Math.hypot(p.refX, p.refY));
   const best = new Map<number, { plane: number; angle: number; key: MatchKey }>();
   planes.forEach((p, pi) =>
@@ -167,14 +173,25 @@ function dedupeAcrossPlanes(planes: PlaneMatches[]): void {
       })
     )
   );
+
+  // Per plane: the matches it lost to another plane, for diagnostics.
+  const displaced: DisplacedMatch[][] = planes.map(() => []);
   planes.forEach((p, pi) =>
     p.angles.forEach((a, ai) => {
       a.scored = a.scored.filter((m) => {
         const owner = best.get(m.item.item_id)!;
-        return owner.plane === pi && owner.angle === ai;
+        if (owner.plane === pi && owner.angle === ai) return true;
+        displaced[pi].push({
+          item_id: m.item.item_id,
+          title: m.item.title,
+          owner_pcs: planes[owner.plane].pcs,
+          owner_angle_deg: planes[owner.plane].angles[owner.angle].angleDeg,
+        });
+        return false;
       });
     })
   );
+  return displaced;
 }
 
 /**
@@ -212,6 +229,14 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   }
 
   const planes: PlaneMatches[] = [];
+
+  // One shared array per item. Building it per (plane, item) pair would be
+  // quadratic in the number of planes an item qualifies on.
+  const qualifiedByItem = new Map<number, [number, number][]>();
+  for (const item of items) {
+    qualifiedByItem.set(item.item_id, item.planes.map((q) => planeDefs[q]));
+  }
+
   usable.forEach(({ def: [pcA, pcB], p }) => {
 
     const i = pcs.indexOf(pcA);
@@ -225,12 +250,15 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
       .map((item) => {
         const zx = item.z[i];
         const zy = item.z[j];
-        return { item, zx, zy, r: Math.hypot(zx, zy), theta: Math.atan2(zy, zx) };
+        return {
+          item, zx, zy, r: Math.hypot(zx, zy), theta: Math.atan2(zy, zx),
+          qualified: qualifiedByItem.get(item.item_id)!,
+        };
       });
     const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY));
 
     planes.push({
-      i, j, refX, refY, cands, maxRadius,
+      i, j, pcs: [pcA, pcB], refX, refY, cands, maxRadius,
       angles: schemeAngles.map((angleDeg) => ({
         angleDeg,
         scored: recommendAtAngle(cands, refX, refY, angleDeg, gate),
@@ -238,11 +266,11 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     });
   });
 
-  dedupeAcrossPlanes(planes);
+  const displaced = dedupeAcrossPlanes(planes);
 
   const built: BuiltCircle[] = [];
 
-  for (const plane of planes) {
+  for (const [pi, plane] of planes.entries()) {
     const { i, j, refX, refY, cands, maxRadius } = plane;
 
     const angles: RecAngle[] = plane.angles.map(({ angleDeg, scored }) => {
@@ -271,6 +299,8 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         z_x: cand.zx,
         z_y: cand.zy,
         angle_deg: bearingDeg(cand.theta),
+        similarity: cand.item.similarity,
+        qualified_planes: cand.qualified,
       });
     }
 
@@ -300,6 +330,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         },
         angles,
         starfield,
+        debug: { displaced: displaced[pi] },
       },
     });
   }
@@ -309,7 +340,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   // circles is saturated the reference radius decides.
   built.sort(
     // still experimenting with sorting
-    (a, b) => /*b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal ||*/ b.radius - a.radius
+    (a, b) => /*b.minPerAngle - a.minPerAngle ||*/ b.rankedTotal - a.rankedTotal || b.radius - a.radius
   );
 
   // After deduplication matched sets are disjoint across circles, so only

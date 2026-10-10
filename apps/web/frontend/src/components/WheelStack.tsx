@@ -13,6 +13,7 @@ import { useActiveCard } from "../contexts/ActiveCardContext";
 import { useHoverCircle } from "../contexts/HoverCircleContext";
 import "./WheelLegend.css";
 import "./MovieHighlight.css";
+import { RecMark, RecNumber } from "./DebugInfo";
 
 interface Props {
   /** Actual active/primary circle - always drives the legend, and
@@ -350,8 +351,9 @@ const LegendTile = memo(function LegendTile({
         ) : (
           <span className="wheel-legend__tile-swatch" style={{ background: swatch, color: swatch }} aria-hidden="true" />
         )}
-        <span className="wheel-legend__tile-title">{item.title}</span>
+        <span className="wheel-legend__tile-title"><RecMark />{item.title}</span>
       </div>
+      <RecNumber cKey={blockKey} itemId={item.item_id} />
     </div>
   );
 });
@@ -377,6 +379,7 @@ const LegendRow = memo(function LegendRow({
       onMouseEnter={(e) => onEnter(blockKey, item, e.currentTarget, swatch, angleLabel)}
       onMouseLeave={() => onLeave(blockKey, item)}
     >
+      <RecNumber cKey={blockKey} itemId={item.item_id} />
       {angleLabel ? (
         <span className="rec-row__anglebadge" style={{ borderColor: swatch, color: swatch }} aria-hidden="true">
           {angleLabel}
@@ -385,7 +388,7 @@ const LegendRow = memo(function LegendRow({
         <span className="rec-row__swatch" style={{ background: swatch, color: swatch }} aria-hidden="true" />
       )}
       <div className="rec-row__body">
-        <span className="rec-row__title">{item.title}</span>
+        <span className="rec-row__title"><RecNumber cKey={blockKey} itemId={item.item_id} /><RecMark />{item.title}</span>
         {item.angular_error_deg != null && (
           <span className="rec-row__meta">
             Δangle: {item.angular_error_deg.toFixed(1)}°

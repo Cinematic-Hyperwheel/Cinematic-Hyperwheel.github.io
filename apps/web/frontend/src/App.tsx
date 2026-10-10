@@ -27,6 +27,10 @@ import {
   toWheelCircle,
 } from "./api";
 import { buildCircles, withAllMatches } from "./utils/schemeGate";  
+import { DebugProvider } from "./contexts/DebugContext";
+import { DebugHud } from "./components/DebugInfo";
+import { buildRecNumbering } from "./utils/debugNumbering";
+
 
 const SCHEMES = [
   "complementary",
@@ -98,13 +102,20 @@ function AppContent() {
   // Fetched once per reference; the scheme is applied client-side, so
   // switching it never hits the server.
   const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);
-  const recs = useMemo<RecommendResponse | null>(
-    () =>
-      neighbors
-        ? { item_id: neighbors.item_id, scheme, circles: buildCircles(neighbors, scheme) }
-        : null,
-    [neighbors, scheme]
-  );
+  // buildCircles is timed together with its memo so the diagnostics HUD
+  // reports the cost of the actual computation, not of a re-render.
+  const recsBuild = useMemo(() => {
+    if (!neighbors) return null;
+    const t0 = performance.now();
+    const circles = buildCircles(neighbors, scheme);
+    return {
+      recs: { item_id: neighbors.item_id, scheme, circles } as RecommendResponse,
+      buildMs: performance.now() - t0,
+    };
+  }, [neighbors, scheme]);
+  const recs = recsBuild?.recs ?? null;
+  // Includes proof-of-work solving when a fresh "heavy" ticket had to be minted.
+  const [neighborsMs, setNeighborsMs] = useState<number | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
   // The circle currently active in the Recommendations list (click,
   // arrow keys, or a wheel tick - see RecommendationsPanel.tsx) -
@@ -280,6 +291,20 @@ function AppContent() {
   // WheelStack.tsx).
   const populatedCircles =
     recs && !recError ? recs.circles.filter((c) => c.angles.some((a) => a.items.length > 0)) : [];
+  
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const recNumbering = useMemo(() => buildRecNumbering(populatedCircles), [recs, recError]);
+
+  const hudLines = recs
+    ? [
+        `scheme ${scheme}`,
+        `circles ${populatedCircles.length}/${recs.circles.length}`,
+        `recommendations ${recNumbering.size}`,
+        `pool ${neighbors?.items.length ?? 0} · planes ${neighbors?.planes.length ?? 0}`,
+        `gate ±${((neighbors?.gate.angle_tol_rad ?? 0) * 180 / Math.PI).toFixed(0)}° · ±${(neighbors?.gate.radius_tol_log ?? 0).toFixed(2)} ln r`,
+        `fetch ${neighborsMs?.toFixed(0) ?? "—"} ms · buildCircles ${recsBuild?.buildMs.toFixed(1) ?? "—"} ms`,
+      ]
+    : [];
 
   // Sizes the big wheel to fill the available space on BOTH axes while
   // staying fully within the visible viewport, legend included - see
@@ -403,11 +428,14 @@ function AppContent() {
   }, [isWheelWrapHidden, headerMode, headerHeight, controlsHeight, hasLegend, footerHeight]);
 
   const fetchRecommendations = async (itemId: number) => {
+    const t0 = performance.now();
     try {
       setNeighbors(await getNeighbors(itemId));
+      setNeighborsMs(performance.now() - t0);
       setRecError(null);
     } catch {
       setNeighbors(null);
+      setNeighborsMs(null);
       setRecError(t("recommendations.error"));
     }
   };
@@ -516,133 +544,136 @@ function AppContent() {
 
   return (
     <>
-      <HighlightProvider>
-        <ActiveCardProvider>
-          <HeroBackdrop url={backdropUrl} />
-          <div className="app">
-            {isWheelWrapHidden ? (
-              <>
-                <div className="topbar">
-                  <LanguageSwitcher />
-                  <button
-                    className="about-trigger"
-                    onClick={() => setAboutOpen(true)}
-                    aria-label={t("footer.about")}
-                  >
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="9.5" />
-                      <line x1="12" y1="16.2" x2="12" y2="11.5" />
-                      <circle cx="12" cy="7.6" r="1.3" fill="currentColor" stroke="none" />
-                    </svg>
-                  </button>
-                </div>
-
-                <header className="app__header">
-                  <div className="app__header-text">
-                    <h1><BrandTitle text={t("app.title")} /></h1>
-                    <p>{t("app.tagline")}</p>
-                    <p className="app__header-poweredby">{t("app.poweredBy")}</p>
+      <DebugProvider numbering={recNumbering}>
+        <HighlightProvider>
+          <ActiveCardProvider>
+            <HeroBackdrop url={backdropUrl} />
+            <div className="app">
+              {isWheelWrapHidden ? (
+                <>
+                  <div className="topbar">
+                    <LanguageSwitcher />
+                    <button
+                      className="about-trigger"
+                      onClick={() => setAboutOpen(true)}
+                      aria-label={t("footer.about")}
+                    >
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9.5" />
+                        <line x1="12" y1="16.2" x2="12" y2="11.5" />
+                        <circle cx="12" cy="7.6" r="1.3" fill="currentColor" stroke="none" />
+                      </svg>
+                    </button>
                   </div>
-                </header>
 
-                <div className="sticky-controls" ref={stickyControlsRef}>
-                  {!isEmpty && (
-                    <>
-                      <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
-                      {schemeSelect}
-                    </>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                <span ref={sentinelEnterRef} className="scroll-sentinel" style={{ top: ENTER_COMPACT_PX }} aria-hidden="true" />
-                <span ref={sentinelExitRef} className="scroll-sentinel" style={{ top: EXIT_TO_HERO_PX }} aria-hidden="true" />
+                  <header className="app__header">
+                    <div className="app__header-text">
+                      <h1><BrandTitle text={t("app.title")} /></h1>
+                      <p>{t("app.tagline")}</p>
+                      <p className="app__header-poweredby">{t("app.poweredBy")}</p>
+                    </div>
+                  </header>
 
-                <AppHeader
-                  mode={headerMode}
-                  onAboutClick={() => setAboutOpen(true)}
-                  onHeightChange={setHeaderHeight}
-                  searchSlot={
-                    isEmpty ? undefined : (
-                      <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
-                    )
-                  }
-                  schemeSlot={!isEmpty ? schemeSelect : undefined}
-                />
-              </>
-            )}
-
-            {error && <div className="app__error">{error}</div>}
-            {recError && <div className="app__error">{recError}</div>}
-
-            <div className="layout3" ref={contentRef} style={{ paddingTop: spacerHeight }}>
-              {recs && !recError && (
-                <aside className="layout3__left">
-                  <RecommendationsPanel
-                    circles={recs.circles}
-                    onActiveCircleChange={setActiveCircle}
-                    compactHeader={headerMode === "compact"}
-                  />
-                </aside>
-              )}
-
-              <main
-                className={"layout3__center" + (headerMode === "compact" ? " layout3__center--pinned" : "")}
-                ref={wheelColumnRef}
-              >
-                {!isWheelWrapHidden && (
-                  <div className="layout3__wheel-wrap" ref={wheelWrapRef}>
-                    {primary && (
-                      <WheelStack
-                        circle={primary}
-                        size={wheelSize}
-                        title={selected?.title}
-                        overlays={bigWheelOverlays} 
-                        starfield={primaryStarfield}
-                        queueCircles={populatedCircles}
-                        previewCircle={hoveredWheelCircle}
-                        previewOverlays={bigWheelPreviewOverlays}
-                        previewStarfield={hoveredStarfield}
-                      />
+                  <div className="sticky-controls" ref={stickyControlsRef}>
+                    {!isEmpty && (
+                      <>
+                        <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
+                        {schemeSelect}
+                      </>
                     )}
                   </div>
-                )}
-              </main>
-            </div>
+                </>
+              ) : (
+                <>
+                  <span ref={sentinelEnterRef} className="scroll-sentinel" style={{ top: ENTER_COMPACT_PX }} aria-hidden="true" />
+                  <span ref={sentinelExitRef} className="scroll-sentinel" style={{ top: EXIT_TO_HERO_PX }} aria-hidden="true" />
 
-            <footer
-              ref={footerRef}
-              className={
-                "app__footer app__footer--slim" +
-                (!isWheelWrapHidden && headerMode === "compact" ? " app__footer--pinned" : "")
-              }
-            >
-              <p>
-                {t("footer.copyright", { year: new Date().getFullYear() })}
-                {" · "}
-                <button onClick={() => setAboutOpen(true)}>{t("footer.about")}</button>
-              </p>
-            </footer>
-
-            <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
-          </div>
-          {/* Fixed to the viewport (see .wheel-empty-state in index.css) -
-              independent of the desktop/mobile layout split above, shown
-              on both until a reference movie is selected. */}
-          {!primary && (
-            <div className="wheel-empty-state">
-              <img className="wheel-empty-state__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
-              {isEmpty && (
-                <div className="wheel-empty-state__search">
-                  <SearchBar onSelect={handleSelect} selectedTitle={null} selectedMovie={null} />
-                </div>
+                  <AppHeader
+                    mode={headerMode}
+                    onAboutClick={() => setAboutOpen(true)}
+                    onHeightChange={setHeaderHeight}
+                    searchSlot={
+                      isEmpty ? undefined : (
+                        <SearchBar onSelect={handleSelect} selectedTitle={selected?.title ?? null} selectedMovie={selected} />
+                      )
+                    }
+                    schemeSlot={!isEmpty ? schemeSelect : undefined}
+                  />
+                </>
               )}
+
+              {error && <div className="app__error">{error}</div>}
+              {recError && <div className="app__error">{recError}</div>}
+
+              <div className="layout3" ref={contentRef} style={{ paddingTop: spacerHeight }}>
+                {recs && !recError && (
+                  <aside className="layout3__left">
+                    <RecommendationsPanel
+                      circles={recs.circles}
+                      onActiveCircleChange={setActiveCircle}
+                      compactHeader={headerMode === "compact"}
+                    />
+                  </aside>
+                )}
+
+                <main
+                  className={"layout3__center" + (headerMode === "compact" ? " layout3__center--pinned" : "")}
+                  ref={wheelColumnRef}
+                >
+                  {!isWheelWrapHidden && (
+                    <div className="layout3__wheel-wrap" ref={wheelWrapRef}>
+                      {primary && (
+                        <WheelStack
+                          circle={primary}
+                          size={wheelSize}
+                          title={selected?.title}
+                          overlays={bigWheelOverlays} 
+                          starfield={primaryStarfield}
+                          queueCircles={populatedCircles}
+                          previewCircle={hoveredWheelCircle}
+                          previewOverlays={bigWheelPreviewOverlays}
+                          previewStarfield={hoveredStarfield}
+                        />
+                      )}
+                    </div>
+                  )}
+                </main>
+              </div>
+
+              <footer
+                ref={footerRef}
+                className={
+                  "app__footer app__footer--slim" +
+                  (!isWheelWrapHidden && headerMode === "compact" ? " app__footer--pinned" : "")
+                }
+              >
+                <p>
+                  {t("footer.copyright", { year: new Date().getFullYear() })}
+                  {" · "}
+                  <button onClick={() => setAboutOpen(true)}>{t("footer.about")}</button>
+                </p>
+              </footer>
+
+              <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
             </div>
-          )}
-          <ActiveRecommendationCard />
-        </ActiveCardProvider>
-      </HighlightProvider>
+            {/* Fixed to the viewport (see .wheel-empty-state in index.css) -
+                independent of the desktop/mobile layout split above, shown
+                on both until a reference movie is selected. */}
+            {!primary && (
+              <div className="wheel-empty-state">
+                <img className="wheel-empty-state__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
+                {isEmpty && (
+                  <div className="wheel-empty-state__search">
+                    <SearchBar onSelect={handleSelect} selectedTitle={null} selectedMovie={null} />
+                  </div>
+                )}
+              </div>
+            )}
+            <ActiveRecommendationCard />
+          </ActiveCardProvider>
+          <DebugHud lines={hudLines} />
+        </HighlightProvider>
+      </DebugProvider>
     </>
   );
 }

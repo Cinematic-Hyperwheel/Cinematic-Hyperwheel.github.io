@@ -8,6 +8,7 @@ import { imdbUrlForItem } from "../utils/imdb";
 import { tmdbUrlForItem } from "../utils/tmdb";
 import { resolvePoster, getCachedPoster } from "../utils/poster";
 import "./RecommendationInfoCard.css";
+import { ItemDebugInfo } from "./DebugInfo";
 
 const CARD_WIDTH = 300;
 const CARD_MAX_HEIGHT = 360;
@@ -359,6 +360,7 @@ export default function RecommendationInfoCard({
             OMLTP
           </button>
         </div>
+        <ItemDebugInfo item={displayItem} />
       </div>
     );
 
@@ -467,6 +469,7 @@ export default function RecommendationInfoCard({
                 label={t("recommendations.getRecommendations")}
               />
             </div>
+            <ItemDebugInfo item={displayItem} />
           </div>
         </div>
       </div>

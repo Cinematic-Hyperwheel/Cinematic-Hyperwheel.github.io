@@ -68,6 +68,10 @@ export interface RecItem {
   z_x: number;
   z_y: number;
   angle_deg: number;
+  /** Cosine similarity from the neighbor pool (diagnostics only). */
+  similarity?: number;
+  /** Planes (1-based PC pairs) this item qualified on in the pool. */
+  qualified_planes?: [number, number][];
 }
 
 export interface RecAngle {
@@ -96,6 +100,21 @@ export interface StarfieldItem {
   z_x: number;
   z_y: number;
   angle_deg: number;
+  similarity?: number;
+  qualified_planes?: [number, number][];
+}
+
+/** A gate match that lost the cross-plane deduplication to another plane. */
+export interface DisplacedMatch {
+  item_id: number;
+  title: string;
+  owner_pcs: [number, number];
+  owner_angle_deg: number;
+}
+
+export interface CircleDebug {
+  /** Matches on this circle's plane that are owned by another circle. */
+  displaced: DisplacedMatch[];
 }
 
 export interface RecommendCircle {
@@ -106,6 +125,7 @@ export interface RecommendCircle {
   angles: RecAngle[];
   starfield: StarfieldItem[];
   max_radius?: number;
+  debug?: CircleDebug;
 }
 
 export interface RecommendResponse {

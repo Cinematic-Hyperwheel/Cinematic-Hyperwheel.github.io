@@ -6,6 +6,7 @@ import { useHighlight, useHighlightedItem } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
 import { supportsHover } from "../utils/hover";
 import { diskPosition } from "../utils/radial";
+import { useDebug } from "../contexts/DebugContext";
 
 interface Props {
   circle: WheelCircle;
@@ -352,6 +353,7 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], s
   const gMaxR = gHalfBox - (compact ? 10 : 28);
 
   const { setHighlighted, clearHighlighted } = useHighlight();
+  const { enabled: debugEnabled, numbering } = useDebug();
   const highlightedItemId = useHighlightedItem(circleKey);
   const reportedItemIdRef = useRef<number | null>(null);
   const { showCard, hideCard } = useActiveCard();
@@ -455,6 +457,8 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], s
               z_x: starItem.z_x,
               z_y: starItem.z_y,
               angle_deg: starItem.angle_deg,
+              similarity: starItem.similarity,
+              qualified_planes: starItem.qualified_planes,
             }
           : undefined
       );
@@ -632,6 +636,9 @@ export default function WheelPointLabels({ circle, size, title, overlays = [], s
                 pointerEvents: "none",
               }}
             >
+              {debugEnabled && point.itemId !== null
+                ? `#${numbering.get(`${circleKey}:${point.itemId}`) ?? "·"} `
+                : ""}
               {point.title}
             </text>
           </g>

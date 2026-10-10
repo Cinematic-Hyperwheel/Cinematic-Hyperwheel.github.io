@@ -12,6 +12,7 @@ import { useActiveCircleNav } from "../hooks/useActiveCircleNav";
 import Wheel, { RING_PAD } from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
 import "./MovieHighlight.css";
+import { CircleDebugInfo, RecMark, RecNumber } from "./DebugInfo";
 
 interface Props {
   circles: RecommendCircle[];
@@ -320,38 +321,31 @@ function AngleSections({
                 onHighlightLeave={onHighlightLeave}
                 showLocate={showLocate}
                 navList={navigableItems}
-                trailing={
-                  hasMore ? (
-                    <button
-                      type="button"
-                      className={
-                        "rec-row__expand" +
-                        (isOpen ? " rec-row__expand--open" : "") +
-                        (!isOpen && !hiddenHighlight ? " rec-row__expand--pulse" : "") +
-                        (hiddenHighlight ? " rec-row__expand--highlighted" : "")
-                      }
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleExpand(key);
-                      }}
-                      aria-expanded={isOpen}
-                      aria-label={
-                        isOpen ? t("recommendations.hide") : t("recommendations.more", { count: rest.length })
-                      }
-                      title={
-                        isOpen ? t("recommendations.hide") : t("recommendations.more", { count: rest.length })
-                      }
+                trailing={hasMore ? (
+                  <button
+                    type="button"
+                    className={"rec-row__expand" +
+                      (isOpen ? " rec-row__expand--open" : "") +
+                      (!isOpen && !hiddenHighlight ? " rec-row__expand--pulse" : "") +
+                      (hiddenHighlight ? " rec-row__expand--highlighted" : "")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleExpand(key);
+                    } }
+                    aria-expanded={isOpen}
+                    aria-label={isOpen ? t("recommendations.hide") : t("recommendations.more", { count: rest.length })}
+                    title={isOpen ? t("recommendations.hide") : t("recommendations.more", { count: rest.length })}
+                  >
+                    <span className="rec-row__expand-label">{isOpen ? `+${rest.length}` : `+${rest.length}`}</span>
+                    <span
+                      className={"rec-row__expand-chevron" + (isOpen ? " rec-row__expand-chevron--open" : "")}
+                      aria-hidden="true"
                     >
-                      <span className="rec-row__expand-label">{isOpen ? `+${rest.length}` : `+${rest.length}`}</span>
-                      <span
-                        className={"rec-row__expand-chevron" + (isOpen ? " rec-row__expand-chevron--open" : "")}
-                        aria-hidden="true"
-                      >
-                        ▾
-                      </span>
-                    </button>
-                  ) : null
-                }
+                      ▾
+                    </span>
+                  </button>
+                ) : null}
+                cKey={cKey}
               />
 
               {hasMore && (
@@ -377,6 +371,7 @@ function AngleSections({
                           showLocate={showLocate}
                           navList={navigableItems}
                           compact
+                          cKey={cKey}
                         />
                       );
                     })}
@@ -675,6 +670,7 @@ export default function RecommendationsPanel({
                     </div>
                   )}
                 </div>
+                <CircleDebugInfo circle={circle} />
               </section>
             );
           }
@@ -732,6 +728,7 @@ export default function RecommendationsPanel({
                   </div>
                 )}
                 <div className="rec-circle__mobile-list">{angleSections}</div>
+                <CircleDebugInfo circle={circle} />
               </div>
             </section>
           );
@@ -775,6 +772,7 @@ interface RecRowProps {
   /** Ordered item list this row belongs to - forwarded into the card
    * trigger for the mobile popup's prev/next navigation. */
   navList?: RecItem[];
+  cKey: string;
 }
 
 // A single recommendation row: scheme-angle swatch or badge, title,
@@ -809,6 +807,7 @@ function RecRow({
   onHighlightLeave,
   showLocate,
   navList,
+  cKey
 }: RecRowProps) {
   const { t } = useTranslation();
   return (
@@ -845,6 +844,7 @@ function RecRow({
         />
       )}
       <div className="rec-row__body">
+        <span className="rec-row__title"><RecNumber cKey={cKey} itemId={item.item_id} /><RecMark />{item.title}</span>
         <span className="rec-row__title">{item.title}</span>
         {item.angular_error_deg != null && (
           <span className="rec-row__meta">

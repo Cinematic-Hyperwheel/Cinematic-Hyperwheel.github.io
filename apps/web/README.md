@@ -425,6 +425,19 @@ pinned to the bottom of the screen, with a close button and a
 tap-to-dismiss backdrop) instead of a small popover next to the row, so
 it stays comfortable to read and to dismiss with a thumb.
 
+## Diagnostic overlay
+
+Technical readouts for inspecting the model on the page: per-circle axes
+(PC numbers), reference z-scores, radius and angle, match counts per
+scheme angle, matches displaced by another circle during cross-plane
+deduplication, a global ordinal on every recommendation, per-item
+similarity and qualifying planes in the info card, and a HUD with pool
+size, gate tolerances and timings.
+
+Toggle with `?debug=1` / `?debug=0` (persisted in `localStorage`, since
+in-app navigation drops the query string) or `Alt+Shift+D`. Overlays are
+absolutely positioned and never take pointer events or affect layout.
+
 ## Localization
 
 The frontend uses `react-i18next`. Currently English (default) and
