@@ -166,7 +166,7 @@
     }
   },
   "11": {
-    "excluded_from_hue": true,
+    "excluded_from_hue": false,
     "note": "?",
     "colors": {
       "negative": "#0000FF",
@@ -191,11 +191,11 @@
     "labels": {
       "en": {
         "negative": "Innocent",
-        "positive": "Sophisticated"
+        "positive": "Mature"
       },
       "ru": {
         "negative": "Наивный",
-        "positive": "Искушенный"
+        "positive": "Зрелый"
       }
     }
   },
@@ -218,7 +218,7 @@
     }
   },
   "14": {
-    "excluded_from_hue": true,
+    "excluded_from_hue": false,
     "note": "?",
     "colors": {
       "negative": "#0000FF",
@@ -332,6 +332,492 @@
       "ru": {
         "negative": "Выразительный",
         "positive": "Повествовательный"
+      }
+    }
+  },
+  "21": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "21",
+        "positive": "21"
+      },
+      "ru": {
+        "negative": "21",
+        "positive": "21"
+      }
+    }
+  },
+  "22": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "22",
+        "positive": "22"
+      },
+      "ru": {
+        "negative": "22",
+        "positive": "22"
+      }
+    }
+  },
+  "23": {
+    "excluded_from_hue": true,
+    "note": "?",
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "23",
+        "positive": "23"
+      },
+      "ru": {
+        "negative": "23",
+        "positive": "23"
+      }
+    }
+  },
+  "24": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "24",
+        "positive": "24"
+      },
+      "ru": {
+        "negative": "24",
+        "positive": "24"
+      }
+    }
+  },
+  "25": {
+    "excluded_from_hue": true,
+    "note": "Franchises/book adaptations",
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Adaptation",
+        "positive": "Franchise"
+      },
+      "ru": {
+        "negative": "Экранизация",
+        "positive": "Франшиза"
+      }
+    }
+  },
+  "26": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "26",
+        "positive": "26"
+      },
+      "ru": {
+        "negative": "26",
+        "positive": "26"
+      }
+    }
+  },
+  "27": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "27",
+        "positive": "27"
+      },
+      "ru": {
+        "negative": "27",
+        "positive": "27"
+      }
+    }
+  },
+  "28": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "28",
+        "positive": "28"
+      },
+      "ru": {
+        "negative": "28",
+        "positive": "28"
+      }
+    }
+  },
+  "29": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "29",
+        "positive": "29"
+      },
+      "ru": {
+        "negative": "29",
+        "positive": "29"
+      }
+    }
+  },
+  "30": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "30",
+        "positive": "30"
+      },
+      "ru": {
+        "negative": "30",
+        "positive": "30"
+      }
+    }
+  },
+  "31": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "31",
+        "positive": "31"
+      },
+      "ru": {
+        "negative": "31",
+        "positive": "31"
+      }
+    }
+  },
+  "32": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "32",
+        "positive": "32"
+      },
+      "ru": {
+        "negative": "32",
+        "positive": "32"
+      }
+    }
+  },
+  "33": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "33",
+        "positive": "33"
+      },
+      "ru": {
+        "negative": "33",
+        "positive": "33"
+      }
+    }
+  },
+  "34": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "34",
+        "positive": "34"
+      },
+      "ru": {
+        "negative": "34",
+        "positive": "34"
+      }
+    }
+  },
+  "35": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "35",
+        "positive": "35"
+      },
+      "ru": {
+        "negative": "35",
+        "positive": "35"
+      }
+    }
+  },
+  "36": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "36",
+        "positive": "36"
+      },
+      "ru": {
+        "negative": "36",
+        "positive": "36"
+      }
+    }
+  },
+  "37": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "37",
+        "positive": "37"
+      },
+      "ru": {
+        "negative": "37",
+        "positive": "37"
+      }
+    }
+  },
+  "38": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "West",
+        "positive": "East"
+      },
+      "ru": {
+        "negative": "Запад",
+        "positive": "Восток"
+      }
+    }
+  },
+  "39": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "Save the World",
+        "positive": "Between Two Worlds"
+      },
+      "ru": {
+        "negative": "Спасти мир",
+        "positive": "Между двух миров"
+      }
+    }
+  },
+  "40": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "40",
+        "positive": "40"
+      },
+      "ru": {
+        "negative": "40",
+        "positive": "40"
+      }
+    }
+  },
+  "41": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "41",
+        "positive": "41"
+      },
+      "ru": {
+        "negative": "41",
+        "positive": "41"
+      }
+    }
+  },
+  "42": {
+    "excluded_from_hue": true,
+    "note": "Gives poor suggestions",
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "42",
+        "positive": "42"
+      },
+      "ru": {
+        "negative": "42",
+        "positive": "42"
+      }
+    }
+  },
+  "43": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "43",
+        "positive": "43"
+      },
+      "ru": {
+        "negative": "43",
+        "positive": "43"
+      }
+    }
+  },
+  "44": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "44",
+        "positive": "44"
+      },
+      "ru": {
+        "negative": "44",
+        "positive": "44"
+      }
+    }
+  },
+  "45": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "45",
+        "positive": "45"
+      },
+      "ru": {
+        "negative": "45",
+        "positive": "45"
+      }
+    }
+  },
+  "46": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "46",
+        "positive": "46"
+      },
+      "ru": {
+        "negative": "46",
+        "positive": "46"
+      }
+    }
+  },
+  "47": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "47",
+        "positive": "47"
+      },
+      "ru": {
+        "negative": "47",
+        "positive": "47"
+      }
+    }
+  },
+  "48": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "48",
+        "positive": "48"
+      },
+      "ru": {
+        "negative": "48",
+        "positive": "48"
+      }
+    }
+  },
+  "49": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "49",
+        "positive": "49"
+      },
+      "ru": {
+        "negative": "49",
+        "positive": "49"
+      }
+    }
+  },
+  "50": {
+    "colors": {
+      "negative": "#0000FF",
+      "positive": "#FF0000"
+    },
+    "labels": {
+      "en": {
+        "negative": "50",
+        "positive": "50"
+      },
+      "ru": {
+        "negative": "50",
+        "positive": "50"
       }
     }
   }
