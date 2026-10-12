@@ -6,7 +6,7 @@ import argparse
 import sys
 import time
 
-from .data import load_input, load_matrix, save_artifact
+from .data import load_input, load_matrix, load_titles, save_artifact
 from .diagnose import diagnose
 from .recommend import recommend
 from .rotation import SCHEMES
@@ -31,6 +31,13 @@ def _print_effective_args(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    # Movie titles can contain characters the console encoding (e.g.
+    # cp1251 on Windows) cannot represent; print a replacement character
+    # instead of crashing mid-output.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(errors="replace")
+
     parser = argparse.ArgumentParser(
         description="Hyperwheel item recommender (PCA-based color-wheel schemes for N criteria)"
     )
@@ -61,6 +68,11 @@ def main() -> None:
     p_diag.add_argument(
         "--items-top", type=int, default=10,
         help="How many items to show at each pole of a component",
+    )
+    p_diag.add_argument(
+        "--movies-path", default=None,
+        help="movies.csv (movieId,title,...) - shows titles next to item "
+             "ids at the component poles",
     )
     p_diag.add_argument(
         "--no-standardize", action="store_true",
@@ -137,6 +149,7 @@ def main() -> None:
             loadings_top=args.loadings_top,
             items_top=args.items_top,
             standardize=not args.no_standardize,
+            titles=load_titles(args.movies_path) if args.movies_path else None,
         )
     elif args.command == "recommend":
         if args.hue_components == "auto":

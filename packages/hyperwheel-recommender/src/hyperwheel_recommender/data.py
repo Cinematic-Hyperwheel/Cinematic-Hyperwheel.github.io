@@ -42,6 +42,13 @@ def load_tags(genome_tags_csv_path: str) -> dict[int, str]:
     return tags
 
 
+def load_titles(movies_csv_path: str) -> dict[int, str]:
+    """Reads movies.csv (movieId,title,...) into {movieId: title}, for
+    labelling items in human-readable output (see diagnose)."""
+    df = pd.read_csv(movies_csv_path, usecols=["movieId", "title"])
+    return dict(zip(df["movieId"].astype(int), df["title"].astype(str)))
+
+
 def load_matrix(genome_scores_csv_path: str, genome_tags_csv_path: str | None = None, chunksize: int = DEFAULT_CHUNKSIZE) -> pd.DataFrame:
     """
     Reads a CSV (movieId,tagId,relevance) and returns a wide table

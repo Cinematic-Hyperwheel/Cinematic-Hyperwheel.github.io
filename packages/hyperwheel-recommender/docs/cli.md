@@ -28,6 +28,7 @@ python3 -m hyperwheel-recommender diagnose artifact.npz \
 |Argument|Default|Meaning|
 |---|---|---|
 |`input_path`|—|CSV or `.npz` (from `build`)|
+|`--movies-path`|none|movies.csv (`movieId,title,...`); when given, item ids at the poles are shown with their titles|
 |`--max-components`|`10`|How many components to list in the variance table|
 |`--loadings-components`|`2`|For how many first components to show criteria weights|
 |`--loadings-top`|`10`|Criteria shown at each end of the axis (loading = correlation of the criterion's relevance with the component score)|

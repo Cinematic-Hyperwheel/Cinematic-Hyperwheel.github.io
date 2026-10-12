@@ -8,6 +8,18 @@ import pandas as pd
 from .basis import build_feature_basis
 
 
+def _item_label(item, titles: dict[int, str] | None) -> str:
+    """'<id> <title>' when a title is known, else just the id. Item ids
+    are compared as ints, since the artifact may store them as strings."""
+    if titles is None:
+        return str(item)
+    try:
+        title = titles.get(int(item))
+    except (TypeError, ValueError):
+        title = None
+    return f"{item} {title}" if title else str(item)
+
+
 def tag_loadings(wide: pd.DataFrame, scores: np.ndarray, k: int) -> np.ndarray:
     """Signed loading per tag: correlation of the tag's relevance with
     the k-th (0-based) component score. U itself lives in the feature
@@ -26,6 +38,7 @@ def diagnose(
     loadings_top: int = 10,
     items_top: int = 10,
     standardize: bool = True,
+    titles: dict[int, str] | None = None,
 ) -> None:
     """Prints how many components are needed for reasonable variance
     coverage, and which criteria most strongly shape the first components
@@ -89,7 +102,7 @@ def diagnose(
         print(f"\n--- PC{k+1} ---")
         print(f"  [+] items with the highest PC{k+1}:")
         for idx in pos_idx:
-            print(f"      {items_arr[idx]:<30} {item_scores[idx]:+.3f}")
+            print(f"      {_item_label(items_arr[idx], titles):<70} {item_scores[idx]:+.3f}")
         print(f"  [-] items with the lowest PC{k+1}:")
         for idx in neg_idx:
-            print(f"      {items_arr[idx]:<30} {item_scores[idx]:+.3f}")
+            print(f"      {_item_label(items_arr[idx], titles):<70} {item_scores[idx]:+.3f}")
