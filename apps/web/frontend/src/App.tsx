@@ -98,7 +98,7 @@ function AppContent() {
   const [selected, setSelected] = useState<MovieHit | null>(null);
   const [circles, setCircles] = useState<WheelCircle[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [scheme, setScheme] = useState<string>(SCHEMES[2]);
+  const [scheme, setScheme] = useState<string>(SCHEMES[6]);
   // Fetched once per reference; the scheme is applied client-side, so
   // switching it never hits the server.
   const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);

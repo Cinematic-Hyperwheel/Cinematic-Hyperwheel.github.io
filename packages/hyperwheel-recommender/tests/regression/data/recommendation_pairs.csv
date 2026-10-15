@@ -10,6 +10,8 @@ reference_item,expected_recommendation,scheme,notes
 45668,163134,analogous,"Lake House, The (2006)/Your Name. (2016)"
 45668,58123,analogous,"Lake House, The (2006)/Il Mare (Siworae) (2000)"
 45668,104374,monochromatic,"Lake House, The (2006)/About Time (2013)"
+45668,2497,monochromatic,"Lake House, The (2006)/Message in a Bottle (1999)"
+45668,50792,wide-analogous,"Lake House, The (2006)/Catch and Release (2006)"
 43396,210175,analogous,"World's Fastest Indian,The (2005)/Togo (2019)"
 43396,152970,analogous,"World's Fastest Indian/Hunt for the Wilderpeople (2016)"
 43396,7311,analogous,"World's Fastest Indian/Goodbye, Mr. Chips (1939)"
@@ -21,3 +23,4 @@ reference_item,expected_recommendation,scheme,notes
 105,1959,analogous,"Bridges of Madison County, The (1995)/Out of Africa (1985)"
 2470,2406,monochromatic,"Crocodile Dundee (1986)/Romancing the Stone (1984)"
 2470,1894,monochromatic,"Crocodile Dundee (1986)/Six Days Seven Nights (1998)"
+103984,8154,monochromatic,"Great Beauty, The (Grande Bellezza, La) (2013)/Dolce Vita, La (1960)"

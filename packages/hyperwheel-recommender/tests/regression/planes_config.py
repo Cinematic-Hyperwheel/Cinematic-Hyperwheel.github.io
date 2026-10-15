@@ -91,3 +91,10 @@ def load_components(max_component: int | None = None) -> list[int]:
     if max_component is not None:
         components = [c for c in components if c <= max_component]
     return components
+
+
+def load_rotation_groups() -> list[tuple[int, int]]:
+    """Varimax groups ('rotation_groups') from pc_config.json - the suite
+    must test the same rotated axes the web app serves. Empty if none."""
+    raw = _load_pc_config_data().get("rotation_groups", [])
+    return [(int(lo), int(hi)) for lo, hi in raw]

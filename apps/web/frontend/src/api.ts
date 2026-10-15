@@ -186,7 +186,7 @@ export interface NeighborsResponse {
   /** Scheme name -> angles in degrees. */
   schemes: Record<string, number[]>;
   /** Stage B tolerances, owned by the engine (recommend.py). */
-  gate: { angle_tol_rad: number; radius_tol_log: number };
+  gate: { angle_tol_rad: number; distance_outlier_z: number };
   items: NeighborItem[];
   /** Hue planes (1-based component pairs) to build circles for. */
   planes: [number, number][];

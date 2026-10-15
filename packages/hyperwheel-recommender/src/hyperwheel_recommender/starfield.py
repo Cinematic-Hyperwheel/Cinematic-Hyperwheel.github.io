@@ -47,12 +47,12 @@ def find_neighbors(
     """
     if reference_item not in basis.items:
         raise ValueError(f"Item '{reference_item}' not found in the data.")
-    m = basis.U.shape[0]
-    for a, b in planes:
-        if a == b or not (2 <= a <= m and 2 <= b <= m):
-            raise ValueError(
-                f"plane=({a}, {b}) is not a pair of distinct non-PC1 components within 2..{m}."
-            )
+    #m = basis.U.shape[0]
+    # for a, b in planes:
+    #     if a == b or not (2 <= a <= m and 2 <= b <= m):
+    #         raise ValueError(
+    #             f"plane=({a}, {b}) is not a pair of distinct non-PC1 components within 2..{m}."
+    #         )
 
     ref = basis.items.index(reference_item)
     n = len(basis.items)
@@ -60,6 +60,8 @@ def find_neighbors(
 
     dot = basis.Phi @ basis.Phi[ref] - sc[:, 0] * sc[ref, 0]
     nrm = basis.norm_sq - sc[:, 0] ** 2
+    # dot = basis.Phi @ basis.Phi[ref]# - sc[:, 0] * sc[ref, 0]
+    # nrm = basis.norm_sq# - sc[:, 0] ** 2
     ia = np.array([p[0] - 1 for p in planes])
     ib = np.array([p[1] - 1 for p in planes])
     dot_p = dot[:, None] - sc[:, ia] * sc[ref, ia] - sc[:, ib] * sc[ref, ib]

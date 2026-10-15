@@ -29,6 +29,7 @@ from .diagnose import diagnose
 from .planes import select_hue_plane
 from .recommend import recommend, recommend_on_basis, recommend_many_planes
 from .rotation import SCHEMES, rotate_whitened
+from .rotation_subspace import rotate_groups, rotate_subspace
 from .starfield import find_neighbors, find_plane_neighbors
 
 __all__ = [
@@ -42,6 +43,8 @@ __all__ = [
     "load_pca_cache",
     "SCHEMES",
     "rotate_whitened",
+    "rotate_subspace",
+    "rotate_groups",
     "select_hue_plane",
     "recommend",
     "recommend_on_basis",

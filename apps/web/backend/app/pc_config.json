@@ -1,21 +1,31 @@
 {
+  "rotation_groups": [
+    [
+      12,
+      15
+    ],
+    [
+      17,
+      33
+    ]
+  ],
   "1": {
     "excluded_from_hue": true,
     "note": "General quality / halo axis (docs/math.md section 4) - good items get praised broadly, bad ones criticized broadly. Always excluded from hue-plane selection; never rendered as a circle.",
     "colors": {
-      "negative": "#4b5563",
-      "positive": "#9ca3af"
+      "negative": "#9ca3af",
+      "positive": "#4b5563"
     },
     "labels": {
       "en": {
         "axis": "Overall reception",
-        "negative": "Weaker reception",
-        "positive": "Stronger reception"
+        "negative": "Stronger reception",
+        "positive": "Weaker reception"
       },
       "ru": {
         "axis": "Общее восприятие",
-        "negative": "Принят слабее",
-        "positive": "Принят сильнее"
+        "negative": "Принят сильнее",
+        "positive": "Принят слабее"
       }
     }
   },
@@ -42,76 +52,76 @@
     },
     "labels": {
       "en": {
-        "positive": "Uplifting",
-        "negative": "Unsettling"
+        "positive": "Transgressive",
+        "negative": "Humanistic"
       },
       "ru": {
-        "positive": "Жизнеутверждающий",
-        "negative": "Тревожный"
+        "positive": "Трансгрессивный",
+        "negative": "Гуманистический"
       }
     }
   },
   "4": {
     "colors": {
-      "negative": "#6B4A78",
-      "positive": "#31A9C7"
+      "negative": "#31A9C7",
+      "positive": "#6B4A78"
     },
     "labels": {
       "en": {
-        "negative": "Realistic",
-        "positive": "Visionary"
+        "negative": "Visionary",
+        "positive": "Realistic"
       },
       "ru": {
-        "negative": "Реалистичный",
-        "positive": "Фантастический"
+        "negative": "Фантастический",
+        "positive": "Реалистичный"
       }
     }
   },
   "5": {
     "colors": {
-      "positive": "#355D70",
-      "negative": "#E7B936"
+      "positive": "#E7B936",
+      "negative": "#355D70"
     },
     "labels": {
       "en": {
-        "positive": "Harsh",
-        "negative": "Cozy"
+        "positive": "Cozy",
+        "negative": "Harsh"
       },
       "ru": {
-        "positive": "Суровый",
-        "negative": "Уютный"
+        "positive": "Уютный",
+        "negative": "Суровый"
       }
     }
   },
   "6": {
     "colors": {
-      "positive": "#434854",
-      "negative": "#C58A2A"
+      "positive": "#C58A2A",
+      "negative": "#434854"
     },
     "labels": {
       "en": {
-        "positive": "Contemporary",
-        "negative": "Classic"
+        "positive": "Classic",
+        "negative": "Contemporary"
       },
       "ru": {
-        "positive": "Современный",
-        "negative": "Классический"
+        "positive": "Классический",
+        "negative": "Современный"
       }
     }
   },
   "7": {
     "colors": {
-      "positive": "#5D7FC7",
-      "negative": "#A23A55"
+      "positive": "#A23A55",
+      "negative": "#5D7FC7"
     },
     "labels": {
       "en": {
-        "positive": "Intelligent",
-        "negative": "Brutal"
+        "positive": "Brutal",
+        "negative": "Intelligent"
       },
       "ru": {
-        "positive": "Интеллектуальный",
-        "negative": "Жесткий"
+        "positive": "Жесткий",
+        "negative": "Интеллектуальный"
       }
     }
   },
@@ -148,7 +158,7 @@
     }
   },
   "10": {
-    "excluded_from_hue": true,
+    "excluded_from_hue": false,
     "note": "Book adaptations/original stories",
     "colors": {
       "negative": "#E08B8B",
@@ -200,7 +210,7 @@
     }
   },
   "13": {
-    "excluded_from_hue": true,
+    "excluded_from_hue": false,
     "note": "?",
     "colors": {
       "negative": "#0000FF",
@@ -209,11 +219,11 @@
     "labels": {
       "en": {
         "negative": "Staged",
-        "positive": "Natural"
+        "positive": "13"
       },
       "ru": {
         "negative": "Постановочный",
-        "positive": "Естественный"
+        "positive": "13"
       }
     }
   },
@@ -226,17 +236,17 @@
     },
     "labels": {
       "en": {
-        "negative": "Internal Crisis",
-        "positive": "External Conflict"
+        "negative": "Intimate",
+        "positive": "Conceptual"
       },
       "ru": {
-        "negative": "Внутренний кризис",
-        "positive": "Внешний конфликт"
+        "negative": "Простой",
+        "positive": "Концептупльный"
       }
     }
   },
   "15": {
-    "excluded_from_hue": true,
+    "excluded_from_hue": false,
     "note": "?",
     "colors": {
       "negative": "#0000FF",
@@ -244,12 +254,12 @@
     },
     "labels": {
       "en": {
-        "negative": "15",
-        "positive": "15"
+        "negative": "Sophisticated Cinema",
+        "positive": "Superheroic Mainstream"
       },
       "ru": {
-        "negative": "15",
-        "positive": "15"
+        "negative": "Сложное кино",
+        "positive": "Супергеройский мейнстрим"
       }
     }
   },
@@ -260,32 +270,36 @@
     },
     "labels": {
       "en": {
-        "negative": "Man vs. Nature ",
-        "positive": "Man vs. System"
+        "negative": "16",
+        "positive": "16"
       },
       "ru": {
-        "negative": "Человека против Стихии",
-        "positive": "Человек против Системы"
+        "negative": "16",
+        "positive": "16"
       }
     }
   },
   "17": {
+    "excluded_from_hue": false,
+    "note": "unstable, giving it a chance",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
     },
     "labels": {
       "en": {
-        "negative": "17",
-        "positive": "17"
+        "negative": "Man vs. Nature",
+        "positive": "War"
       },
       "ru": {
-        "negative": "17",
-        "positive": "17"
+        "negative": "Человека против Стихии",
+        "positive": "Война"
       }
     }
   },
   "18": {
+    "excluded_from_hue": false,
+    "note": "",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -302,7 +316,7 @@
     }
   },
   "19": {
-    "excluded_from_hue": true,
+    "excluded_from_hue": false,
     "note": "?",
     "colors": {
       "negative": "#0000FF",
@@ -320,6 +334,8 @@
     }
   },
   "20": {
+    "excluded_from_hue": false,
+    "note": "",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -352,6 +368,8 @@
     }
   },
   "22": {
+    "excluded_from_hue": true,
+    "note": "unstable, adaptations: books, plays, mythology, videogames, comics etc.",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -368,20 +386,20 @@
     }
   },
   "23": {
-    "excluded_from_hue": true,
-    "note": "?",
+    "excluded_from_hue": false,
+    "note": "unstable, but let's try",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
     },
     "labels": {
       "en": {
-        "negative": "23",
-        "positive": "23"
+        "negative": "Physical Activity",
+        "positive": "Music"
       },
       "ru": {
-        "negative": "23",
-        "positive": "23"
+        "negative": "Физическая активность",
+        "positive": "Музыка"
       }
     }
   },
@@ -402,24 +420,26 @@
     }
   },
   "25": {
-    "excluded_from_hue": true,
-    "note": "Franchises/book adaptations",
+    "excluded_from_hue": false,
+    "note": "unstable, but let's try",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
     },
     "labels": {
       "en": {
-        "negative": "Adaptation",
-        "positive": "Franchise"
+        "negative": "Comics",
+        "positive": "Fantasy"
       },
       "ru": {
-        "negative": "Экранизация",
-        "positive": "Франшиза"
+        "negative": "Комиксы",
+        "positive": "Фентези"
       }
     }
   },
   "26": {
+    "excluded_from_hue": false,
+    "note": "unstable",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -436,6 +456,8 @@
     }
   },
   "27": {
+    "excluded_from_hue": false,
+    "note": "unstable",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -452,6 +474,8 @@
     }
   },
   "28": {
+    "excluded_from_hue": false,
+    "note": "axis, ???",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -468,6 +492,8 @@
     }
   },
   "29": {
+    "excluded_from_hue": false,
+    "note": "unstable, try ???",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -484,22 +510,26 @@
     }
   },
   "30": {
+    "excluded_from_hue": false,
+    "note": "unstable, but I like it",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
     },
     "labels": {
       "en": {
-        "negative": "30",
-        "positive": "30"
+        "negative": "Simulacra & Simulation",
+        "positive": "Science Fiction"
       },
       "ru": {
-        "negative": "30",
-        "positive": "30"
+        "negative": "Симулякры и симуляция",
+        "positive": "Научная фантастика"
       }
     }
   },
   "31": {
+    "excluded_from_hue": true,
+    "note": "unstable, franchises",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -516,38 +546,44 @@
     }
   },
   "32": {
+    "excluded_from_hue": false,
+    "note": "unstable",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
     },
     "labels": {
       "en": {
-        "negative": "32",
-        "positive": "32"
+        "negative": "Fight",
+        "positive": "Metaphysics"
       },
       "ru": {
-        "negative": "32",
-        "positive": "32"
+        "negative": "Борьба",
+        "positive": "Метафизика"
       }
     }
   },
   "33": {
+    "excluded_from_hue": true,
+    "note": "unstable, really noisy",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
     },
     "labels": {
       "en": {
-        "negative": "33",
-        "positive": "33"
+        "negative": "Man vs. System",
+        "positive": "Queer"
       },
       "ru": {
-        "negative": "33",
-        "positive": "33"
+        "negative": "Человек против системы",
+        "positive": "Квир"
       }
     }
   },
   "34": {
+    "excluded_from_hue": false,
+    "note": "unstable",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
@@ -564,260 +600,20 @@
     }
   },
   "35": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "35",
-        "positive": "35"
-      },
-      "ru": {
-        "negative": "35",
-        "positive": "35"
-      }
-    }
-  },
-  "36": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "36",
-        "positive": "36"
-      },
-      "ru": {
-        "negative": "36",
-        "positive": "36"
-      }
-    }
-  },
-  "37": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "37",
-        "positive": "37"
-      },
-      "ru": {
-        "negative": "37",
-        "positive": "37"
-      }
-    }
-  },
-  "38": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "West",
-        "positive": "East"
-      },
-      "ru": {
-        "negative": "Запад",
-        "positive": "Восток"
-      }
-    }
-  },
-  "39": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "Save the World",
-        "positive": "Between Two Worlds"
-      },
-      "ru": {
-        "negative": "Спасти мир",
-        "positive": "Между двух миров"
-      }
-    }
-  },
-  "40": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "40",
-        "positive": "40"
-      },
-      "ru": {
-        "negative": "40",
-        "positive": "40"
-      }
-    }
-  },
-  "41": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "41",
-        "positive": "41"
-      },
-      "ru": {
-        "negative": "41",
-        "positive": "41"
-      }
-    }
-  },
-  "42": {
     "excluded_from_hue": true,
-    "note": "Gives poor suggestions",
+    "note": "unstable",
     "colors": {
       "negative": "#0000FF",
       "positive": "#FF0000"
     },
     "labels": {
       "en": {
-        "negative": "42",
-        "positive": "42"
+        "negative": "35",
+        "positive": "35"
       },
       "ru": {
-        "negative": "42",
-        "positive": "42"
-      }
-    }
-  },
-  "43": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "43",
-        "positive": "43"
-      },
-      "ru": {
-        "negative": "43",
-        "positive": "43"
-      }
-    }
-  },
-  "44": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "44",
-        "positive": "44"
-      },
-      "ru": {
-        "negative": "44",
-        "positive": "44"
-      }
-    }
-  },
-  "45": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "45",
-        "positive": "45"
-      },
-      "ru": {
-        "negative": "45",
-        "positive": "45"
-      }
-    }
-  },
-  "46": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "46",
-        "positive": "46"
-      },
-      "ru": {
-        "negative": "46",
-        "positive": "46"
-      }
-    }
-  },
-  "47": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "47",
-        "positive": "47"
-      },
-      "ru": {
-        "negative": "47",
-        "positive": "47"
-      }
-    }
-  },
-  "48": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "48",
-        "positive": "48"
-      },
-      "ru": {
-        "negative": "48",
-        "positive": "48"
-      }
-    }
-  },
-  "49": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "49",
-        "positive": "49"
-      },
-      "ru": {
-        "negative": "49",
-        "positive": "49"
-      }
-    }
-  },
-  "50": {
-    "colors": {
-      "negative": "#0000FF",
-      "positive": "#FF0000"
-    },
-    "labels": {
-      "en": {
-        "negative": "50",
-        "positive": "50"
-      },
-      "ru": {
-        "negative": "50",
-        "positive": "50"
+        "negative": "35",
+        "positive": "35"
       }
     }
   }

@@ -17,7 +17,7 @@ from .config import ENABLE_API_DOCS, METADATA_PATH
 from .search import MovieIndex, load_metadata
 from .tmdb import fetch_backdrop_url, fetch_poster_url
 from hyperwheel_recommender import SCHEMES, find_neighbors
-from hyperwheel_recommender.recommend import ANGLE_TOL_RAD, RADIUS_TOL_LOG
+from hyperwheel_recommender.recommend import ANGLE_TOL_RAD, DISTANCE_OUTLIER_Z
 
 from .wheel import build_engine
 
@@ -246,7 +246,7 @@ def recommend(item_id: int):
         "schemes": SCHEMES,
         "gate": {
             "angle_tol_rad": float(ANGLE_TOL_RAD),
-            "radius_tol_log": float(RADIUS_TOL_LOG),
+            "distance_outlier_z": float(DISTANCE_OUTLIER_Z),
         },
         "items": items,
         "planes": [list(p) for p in planes],

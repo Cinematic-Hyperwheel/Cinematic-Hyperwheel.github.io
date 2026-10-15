@@ -37,7 +37,7 @@ def main() -> None:
     reconfigure = getattr(sys.stdout, "reconfigure", None)
     if reconfigure is not None:
         reconfigure(errors="replace")
-
+        
     parser = argparse.ArgumentParser(
         description="Hyperwheel item recommender (PCA-based color-wheel schemes for N criteria)"
     )
@@ -78,6 +78,20 @@ def main() -> None:
         "--no-standardize", action="store_true",
         help="Disable z-scoring criteria before PCA (enabled by default - "
              "without it, criteria with a larger spread artificially dominate)",
+    )
+    p_diag.add_argument(
+        "--stability-splits", type=int, default=0,
+        help="Number of random split-half repetitions for the per-component "
+             "stability table (0 = skip). Each split fits two bases, which "
+             "is slow on large catalogs.",
+    )
+    p_diag.add_argument(
+        "--rotate", nargs=2, type=int, metavar=("FROM", "TO"), action="append", default=None,
+        help="Varimax-rotate the contiguous component group FROM..TO "
+             "(1-based, inclusive, FROM >= 2) before reporting. Repeat for "
+             "several disjoint groups. The same rotation is applied to both "
+             "halves of the split-half check. TO must not exceed "
+             "--max-components.",
     )
 
     p_rec = sub.add_parser("recommend", help="Find items matching a color-wheel scheme")
@@ -139,6 +153,12 @@ def main() -> None:
         )
         return
 
+    rotate = None
+    if args.command == "diagnose" and args.rotate:
+        rotate = [tuple(group) for group in args.rotate]
+        if max(hi for _, hi in rotate) > args.max_components:
+            parser.error("--rotate TO must not exceed --max-components")
+
     wide = load_input(args.input_path)
 
     if args.command == "diagnose":
@@ -150,6 +170,8 @@ def main() -> None:
             items_top=args.items_top,
             standardize=not args.no_standardize,
             titles=load_titles(args.movies_path) if args.movies_path else None,
+            stability_splits=args.stability_splits,
+            rotate=rotate,
         )
     elif args.command == "recommend":
         if args.hue_components == "auto":

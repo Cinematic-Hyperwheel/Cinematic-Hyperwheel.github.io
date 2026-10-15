@@ -16,11 +16,20 @@ export const TOP_K = 6;
 // every plane, so neighbors that are pronounced on an axis where the
 // reference is weak are still found, but only as points on circles the
 // reference actually has a character on.
-const AXIS_Z_MIN = 0;
+const AXIS_Z_MIN = 1;
 const MIN_CIRCLES = 1;
 
 const RAD_TO_DEG = 180 / Math.PI;
 const TWO_PI = Math.PI * 2;
+
+// Consistency factor turning MAD into a standard-deviation estimate for
+// normally distributed data (same constant as the engine's outlier tests).
+const MAD_TO_SIGMA = 1.4826;
+// Below this robust spread the distance distribution is degenerate and
+// nothing stands out as "closer".
+const MIN_SPREAD = 1e-9;
+// Floor for log arguments, so a zero distance or radius stays finite.
+const LOG_FLOOR = 1e-6;
 
 interface Candidate {
   item: NeighborItem;
@@ -35,7 +44,8 @@ interface Candidate {
 interface Eligible {
   cand: Candidate;
   angleErr: number;
-  radiusMismatch: number;
+  /** Euclidean distance to the rotated target, whitened units. */
+  distance: number;
   bucket: number;
 }
 
@@ -50,7 +60,7 @@ interface BuiltCircle {
   matched: Set<number>;
 }
 
-/** Gate-ordering key: (angle bucket, radius mismatch, exact angle error), smaller is closer to the rotated target. */
+/** Gate-ordering key: (angle bucket, distance to target, exact angle error), smaller is closer to the rotated target. */
 type MatchKey = [number, number, number];
 
 interface ScoredMatch {
@@ -82,12 +92,37 @@ function bearingDeg(theta: number): number {
   return (((theta * RAD_TO_DEG) % 360) + 360) % 360;
 }
 
+function median(sorted: number[]): number {
+  const n = sorted.length;
+  return n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+}
+
 /**
- * Stage B of the engine (recommend.py's _stage_ab_rows) applied to the
- * neighbor pool: rotate the reference within the plane, keep candidates
- * inside the angle AND radius window around the rotated target, then
- * order by angle bucket, radius mismatch, exact angle and finally
- * similarity. Tolerances come from the server so they are defined once.
+ * Distance to the rotated target for every pool item that is a robust low
+ * outlier of the plane pool's own log-distance distribution, null for the
+ * rest. Same median/MAD construction as the engine's starfield, with
+ * log(distance) so that "close to the target" is a one-sided tail of an
+ * unbounded variable. The threshold is self-calibrating: a dense
+ * neighborhood yields many items, a sparse one few or none. A degenerate
+ * spread selects nothing.
+ */
+function closeToTarget(cands: Candidate[], tx: number, ty: number, minZ: number): (number | null)[] {
+  const dist = cands.map((c) => Math.hypot(c.zx - tx, c.zy - ty));
+  const logs = dist.map((d) => Math.log(Math.max(d, LOG_FLOOR)));
+  const med = median([...logs].sort((a, b) => a - b));
+  const mad = median(logs.map((l) => Math.abs(l - med)).sort((a, b) => a - b));
+  const sigma = MAD_TO_SIGMA * mad;
+  if (sigma < MIN_SPREAD) return cands.map(() => null);
+  return logs.map((l, k) => ((med - l) / sigma >= minZ ? dist[k] : null));
+}
+
+/**
+ * Stage B of the client: rotate the reference within the plane, keep pool
+ * items that are statistically close to the rotated target (see
+ * closeToTarget) and lie inside the fixed angle window around it, then
+ * order by angle bucket, distance, exact angle and finally similarity.
+ * The angle window is a fixed grid so that the sectors of one plane never
+ * overlap; the threshold and window come from the server (`gate`).
  * Each match carries its ordering key so matches can be compared across
  * planes (see dedupeAcrossPlanes).
  */
@@ -108,28 +143,27 @@ function recommendAtAngle(
   // A target at the origin has no meaningful radius to compare against.
   const hasRadius = targetR > 1e-9;
 
+  const close = closeToTarget(cands, tx, ty, gate.distance_outlier_z);
+
   const eligible: Eligible[] = [];
-  for (const cand of cands) {
+  cands.forEach((cand, k) => {
+    const distance = close[k];
+    if (distance === null) return;
     const angleErr = circularDiff(cand.theta, targetTheta);
-    if (angleErr > gate.angle_tol_rad) continue;
-    let radiusMismatch = 0;
-    if (hasRadius) {
-      radiusMismatch = Math.abs(Math.log(Math.max(cand.r, 1e-6) / Math.max(targetR, 1e-6)));
-      if (radiusMismatch > gate.radius_tol_log) continue;
-    }
-    eligible.push({ cand, angleErr, radiusMismatch, bucket: Math.round(angleErr / gate.angle_tol_rad) });
-  }
+    if (angleErr > gate.angle_tol_rad) return;
+    eligible.push({ cand, angleErr, distance, bucket: Math.round(angleErr / gate.angle_tol_rad) });
+  });
 
   eligible.sort(
     (a, b) =>
       a.bucket - b.bucket ||
-      a.radiusMismatch - b.radiusMismatch ||
+      a.distance - b.distance ||
       a.angleErr - b.angleErr ||
       b.cand.item.similarity - a.cand.item.similarity
   );
 
   return eligible.map((e) => ({
-    key: [e.bucket, e.radiusMismatch, e.angleErr],
+    key: [e.bucket, e.distance, e.angleErr],
     item: {
       item_id: e.cand.item.item_id,
       title: e.cand.item.title,
@@ -158,7 +192,7 @@ function recommendAtAngle(
  */
 function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
   //return;
-
+    
   const radius = planes.map((p) => Math.hypot(p.refX, p.refY));
   const best = new Map<number, { plane: number; angle: number; key: MatchKey }>();
   planes.forEach((p, pi) =>
@@ -166,9 +200,9 @@ function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
       a.scored.forEach((m) => {
         const cur = best.get(m.item.item_id);
         const wins =
-          !cur ||
-          radius[pi] > radius[cur.plane] ||
-          (radius[pi] === radius[cur.plane] && compareKeys(m.key, cur.key) < 0);
+          !cur || //radius[pi]/m.key[1] > radius[cur.plane]/cur.key[1];
+           radius[pi] > radius[cur.plane] ||
+           (radius[pi] === radius[cur.plane] && compareKeys(m.key, cur.key) < 0);
         if (wins) best.set(m.item.item_id, { plane: pi, angle: ai, key: m.key });
       })
     )
@@ -238,7 +272,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   }
 
   usable.forEach(({ def: [pcA, pcB], p }) => {
-
+    
     const i = pcs.indexOf(pcA);
     const j = pcs.indexOf(pcB);
     const refX = reference[pcA - 1];

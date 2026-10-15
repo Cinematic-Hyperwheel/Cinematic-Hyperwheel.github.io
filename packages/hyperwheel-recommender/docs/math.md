@@ -105,6 +105,20 @@ tag. For `diagnose`, a tag's loading on a component is the correlation of
 the tag's relevance with the component score; the items at each pole are
 listed alongside.
 
+### 3.6 Rotating near-degenerate groups
+
+On a diffuse spectrum, neighboring eigenvalues can be closer than their
+sampling error (about `sqrt(2 / n_items)` relative), so the axes inside
+such a group are an arbitrary orthonormal basis of a reproducible
+subspace. `rotation_subspace.py` applies varimax to a contiguous group of
+components: an orthogonal rotation of `U[group]` that makes every axis
+concentrate on few features. `U` stays orthonormal, so the identities of
+sections 5-7 remain exact; scores, `pc_std` and the per-axis explained
+variance are recomputed, and the group is re-ordered by variance. Whether
+a group is worth rotating is judged by split-half stability of the
+rotated axes (`diagnose --stability-splits N --rotate FROM TO`), matching
+each axis with its best unused counterpart inside the group.
+
 ## 4. Choosing the hue plane
 
 Not all components are equally suitable for rotation. In practice, some

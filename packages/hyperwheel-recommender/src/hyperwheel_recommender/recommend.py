@@ -22,6 +22,11 @@ ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates
 # dimensionless symmetric ratio. Public, like ANGLE_TOL_RAD.
 RADIUS_TOL_LOG = np.log(1.2)
 
+# Robust z-score threshold on the log distance from a rotated target to the
+# plane's pool items (low tail = close to the target). Public, like
+# ANGLE_TOL_RAD, so callers can reuse the gate.
+DISTANCE_OUTLIER_Z = 2.7
+
 _RESULT_COLUMNS = [
     "scheme", "angle_deg", "rank", "item",
     "distance_to_target", "angular_error_deg", "radius_ratio",

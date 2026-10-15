@@ -14,6 +14,12 @@ from __future__ import annotations
 
 import numpy as np
 
+# Exponent applied to each tag block's standard deviation when scaling
+# (1.0 = full unit-variance standardization, 0.0 = no scaling). Values
+# below 1 keep rare tags (studios, franchises, people) from weighing as
+# much as broad ones.
+STANDARDIZE_POWER = 0.5
+
 # Weight of the min(x, y) term in the per-tag inner product
 # <phi(x), phi(y)> = x*y + MIN_WEIGHT*min(x, y). Equals 2*p for a
 # disagreement penalty p in the score x*y - p*|x - y|: larger values

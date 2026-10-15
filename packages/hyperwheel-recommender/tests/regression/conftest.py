@@ -15,7 +15,13 @@ import csv
 
 import pytest
 
-from hyperwheel_recommender import SCHEMES, FeatureBasis, build_feature_basis, load_input
+from hyperwheel_recommender import (
+    SCHEMES,
+    FeatureBasis,
+    build_feature_basis,
+    load_input,
+    rotate_groups,
+)
 
 from . import planes_config, settings
 
@@ -38,7 +44,11 @@ def wide(artifact_path: str):
 
 @pytest.fixture(scope="session")
 def basis(wide) -> FeatureBasis:
-    return build_feature_basis(wide, n_components=settings.N_COMPONENTS, standardize=settings.STANDARDIZE)
+    """The basis exactly as the web app builds it, including the varimax
+    groups from pc_config.json."""
+    b = build_feature_basis(wide, n_components=settings.N_COMPONENTS, standardize=settings.STANDARDIZE)
+    groups = planes_config.load_rotation_groups()
+    return rotate_groups(b, groups) if groups else b
 
 
 @pytest.fixture(scope="session")
