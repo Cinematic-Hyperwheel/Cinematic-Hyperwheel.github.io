@@ -16,7 +16,7 @@ export const TOP_K = 6;
 // every plane, so neighbors that are pronounced on an axis where the
 // reference is weak are still found, but only as points on circles the
 // reference actually has a character on.
-const AXIS_Z_MIN = 1;
+const AXIS_Z_MIN = 0.8;
 const MIN_CIRCLES = 1;
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -156,10 +156,10 @@ function recommendAtAngle(
 
   eligible.sort(
     (a, b) =>
-      a.bucket - b.bucket ||
-      a.distance - b.distance ||
-      a.angleErr - b.angleErr ||
-      b.cand.item.similarity - a.cand.item.similarity
+      a.bucket - b.bucket// ||
+      //a.distance - b.distance// ||
+      //a.angleErr - b.angleErr //||
+      //b.cand.item.similarity - a.cand.item.similarity
   );
 
   return eligible.map((e) => ({
@@ -191,7 +191,10 @@ function recommendAtAngle(
  * to the plane that comes first in component-pair order.
  */
 function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
-  //return;
+  // Per plane: the matches it lost to another plane, for diagnostics.
+  const displaced: DisplacedMatch[][] = planes.map(() => []);
+
+  // return displaced;
     
   const radius = planes.map((p) => Math.hypot(p.refX, p.refY));
   const best = new Map<number, { plane: number; angle: number; key: MatchKey }>();
@@ -201,15 +204,13 @@ function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
         const cur = best.get(m.item.item_id);
         const wins =
           !cur || //radius[pi]/m.key[1] > radius[cur.plane]/cur.key[1];
-           radius[pi] > radius[cur.plane] ||
-           (radius[pi] === radius[cur.plane] && compareKeys(m.key, cur.key) < 0);
+              radius[pi] > radius[cur.plane] ||
+              (radius[pi] === radius[cur.plane] && compareKeys(m.key, cur.key) < 0);
         if (wins) best.set(m.item.item_id, { plane: pi, angle: ai, key: m.key });
       })
     )
   );
 
-  // Per plane: the matches it lost to another plane, for diagnostics.
-  const displaced: DisplacedMatch[][] = planes.map(() => []);
   planes.forEach((p, pi) =>
     p.angles.forEach((a, ai) => {
       a.scored = a.scored.filter((m) => {
@@ -374,7 +375,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   // circles is saturated the reference radius decides.
   built.sort(
     // still experimenting with sorting
-    (a, b) => /*b.minPerAngle - a.minPerAngle ||*/ b.rankedTotal - a.rankedTotal || b.radius - a.radius
+    (a, b) => /*b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal ||*/ b.radius - a.radius
   );
 
   // After deduplication matched sets are disjoint across circles, so only
