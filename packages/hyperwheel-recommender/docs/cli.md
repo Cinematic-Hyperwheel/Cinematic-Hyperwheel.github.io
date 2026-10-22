@@ -34,6 +34,8 @@ python3 -m hyperwheel-recommender diagnose artifact.npz \
 |`--loadings-top`|`10`|Criteria shown at each end of the axis (loading = correlation of the criterion's relevance with the component score)|
 |`--items-top`|`10`|Items shown at each pole of a component|
 |`--no-standardize`|off|Disable z-scoring criteria before PCA (on by default)|
+|`--stability-splits`|`0`|Random split-half repetitions for the per-component stability table (0 = skip). Each split fits two bases, which is slow on large catalogs|
+|`--rotate FROM TO`|none|Varimax-rotate the component group `FROM..TO` (1-based, inclusive, `FROM >= 2`, `TO <= --max-components`) before reporting; repeat for several disjoint groups. Applied to both halves of the stability check|
 
 ## 3. Recommend — real items matching a scheme
 
