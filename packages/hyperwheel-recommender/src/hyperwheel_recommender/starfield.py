@@ -23,10 +23,10 @@ from .basis import FeatureBasis
 from .similarity import feature_cosine
 
 # Robust z-score threshold on the per-plane cosine distribution.
-PLANE_OUTLIER_Z = 2.7
+PLANE_OUTLIER_Z = 2.0
 
 # Per-plane ceiling only, guarding against a degenerate distribution.
-MAX_NEIGHBORS = 1500
+MAX_NEIGHBORS = 2500
 
 
 def find_neighbors(

@@ -27,5 +27,5 @@ PC_CONFIG_PATH = Path(os.environ.get(
 ))
 
 # Test-only constants below - not env-configurable.
-STARFIELD_MAX_SIZE = 1500
+STARFIELD_MAX_SIZE = 2500
 GOLDEN_FILE = Path(__file__).parent / "data" / "recommendation_pairs.csv"
