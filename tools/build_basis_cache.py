@@ -13,10 +13,13 @@ Usage:
         --out data/ml-latest/pca_cache.npz
 
 --n-components must match the n_needed value apps/web/backend/app/wheel.py
-actually builds the basis with (max(HYPERWHEEL_N_COMPONENTS, highest PC
-index in pc_config.json)), not just the raw HYPERWHEEL_N_COMPONENTS env
-var - otherwise the fingerprint check in load_pca_cache will (correctly)
-reject the cache as a mismatch and fall back to a fresh eigh call.
+actually builds the basis with (required_components in
+apps/web/backend/app/pc_config.py: the largest of
+HYPERWHEEL_N_COMPONENTS, the highest PC index in pc_config.json and the
+end of every rotation group), not just the raw HYPERWHEEL_N_COMPONENTS
+env var - otherwise the fingerprint check in load_pca_cache will
+(correctly) reject the cache as a mismatch and fall back to a fresh eigh
+call.
 """
 from __future__ import annotations
 

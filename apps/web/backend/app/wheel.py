@@ -22,6 +22,13 @@ combinations makes every meaningful plane available - so a user can
 pivot the main wheel onto any axis - at the cost of producing C(n,2)
 circles instead of roughly n/2 (e.g. 9 curated axes -> 36 circles).
 Ties are broken by stable sort over the ascending-pc combination order.
+
+Rotated groups
+--------------
+Groups of near-degenerate components listed in pc_config.json
+("rotation_groups") are varimax-rotated right after the basis is built
+(docs/math.md section 3.6). Everything downstream - scores, pc_std,
+explained variance, starfield, recommendations - sees the rotated axes.
 """
 from __future__ import annotations
 
@@ -32,10 +39,16 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from hyperwheel_recommender import FeatureBasis, build_feature_basis, load_input, load_pca_cache
+from hyperwheel_recommender import (
+    FeatureBasis,
+    build_feature_basis,
+    load_input,
+    load_pca_cache,
+    rotate_groups,
+)
 
-from .config import ARTIFACT_PATH, N_COMPONENTS, PCA_CACHE_PATH, STANDARDIZE
-from .pc_config import load_pc_config
+from .config import ARTIFACT_PATH, PCA_CACHE_PATH, STANDARDIZE
+from .pc_config import load_pc_config, load_rotation_groups, required_components
 
 
 
@@ -125,7 +138,8 @@ class WheelEngine:
 
 def build_engine() -> WheelEngine:
     pc_config = load_pc_config()
-    n_needed = max(N_COMPONENTS, max(pc_config))
+    rotation_groups = load_rotation_groups()
+    n_needed = required_components(pc_config, rotation_groups)
     wide = load_input(str(ARTIFACT_PATH))
     # Skips the O(n_criteria^3) eigh call when a build-time cache exists
     # and matches this exact artifact/n_needed/STANDARDIZE combination
@@ -146,6 +160,18 @@ def build_engine() -> WheelEngine:
     basis = build_feature_basis(
         wide, n_components=n_needed, standardize=STANDARDIZE, precomputed_pca=precomputed_pca,
     )
+
+    # The cache holds the unrotated eigendecomposition; the rotation is
+    # cheap (a varimax on an n_features x group_size matrix plus one
+    # item-score projection per group) and deterministic given that U, so
+    # it is always applied here instead of being baked into the cache.
+    if rotation_groups:
+        basis = rotate_groups(basis, rotation_groups)
+        print(
+            "[info] varimax-rotated components: "
+            + ", ".join(f"PC{lo}..PC{hi}" for lo, hi in rotation_groups),
+            file=sys.stderr,
+        )
 
     # wide.index items are the raw "item" values from the CSV (see
     # data.py) - in this dataset that's the numeric MovieLens item_id,

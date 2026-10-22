@@ -52,14 +52,12 @@ services:
       # apps/web/README.md, "Optional: precomputed PCA cache"). This is
       # what removes the per-cold-start eigh cost on the free plan's
       # throttled CPU on every restart, not just a one-off speedup.
-      # n_needed mirrors wheel.py's build_engine() exactly (reads the
-      # same config.py/pc_config.json this build already installed),
-      # so the cache can never silently diverge from what the running
-      # app actually asks for.
+      # n_needed mirrors wheel.py’s build_engine() exactly (the 
+      same required_components helper), 
+      so the cache can never silently diverge from what the running app asks for.
       HYPERWHEEL_N_NEEDED=$(PYTHONPATH=apps/web/backend python -c "
-      from app.config import N_COMPONENTS
-      from app.pc_config import load_pc_config
-      print(max(N_COMPONENTS, max(load_pc_config())))
+      from app.pc_config import load_pc_config, load_rotation_groups, required_components
+      print(required_components(load_pc_config(), load_rotation_groups()))
       ")
       python tools/build_basis_cache.py \
         --artifact data/ml-latest/artifact.npz \

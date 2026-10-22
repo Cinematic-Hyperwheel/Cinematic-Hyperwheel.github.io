@@ -72,9 +72,11 @@ python tools/build_basis_cache.py \
 ```
 
 `--n-components` must match the value the backend actually builds the
-basis with - `max(HYPERWHEEL_N_COMPONENTS, highest PC index in
-pc_config.json)`, not just the raw `HYPERWHEEL_N_COMPONENTS` env var
-(see `wheel.py`'s `build_engine()`).
+basis with - `required_components` in `apps/web/backend/app/pc_config.py`:
+the largest of `HYPERWHEEL_N_COMPONENTS`, the highest PC index in
+`pc_config.json` and the end of every `rotation_groups` range, not just
+the raw `HYPERWHEEL_N_COMPONENTS` env var (see `wheel.py`'s
+`build_engine()`).
 
 Entirely optional: without it (or on a mismatch), the backend computes
 the basis the same way it always did. Point `HYPERWHEEL_PCA_CACHE_PATH`
@@ -338,6 +340,23 @@ Components are defined in the feature space (`docs/math.md`, section 3);
 whenever the feature map, its parameters or the number of harmonics
 change, the axes change too and every entry must be re-reviewed with
 `diagnose`.
+
+### Rotated component groups
+
+`pc_config.json` may carry a top-level `rotation_groups` list of
+disjoint, inclusive 1-based component ranges, e.g. `[[12, 15], [17, 33]]`.
+The backend varimax-rotates each group right after building the basis
+(`apps/web/backend/app/wheel.py`, `docs/math.md` section 3.6): inside a
+group PCA fixes the subspace but not the axes (near-equal eigenvalues),
+and the rotation picks axes that concentrate on few tags. Entries for
+rotated components refer to the rotated axes, ordered by the variance
+they carry, so labels are valid only for the exact groups recorded in
+the same file. Choose groups with `diagnose --stability-splits N
+--rotate FROM TO` (see `packages/hyperwheel-recommender/docs/cli.md`)
+and review every entry again after changing them.
+
+The PCA cache stores the unrotated eigendecomposition; the rotation is
+cheap and always applied at startup, so no cache change is needed.
 
 ## The wheel(s)
 
