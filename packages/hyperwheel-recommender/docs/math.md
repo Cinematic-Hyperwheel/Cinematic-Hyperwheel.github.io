@@ -76,9 +76,12 @@ the metric itself. `features.py` implements the map.
    removed. Without this, PCA picks up the profile common to all items as
    the "main difference". There is no per-item mean removal: the item's
    overall level stays in the data and is captured by PC1.
-3. **Per-tag standardization** — each tag's block of columns is divided by
-   the block's own standard deviation, so rare tags are not drowned out.
-   The block's internal structure (the min-kernel shape) is left intact.
+3. **Per-tag standardization** — each tag's block of columns is divided
+   by the block's standard deviation raised to `STANDARDIZE_POWER`
+   (0.5; 1.0 would be full unit variance), so rare tags (studios,
+   franchises, people) are not drowned out, yet do not weigh as much as
+   broad ones. The block's internal structure (the min-kernel shape) is
+   left intact.
 4. **PCA** — eigendecomposition of the Gram matrix `Phi^T Phi`
    (n_features x n_features, independent of the number of items), giving an
    orthonormal basis `U` and the share of variance per component. Item

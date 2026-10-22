@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .features import FEATURES_PER_TAG, feature_map
+from .features import FEATURES_PER_TAG, STANDARDIZE_POWER, feature_map
 
 
 @dataclass
@@ -72,7 +72,8 @@ def _feature_space(wide: pd.DataFrame, standardize: bool) -> tuple[np.ndarray, n
         # structure) is left intact.
         P = Phi.reshape(n, t, FEATURES_PER_TAG)
         block_var = np.einsum("ntf,ntf->t", P, P) / n
-        scale = np.repeat(np.sqrt(np.maximum(block_var, 1e-12)), FEATURES_PER_TAG).astype(np.float32)
+        # std ** power == var ** (power / 2)
+        scale = np.repeat(np.maximum(block_var, 1e-12) ** (STANDARDIZE_POWER / 2), FEATURES_PER_TAG).astype(np.float32)
         Phi /= scale
     else:
         scale = np.ones(Phi.shape[1], dtype=np.float32)
