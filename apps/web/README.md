@@ -327,8 +327,10 @@ then add an entry:
 ```
 
 `excluded_from_hue: true` marks a component that should never be used for
-rotation/display (e.g. PC1, a general "quality/halo" axis — see
-docs/math.md section 4) but can still be documented for reference.
+rotation/display and is also ignored when judging character similarity (as
+PC1 always is): items are not pulled toward the reference by what the axis
+encodes, e.g. a franchise axis. The flag is read at request time and is not
+part of the PCA cache fingerprint.
 
 Only components listed here are eligible to appear as a circle — this
 bounds candidate selection to reviewed, non-noise axes, and guarantees

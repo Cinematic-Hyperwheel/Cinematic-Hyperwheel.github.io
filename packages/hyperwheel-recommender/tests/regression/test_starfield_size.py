@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from hyperwheel_recommender import find_plane_neighbors
 
+from . import planes_config
+
 # Large enough to never itself become the limiting factor - this test is
 # about the natural near-outlier count, not about find_plane_neighbors's
 # own safety cap.
@@ -21,7 +23,10 @@ _UNCAPPED = 100_000
 
 def test_starfield_within_size_limit(starfield_case, basis, circles, starfield_max_size):
     reference = starfield_case
-    by_plane = find_plane_neighbors(basis, reference, circles, max_neighbors=_UNCAPPED)
+    by_plane = find_plane_neighbors(
+        basis, reference, circles, max_neighbors=_UNCAPPED,
+        ignore_components=planes_config.load_similarity_ignored(basis.U.shape[0]),
+    )
 
     oversized = {
         plane: len(neighbors)

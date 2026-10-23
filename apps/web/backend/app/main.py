@@ -219,6 +219,7 @@ def recommend(item_id: int):
     try:
         indices, similarities, matched = find_neighbors(
             _engine.basis, reference_item=item_id, planes=planes,
+            ignore_components=_engine.similarity_ignored_components,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

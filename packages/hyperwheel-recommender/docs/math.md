@@ -363,6 +363,14 @@ covariance C: M = C_ab^-1 C[[a, b], :], r = s' - M^T s_ab. Axes outside
 the rotation group are uncorrelated with the plane and are unaffected;
 for an unrotated basis M reduces to the plain projection.
 
+### Components ignored for similarity
+
+Besides PC1, components flagged `excluded_from_hue` are zeroed in the score
+products and in the regression coefficients, so neither they nor their
+correlation with the plane's scores take part in the cosine. Only the part
+of such an axis inside the K kept components is removed; tags it carries in
+the tail beyond K still contribute.
+
 ### Reading the result
 
 - The pool is scheme-independent; the client applies the scheme's angles

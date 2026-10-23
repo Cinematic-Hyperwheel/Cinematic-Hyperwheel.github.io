@@ -17,6 +17,8 @@ qualified on its own plane.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 
 from .basis import FeatureBasis
@@ -34,7 +36,10 @@ LEAK_EPS = 1e-4
 
 
 def _plane_cosine_terms(
-    basis: FeatureBasis, ref: int, planes: list[tuple[int, int]]
+    basis: FeatureBasis,
+    ref: int,
+    planes: list[tuple[int, int]],
+    ignore: Sequence[int] = (),
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Per-plane inner products and squared norms with PC1 and everything
@@ -55,6 +60,9 @@ def _plane_cosine_terms(
     the kept scores and enters unchanged. Without rotation M is a pair of
     unit rows and the result equals plain projection of U_a, U_b.
 
+    `ignore` lists 1-based components that never count toward similarity
+    (like PC1): their scores and their share of the regression are zeroed.
+
     Returns (dot, nrm, ref_nrm): (n, P), (n, P), (P,).
     """
     sc = basis.scores
@@ -62,8 +70,11 @@ def _plane_cosine_terms(
     sc64 = sc.astype(np.float64)
     cov = sc64.T @ sc64 / n                   # scores are centered: Phi is
 
+    # Components that never count toward similarity: PC1 plus the ignored ones.
+    drop = sorted({0, *(c - 1 for c in ignore)})
+
     s_p = sc64.copy()
-    s_p[:, 0] = 0.0                           # PC1 never counts toward similarity
+    s_p[:, drop] = 0.0                           # PC1 never counts toward similarity
 
     # Plane-independent parts: Phi outside the K kept components, and the
     # PC1-free score products with the reference.
@@ -79,7 +90,7 @@ def _plane_cosine_terms(
     for p, (a, b) in enumerate(planes):
         ab = [a - 1, b - 1]
         M = np.linalg.solve(cov[np.ix_(ab, ab)], cov[ab, :])   # (2, K)
-        M[:, 0] = 0.0
+        M[:, drop] = 0.0
         J = np.flatnonzero(np.abs(M).max(axis=0) > LEAK_EPS)   # the plane's own axes + their rotation group
         Ms = M[:, J]
         mm = Ms @ Ms.T                                         # (2, 2)
@@ -103,6 +114,7 @@ def find_neighbors(
     planes: list[tuple[int, int]],
     outlier_z: float = PLANE_OUTLIER_Z,
     max_neighbors: int = MAX_NEIGHBORS,
+    ignore_components: Sequence[int] = (),
 ) -> tuple[np.ndarray, np.ndarray, list[list[int]]]:
     """
     Per-plane search, unioned across planes. `planes` holds 1-based
@@ -128,7 +140,12 @@ def find_neighbors(
     ref = basis.items.index(reference_item)
     n = len(basis.items)
 
-    dot_p, nrm_p, ref_nrm = _plane_cosine_terms(basis, ref, planes)
+    plane_axes = {c for p in planes for c in p}
+    clash = plane_axes & set(ignore_components)
+    if clash:
+        raise ValueError(f"Components {sorted(clash)} are both hue-plane axes and ignored for similarity.")
+
+    dot_p, nrm_p, ref_nrm = _plane_cosine_terms(basis, ref, planes, ignore_components)
     cos = feature_cosine(dot_p, nrm_p, ref_nrm)
 
     # Robust z per plane, median/MAD over the catalog without the reference.
@@ -164,11 +181,16 @@ def find_plane_neighbors(
     planes: list[tuple[int, int]],
     outlier_z: float = PLANE_OUTLIER_Z,
     max_neighbors: int = MAX_NEIGHBORS,
+    ignore_components: Sequence[int] = (),
 ) -> dict[tuple[int, int], np.ndarray]:
     """find_neighbors regrouped by plane: each plane maps to the item
     indices that qualified on that plane."""
     indices, _, matched = find_neighbors(
-        basis, reference_item, planes, outlier_z=outlier_z, max_neighbors=max_neighbors,
+        basis, reference_item,
+        planes,
+        outlier_z=outlier_z,
+        max_neighbors=max_neighbors,
+        ignore_components=ignore_components
     )
     by_plane: dict[tuple[int, int], list[int]] = {plane: [] for plane in planes}
     for idx, plane_ids in zip(indices, matched):

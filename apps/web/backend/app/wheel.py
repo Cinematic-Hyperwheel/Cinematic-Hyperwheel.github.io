@@ -95,6 +95,16 @@ class WheelEngine:
             if not cfg.get("excluded_from_hue", False)
         )
 
+    @property
+    def similarity_ignored_components(self) -> list[int]:
+        """1-based components flagged excluded_from_hue in pc_config.json:
+        besides never forming a circle, they are not counted when judging
+        character similarity."""
+        return sorted(
+            pc for pc, cfg in self.pc_config.items()
+            if cfg.get("excluded_from_hue", False)
+        )
+
     def circles_for(self, item_id: int) -> list[dict]:
         idx = self.id_to_idx.get(item_id)
         if idx is None:

@@ -98,3 +98,16 @@ def load_rotation_groups() -> list[tuple[int, int]]:
     must test the same rotated axes the web app serves. Empty if none."""
     raw = _load_pc_config_data().get("rotation_groups", [])
     return [(int(lo), int(hi)) for lo, hi in raw]
+
+
+def load_similarity_ignored(max_component: int | None = None) -> list[int]:
+    """Components flagged excluded_from_hue - the suite must judge
+    character exactly as the web app does (these axes are ignored by the
+    similarity as well as never forming a circle)."""
+    ignored = sorted(
+        int(key) for key, entry in _load_pc_config_data().items()
+        if key.isdigit() and isinstance(entry, dict) and entry.get("excluded_from_hue")
+    )
+    if max_component is not None:
+        ignored = [c for c in ignored if c <= max_component]
+    return ignored
