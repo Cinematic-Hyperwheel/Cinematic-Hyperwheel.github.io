@@ -11,12 +11,12 @@ import type {
 // Recommendations shown per scheme angle (and the legend's page size).
 export const TOP_K = 6;
 
-// A plane becomes a circle only if the reference is pronounced on both
-// of its axes (|z| in whitened units). The pool itself is computed for
-// every plane, so neighbors that are pronounced on an axis where the
-// reference is weak are still found, but only as points on circles the
-// reference actually has a character on.
-const AXIS_Z_MIN = 0;
+// A plane becomes a circle only if the reference is pronounced on BOTH of
+// its axes: the weaker axis must reach AXIS_Z_MIN. Z is the whitened
+// coordinate (standard deviations from the category mean), so one
+// threshold fits every component. The pool itself is computed for every
+// plane regardless.
+const AXIS_Z_MIN = 0.8;
 const MIN_CIRCLES = 1;
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -41,7 +41,10 @@ interface Eligible {
 
 interface BuiltCircle {
   circle: RecommendCircle;
+  /** Reference radius in the plane (diagnostics). */
   radius: number;
+  /** planeScore of the reference; ordering tie-break between circles. */
+  score: number;
   /** Total matches across angles, each angle capped at TOP_K. Used for ordering only. */
   rankedTotal: number;
   /** Match count of the weakest angle, capped at TOP_K. */
@@ -67,6 +70,20 @@ interface PlaneMatches {
   maxRadius: number;
   angles: { angleDeg: number; scored: ScoredMatch[] }[];
   pcs: [number, number];
+}
+
+/** |z| of the weaker axis: a plane is only as meaningful as its weakest axis. */
+function weakAxis(zx: number, zy: number): number {
+  return Math.min(Math.abs(zx), Math.abs(zy));
+}
+
+/**
+ * Geometric mean of |zx| and |zy|. Radius-like (stronger reference scores
+ * higher) but lopsided planes score low: one dominant axis paired with a
+ * noise axis would otherwise outrank a plane with two pronounced axes.
+ */
+function planeScore(zx: number, zy: number): number {
+  return Math.sqrt(Math.abs(zx * zy));
 }
 
 function compareKeys(a: MatchKey, b: MatchKey): number {
@@ -122,10 +139,10 @@ function recommendAtAngle(
 
   eligible.sort(
     (a, b) =>
-      a.bucket - b.bucket ||
-      a.radiusMismatch - b.radiusMismatch ||
-      a.angleErr - b.angleErr ||
-      b.cand.item.similarity - a.cand.item.similarity
+      a.bucket - b.bucket //||
+      //a.radiusMismatch - b.radiusMismatch// ||
+      //a.angleErr - b.angleErr //||
+      //b.cand.item.similarity - a.cand.item.similarity
   );
 
   return eligible.map((e) => ({
@@ -150,16 +167,20 @@ function recommendAtAngle(
 
 /**
  * Keeps every item as a match in exactly one place. The owning plane is
- * the one with the larger reference radius (the reference is more
- * pronounced there); within that plane, the angle where the item sits
+ * the one with the higher plane score (the reference is pronounced
+ * on both axes there); within that plane, the angle where the item sits
  * closest to the rotated target by the gate ordering key. Remaining ties
  * (equal radius, or the same plane) fall back to the ordering key, then
  * to the plane that comes first in component-pair order.
  */
 function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
-  //return;
+  // Per plane: the matches it lost to another plane, for diagnostics.
+  const displaced: DisplacedMatch[][] = planes.map(() => []);
 
+  // return displaced;
+    
   const radius = planes.map((p) => Math.hypot(p.refX, p.refY));
+  const score = planes.map((p) => planeScore(p.refX, p.refY));
   const best = new Map<number, { plane: number; angle: number; key: MatchKey }>();
   planes.forEach((p, pi) =>
     p.angles.forEach((a, ai) =>
@@ -167,15 +188,13 @@ function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
         const cur = best.get(m.item.item_id);
         const wins =
           !cur ||
-          radius[pi] > radius[cur.plane] ||
-          (radius[pi] === radius[cur.plane] && compareKeys(m.key, cur.key) < 0);
+          score[pi] > score[cur.plane] ||
+          (score[pi] === score[cur.plane] && compareKeys(m.key, cur.key) < 0);
         if (wins) best.set(m.item.item_id, { plane: pi, angle: ai, key: m.key });
       })
     )
   );
 
-  // Per plane: the matches it lost to another plane, for diagnostics.
-  const displaced: DisplacedMatch[][] = planes.map(() => []);
   planes.forEach((p, pi) =>
     p.angles.forEach((a, ai) => {
       a.scored = a.scored.filter((m) => {
@@ -211,20 +230,18 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   const { pcs, axes, reference, items, gate, planes: planeDefs } = data;
 
   const strong = (pc: number) => Math.abs(reference[pc - 1]) >= AXIS_Z_MIN;
+  const refScore = (a: number, b: number) => planeScore(reference[a - 1], reference[b - 1]);
+
   let usable = planeDefs
-    .map((def, p) => ({ def, p }))
-    .filter(({ def: [a, b] }) => strong(a) && strong(b));
+  .map((def, p) => ({ def, p }))
+  .filter(({ def: [a, b] }) => weakAxis(reference[a - 1], reference[b - 1]) >= AXIS_Z_MIN);
 
   // Fallback so a typical reference (no pronounced axes) still gets a
-  // circle: the plane with the largest reference radius.
+  // circle: the most balanced plane.
   if (usable.length < MIN_CIRCLES) {
     usable = planeDefs
       .map((def, p) => ({ def, p }))
-      .sort(
-        (x, y) =>
-          Math.hypot(reference[y.def[0] - 1], reference[y.def[1] - 1]) -
-          Math.hypot(reference[x.def[0] - 1], reference[x.def[1] - 1])
-      )
+      .sort((x, y) => refScore(y.def[0], y.def[1]) - refScore(x.def[0], x.def[1]))
       .slice(0, MIN_CIRCLES);
   }
 
@@ -238,7 +255,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   }
 
   usable.forEach(({ def: [pcA, pcB], p }) => {
-
+    
     const i = pcs.indexOf(pcA);
     const j = pcs.indexOf(pcB);
     const refX = reference[pcA - 1];
@@ -314,6 +331,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     const radius = Math.hypot(refX, refY);
     built.push({
       radius,
+      score: planeScore(refX, refY),
       rankedTotal,
       minPerAngle,
       matched: used,
@@ -340,7 +358,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   // circles is saturated the reference radius decides.
   built.sort(
     // still experimenting with sorting
-    (a, b) => /*b.minPerAngle - a.minPerAngle ||*/ b.rankedTotal - a.rankedTotal || b.radius - a.radius
+    (a, b) => /*b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal || b.radius - a.radius || */ b.score - a.score
   );
 
   // After deduplication matched sets are disjoint across circles, so only

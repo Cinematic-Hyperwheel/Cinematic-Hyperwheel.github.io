@@ -344,9 +344,9 @@ pronounced on an axis where the reference is weak, and restricting the
 search to the reference's own strong axes would miss it.
 
 Circles are shown only for planes on which the reference itself is
-pronounced on both axes (`|z| >= 2` in whitened units, `AXIS_Z_MIN` in
-`frontend/src/utils/schemeGate.ts`). If none qualifies, the plane with the
-largest reference radius is used, so a typical reference still gets a
+pronounced on both axes (the weaker axis has |z| >= AXIS_Z_MIN).
+If none qualifies, the plane with the highest plane score (geometric mean
+of the two axes’ |z|) is used, so a typical reference still gets a
 circle. A circle draws only the pool items that qualified on its plane.
 
 ### Projection after varimax rotation
