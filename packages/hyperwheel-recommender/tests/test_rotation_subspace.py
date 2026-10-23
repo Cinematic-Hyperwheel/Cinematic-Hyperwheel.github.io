@@ -42,3 +42,12 @@ def test_invalid_groups_are_rejected(basis):
         rotate_groups(basis, [(1, 4)])          # PC1 is never rotated
     with pytest.raises(ValueError):
         rotate_groups(basis, [(3, 6), (5, 8)])  # overlap
+
+
+def test_plane_terms_match_plain_projection_without_rotation(basis):
+    from hyperwheel_recommender.starfield import _plane_cosine_terms
+    sc, ref = basis.scores, 0
+    dot, nrm, _ = _plane_cosine_terms(basis, ref, [(3, 5)])
+    g = basis.Phi @ basis.Phi[ref]
+    expect = g - sc[:, 0] * sc[ref, 0] - sc[:, 2] * sc[ref, 2] - sc[:, 4] * sc[ref, 4]
+    assert np.allclose(dot[:, 0], expect, atol=1e-3)

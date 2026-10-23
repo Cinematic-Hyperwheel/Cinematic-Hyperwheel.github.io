@@ -28,6 +28,74 @@ PLANE_OUTLIER_Z = 2.7
 # Per-plane ceiling only, guarding against a degenerate distribution.
 MAX_NEIGHBORS = 1500
 
+# Score-covariance coefficients below this are treated as zero when
+# finding the axes a plane's two scores leak into.
+LEAK_EPS = 1e-4
+
+
+def _plane_cosine_terms(
+    basis: FeatureBasis, ref: int, planes: list[tuple[int, int]]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Per-plane inner products and squared norms with PC1 and everything
+    that the plane's two scores linearly predict removed.
+
+    PCA scores are uncorrelated, so removing U_a and U_b is enough to
+    decouple an item from its plane coordinates. After a varimax rotation
+    the scores inside a group are correlated, and the other axes of the
+    group still carry information about (s_a, s_b): items similar to the
+    reference there also land near it in the plane. The remedy is to
+    regress Phi on (s_a, s_b) and compare the residuals. With U
+    orthonormal this is done entirely in score space:
+
+        M   = C_ab^-1 C[[a, b], :]        (2 x K, C = score covariance)
+        r_k = s'_k - M^T s_k,ab           (s' = scores with PC1 zeroed)
+
+    The part of Phi outside the K kept components is uncorrelated with
+    the kept scores and enters unchanged. Without rotation M is a pair of
+    unit rows and the result equals plain projection of U_a, U_b.
+
+    Returns (dot, nrm, ref_nrm): (n, P), (n, P), (P,).
+    """
+    sc = basis.scores
+    n = sc.shape[0]
+    sc64 = sc.astype(np.float64)
+    cov = sc64.T @ sc64 / n                   # scores are centered: Phi is
+
+    s_p = sc64.copy()
+    s_p[:, 0] = 0.0                           # PC1 never counts toward similarity
+
+    # Plane-independent parts: Phi outside the K kept components, and the
+    # PC1-free score products with the reference.
+    g = basis.Phi @ basis.Phi[ref]
+    tail_dot = g - sc64 @ sc64[ref]
+    tail_nrm = np.maximum(basis.norm_sq - np.einsum("ij,ij->i", sc64, sc64), 0.0)
+    base = s_p @ s_p[ref]
+    s_p_nrm = np.einsum("ij,ij->i", s_p, s_p)
+
+    P = len(planes)
+    dot = np.empty((n, P), dtype=np.float32)
+    nrm = np.empty((n, P), dtype=np.float32)
+    for p, (a, b) in enumerate(planes):
+        ab = [a - 1, b - 1]
+        M = np.linalg.solve(cov[np.ix_(ab, ab)], cov[ab, :])   # (2, K)
+        M[:, 0] = 0.0
+        J = np.flatnonzero(np.abs(M).max(axis=0) > LEAK_EPS)   # the plane's own axes + their rotation group
+        Ms = M[:, J]
+        mm = Ms @ Ms.T                                         # (2, 2)
+
+        s_ab = sc64[:, ab]                                     # (n, 2)
+        pk = s_p[:, J] @ Ms.T                                  # (n, 2): s'_k . m_a, s'_k . m_b
+        w = pk[ref] - mm @ s_ab[ref]                           # M r_ref
+
+        dot[:, p] = tail_dot + base - pk @ s_ab[ref] - s_ab @ w
+        nrm[:, p] = tail_nrm + np.maximum(
+            s_p_nrm - 2.0 * np.einsum("ki,ki->k", s_ab, pk)
+            + np.einsum("ki,ij,kj->k", s_ab, mm, s_ab),
+            0.0,
+        )
+    return dot, nrm, nrm[ref]
+
 
 def find_neighbors(
     basis: FeatureBasis,
@@ -56,15 +124,11 @@ def find_neighbors(
 
     ref = basis.items.index(reference_item)
     n = len(basis.items)
-    sc = basis.scores
 
-    dot = basis.Phi @ basis.Phi[ref] - sc[:, 0] * sc[ref, 0]
-    nrm = basis.norm_sq - sc[:, 0] ** 2
-    ia = np.array([p[0] - 1 for p in planes])
-    ib = np.array([p[1] - 1 for p in planes])
-    dot_p = dot[:, None] - sc[:, ia] * sc[ref, ia] - sc[:, ib] * sc[ref, ib]
-    nrm_p = nrm[:, None] - sc[:, ia] ** 2 - sc[:, ib] ** 2
-    ref_nrm = nrm[ref] - sc[ref, ia] ** 2 - sc[ref, ib] ** 2
+    ref = basis.items.index(reference_item)
+    n = len(basis.items)
+
+    dot_p, nrm_p, ref_nrm = _plane_cosine_terms(basis, ref, planes)
     cos = feature_cosine(dot_p, nrm_p, ref_nrm)
 
     # Robust z per plane, median/MAD over the catalog without the reference.

@@ -349,6 +349,20 @@ pronounced on both axes (`|z| >= 2` in whitened units, `AXIS_Z_MIN` in
 largest reference radius is used, so a typical reference still gets a
 circle. A circle draws only the pool items that qualified on its plane.
 
+### Projection after varimax rotation
+
+PCA scores are uncorrelated, so projecting out U_a and U_b removes every
+linear dependence of an item on its plane coordinates. Inside a
+varimax-rotated group the scores are correlated, and the remaining axes
+of the group still predict (s_a, s_b); judging character on them pulls
+neighbors toward the reference's position in the plane. The starfield
+therefore removes what (s_a, s_b) linearly predict rather than the two
+axes themselves: Phi is regressed on the two scores and the cosine is
+taken between residuals. With U orthonormal this needs only the score
+covariance C: M = C_ab^-1 C[[a, b], :], r = s' - M^T s_ab. Axes outside
+the rotation group are uncorrelated with the plane and are unaffected;
+for an unrotated basis M reduces to the plain projection.
+
 ### Reading the result
 
 - The pool is scheme-independent; the client applies the scheme's angles
