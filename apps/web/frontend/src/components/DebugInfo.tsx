@@ -30,6 +30,7 @@ export function CircleDebugInfo({ circle }: { circle: RecommendCircle }) {
         <>
           <div>z_x {ref.z_x.toFixed(2)} · z_y {ref.z_y.toFixed(2)}</div>
           <div>r {ref.radius.toFixed(2)} · θ {ref.angle_deg.toFixed(1)}° · r_max {circle.max_radius?.toFixed(2) ?? "—"}</div>
+          <div>score {circle.debug?.raw_score.toFixed(2)} → {circle.debug?.rank_score.toFixed(2)} · w {circle.debug?.weights[0].toFixed(2)}×{circle.debug?.weights[1].toFixed(2)}</div>
         </>
       )}
       <div>matches {matches.join("  ")}</div>

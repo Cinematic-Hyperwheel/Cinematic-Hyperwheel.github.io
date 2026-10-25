@@ -27,6 +27,7 @@ Expected shape (see pc_config.json for a filled example):
   "rotation_groups": [[<first 1-based PC>, <last 1-based PC>], ...],  # optional
   "<1-based PC index as string>": {
     "excluded_from_hue": bool,       # e.g. true for a known "quality" axis
+    "character_weight": {"negative": float, "positive": float},  # optional, default 1.0 each
     "colors": {"negative": "#hex", "positive": "#hex"},
     "labels": {
       "<lang code>": {"axis": str, "negative": str, "positive": str},
@@ -39,10 +40,13 @@ Expected shape (see pc_config.json for a filled example):
 from __future__ import annotations
 
 import json
+import math
 
 from .config import N_COMPONENTS, PC_CONFIG_PATH
 
 ROTATION_KEY = "rotation_groups"
+WEIGHT_KEY = "character_weight"
+_POLES = ("negative", "positive")
 
 
 def _load_raw() -> dict:
@@ -50,8 +54,28 @@ def _load_raw() -> dict:
         return json.load(f)
 
 
+def _character_weights(pc: str, entry: dict) -> dict[str, float]:
+    """Per-pole character weights, neutral (1.0) for an unset pole. A
+    weight scales how much the reference's expression toward that pole
+    counts when circles are ranked; it never affects geometry."""
+    raw = entry.get(WEIGHT_KEY, {})
+    unknown = set(raw) - set(_POLES)
+    if unknown:
+        raise ValueError(f"PC{pc}: unknown pole(s) in {WEIGHT_KEY}: {sorted(unknown)}")
+    weights = {}
+    for pole in _POLES:
+        value = float(raw.get(pole, 1.0))
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError(f"PC{pc}: {WEIGHT_KEY}.{pole} must be a positive number, got {value!r}")
+        weights[pole] = value
+    return weights
+
+
 def load_pc_config() -> dict[int, dict]:
-    return {int(k): v for k, v in _load_raw().items() if k != ROTATION_KEY}
+    return {
+        int(k): {**v, WEIGHT_KEY: _character_weights(k, v)}
+        for k, v in _load_raw().items() if k != ROTATION_KEY
+    }
 
 
 def load_rotation_groups() -> list[tuple[int, int]]:

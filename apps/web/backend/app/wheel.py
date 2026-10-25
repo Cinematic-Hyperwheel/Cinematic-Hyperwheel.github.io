@@ -74,6 +74,7 @@ class WheelEngine:
             "pc": pc,
             "colors": cfg["colors"],
             "labels": cfg["labels"],
+            "character_weight": cfg["character_weight"],
             "explained": round(float(self.explained[pc - 1]), 4),
         }
 

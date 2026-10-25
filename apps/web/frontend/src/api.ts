@@ -25,6 +25,9 @@ export interface AxisConfig {
   colors: { negative: string; positive: string };
   labels: Record<string, AxisLabels>; // keyed by language code, e.g. "en"/"ru"
   explained: number;
+  /** How much expression toward each pole counts when circles are ranked
+   * (1 = neutral). Absent means neutral on both poles. */
+  character_weight?: { negative: number; positive: number };
 }
 
 export interface WheelCircle {
@@ -115,6 +118,12 @@ export interface DisplacedMatch {
 export interface CircleDebug {
   /** Matches on this circle's plane that are owned by another circle. */
   displaced: DisplacedMatch[];
+  /** Plane score of the reference before pole weights. */
+  raw_score: number;
+  /** Plane score after pole weights; the key circles are ordered by. */
+  rank_score: number;
+  /** Character weights of the reference's poles on the x and y axes. */
+  weights: [number, number];
 }
 
 export interface RecommendCircle {

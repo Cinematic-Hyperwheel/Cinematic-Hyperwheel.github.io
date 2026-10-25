@@ -318,6 +318,7 @@ then add an entry:
 ```json
 "7": {
   "excluded_from_hue": false,
+  "character_weight": { "negative": 1, "positive": 1 },
   "colors": { "negative": "#hex", "positive": "#hex" },
   "labels": {
     "en": { "axis": "...", "negative": "...", "positive": "..." },
@@ -331,6 +332,20 @@ rotation/display and is also ignored when judging character similarity (as
 PC1 always is): items are not pulled toward the reference by what the axis
 encodes, e.g. a franchise axis. The flag is read at request time and is not
 part of the PCA cache fingerprint.
+
+`character_weight` (optional, `{ "negative": w, "positive": w }`, 1.0 =
+neutral, unset poles are neutral) says how strongly expression toward a
+pole characterizes a movie: a pole like "Realistic" may be near-universal
+and say little, while its opposite is distinctive. The weight of the pole
+the reference points to scales that axis's |z| when circles are ranked
+(the plane score is `sqrt(w_x·|z_x| · w_y·|z_y|)`), so the effect grows
+with how strongly the reference is expressed toward the pole. It affects
+only the order of circles and the fallback plane choice; coordinates,
+the angle/radius gate, the `AXIS_Z_MIN` threshold and cross-circle
+deduplication are unchanged. Like the labels, weights are valid only for
+the exact feature map and `rotation_groups` they were tuned against.
+`diagnose --pole-tails` reports the empirical tail of every pole to help
+choose them.
 
 Only components listed here are eligible to appear as a circle — this
 bounds candidate selection to reviewed, non-noise axes, and guarantees

@@ -1,4 +1,5 @@
 import type {
+  AxisConfig,
   DisplacedMatch,
   NeighborItem,
   NeighborsResponse,
@@ -16,7 +17,7 @@ export const TOP_K = 6;
 // coordinate (standard deviations from the category mean), so one
 // threshold fits every component. The pool itself is computed for every
 // plane regardless.
-const AXIS_Z_MIN = 0.8;
+const AXIS_Z_MIN = 0.5;
 const MIN_CIRCLES = 1;
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -51,6 +52,8 @@ interface BuiltCircle {
   minPerAngle: number;
   /** Unique matched item ids across all angles (uncapped). */
   matched: Set<number>;
+  /** Weighted plane score of the reference; orders the circles. */
+  rankScore: number;
 }
 
 /** Gate-ordering key: (angle bucket, radius mismatch, exact angle error), smaller is closer to the rotated target. */
@@ -84,6 +87,22 @@ function weakAxis(zx: number, zy: number): number {
  */
 function planeScore(zx: number, zy: number): number {
   return Math.sqrt(Math.abs(zx * zy));
+}
+
+/**
+ * planeScore with the character weights of the poles the reference points
+ * to. Each weight scales its axis's |z|, so the effect is proportional to
+ * how strongly the reference is expressed toward that pole.
+ */
+function weightedPlaneScore(zx: number, zy: number, wx: number, wy: number): number {
+  return Math.sqrt(wx * wy * Math.abs(zx * zy));
+}
+
+/** Character weight of the pole of `axis` that coordinate `z` points to. */
+function poleWeight(axis: AxisConfig, z: number): number {
+  const w = axis.character_weight;
+  if (!w) return 1;
+  return z >= 0 ? w.positive : w.negative;
 }
 
 function compareKeys(a: MatchKey, b: MatchKey): number {
@@ -138,11 +157,12 @@ function recommendAtAngle(
   }
 
   eligible.sort(
+    // still experimenting with sorting
     (a, b) =>
-      a.bucket - b.bucket //||
-      //a.radiusMismatch - b.radiusMismatch// ||
+      // a.bucket - b.bucket ||
+      // a.radiusMismatch - b.radiusMismatch ||
       //a.angleErr - b.angleErr //||
-      //b.cand.item.similarity - a.cand.item.similarity
+      b.cand.item.similarity - a.cand.item.similarity
   );
 
   return eligible.map((e) => ({
@@ -230,8 +250,15 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   const { pcs, axes, reference, items, gate, planes: planeDefs } = data;
 
   const strong = (pc: number) => Math.abs(reference[pc - 1]) >= AXIS_Z_MIN;
-  const refScore = (a: number, b: number) => planeScore(reference[a - 1], reference[b - 1]);
-
+  const rankScoreOf = (a: number, b: number) => {
+      const za = reference[a - 1];
+      const zb = reference[b - 1];
+      return weightedPlaneScore(
+        za, zb,
+        poleWeight(axes[pcs.indexOf(a)], za),
+        poleWeight(axes[pcs.indexOf(b)], zb)
+      );
+    };
   let usable = planeDefs
   .map((def, p) => ({ def, p }))
   .filter(({ def: [a, b] }) => weakAxis(reference[a - 1], reference[b - 1]) >= AXIS_Z_MIN);
@@ -241,7 +268,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   if (usable.length < MIN_CIRCLES) {
     usable = planeDefs
       .map((def, p) => ({ def, p }))
-      .sort((x, y) => refScore(y.def[0], y.def[1]) - refScore(x.def[0], x.def[1]))
+      .sort((x, y) => rankScoreOf(y.def[0], y.def[1]) - rankScoreOf(x.def[0], x.def[1]))
       .slice(0, MIN_CIRCLES);
   }
 
@@ -329,8 +356,12 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     );
 
     const radius = Math.hypot(refX, refY);
+    const wx = poleWeight(axes[i], refX);
+    const wy = poleWeight(axes[j], refY);
+    const rankScore = weightedPlaneScore(refX, refY, wx, wy);
     built.push({
       radius,
+      rankScore,
       score: planeScore(refX, refY),
       rankedTotal,
       minPerAngle,
@@ -348,7 +379,12 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         },
         angles,
         starfield,
-        debug: { displaced: displaced[pi] },
+        debug: {
+          displaced: displaced[pi],
+          raw_score: planeScore(refX, refY),
+          rank_score: rankScore,
+          weights: [wx, wy],
+        },
       },
     });
   }
@@ -358,27 +394,10 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
   // circles is saturated the reference radius decides.
   built.sort(
     // still experimenting with sorting
-    (a, b) => /*b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal || b.radius - a.radius || */ b.score - a.score
+    (a, b) => /*b.minPerAngle - a.minPerAngle || b.rankedTotal - a.rankedTotal || b.radius - a.radius || */ b.rankScore  - a.rankScore
   );
 
-  // After deduplication matched sets are disjoint across circles, so only
-  // circles without any match could be "contained"; the subset check is
-  // kept as a guard for empty-vs-nonempty edge cases.
-  const isSubset = (a: Set<number>, b: Set<number>) => {
-    for (const id of a) if (!b.has(id)) return false;
-    return true;
-  };
-  const kept = built.filter((b, i) => {
-    if (b.matched.size === 0) return true;
-    return !built.some(
-      (o, k) =>
-        k !== i &&
-        isSubset(b.matched, o.matched) &&
-        (o.matched.size > b.matched.size || k < i)
-    );
-  });
-
-  const circles = kept.map((b) => b.circle);
+  const circles = built.map((b) => b.circle);
   circles.forEach((c, k) => {
     c.primary = k === 0;
   });
