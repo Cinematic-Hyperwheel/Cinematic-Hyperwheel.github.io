@@ -94,6 +94,12 @@ def main() -> None:
              "--max-components.",
     )
 
+    p_diag.add_argument(
+        "--pole-tails", action="store_true",
+        help="Print the empirical tail of every pole of components 2..--max-components "
+             "(catalog share beyond fixed z levels, and the z only the top 10%/5%/1% reach).",
+    )
+
     p_rec = sub.add_parser("recommend", help="Find items matching a color-wheel scheme")
     p_rec.add_argument("input_path", help="CSV or .npz (from build)")
     p_rec.add_argument("--item", required=True, help="Name of the reference item", type=int)
@@ -172,6 +178,7 @@ def main() -> None:
             titles=load_titles(args.movies_path) if args.movies_path else None,
             stability_splits=args.stability_splits,
             rotate=rotate,
+            pole_tails=args.pole_tails,
         )
     elif args.command == "recommend":
         if args.hue_components == "auto":

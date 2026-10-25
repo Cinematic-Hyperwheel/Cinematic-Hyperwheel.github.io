@@ -20,6 +20,16 @@ STABLE_COS = 0.9
 SUBSPACE_SHARE = 0.9
 STABILITY_WINDOW = 5
 
+# Pole coordinate levels (whitened) whose catalog share is reported by
+# print_pole_tails, and the top shares whose boundary z is reported.
+TAIL_LEVELS = (0.8, 1.5, 2.0, 3.0)
+TAIL_TOP_SHARES = (0.10, 0.05, 0.01)
+
+# Top share whose boundary z defines a pole's scale for the normalizing
+# weight: 5% is far enough into the tail to reflect its reach, yet stable
+# against single outlier items.
+TAIL_NORM_SHARE = 0.05
+
 
 @dataclass
 class SplitHalfStability:
@@ -195,7 +205,7 @@ def _item_label(item, titles: dict[int, str] | None) -> str:
         title = titles.get(int(item))
     except (TypeError, ValueError):
         title = None
-    return f"{item} {title}" if title else str(item)
+    return f"{item}\t\t{title}" if title else str(item)
 
 def diagnose(
     wide: pd.DataFrame,
@@ -207,13 +217,16 @@ def diagnose(
     titles: dict[int, str] | None = None,
     stability_splits: int = 0,
     rotate: Sequence[tuple[int, int]] | None = None,
+    pole_tails: bool = False,
 ) -> None:
     """Prints how many components are needed for reasonable variance
     coverage, and which criteria most strongly shape the first components
     (loadings) - to understand what these axes physically represent.
 
     rotate: disjoint (FROM, TO) component groups (1-based, inclusive) to
-    varimax-rotate before reporting; see rotation_subspace.py."""
+    varimax-rotate before reporting; see rotation_subspace.py.
+    
+    pole_tails: also print the empirical tail of every pole, see print_pole_tails"""
     basis = build_feature_basis(wide, n_components=max_components, standardize=standardize)
     if rotate:
         basis = rotate_groups(basis, rotate)
@@ -279,10 +292,13 @@ def diagnose(
         print(f"\n--- PC{k+1} ---")
         print(f"  [+] items with the highest PC{k+1}:")
         for idx in pos_idx:
-            print(f"      {_item_label(items_arr[idx], titles):<70} {item_scores[idx]:+.3f}")
+            print(f"      {_item_label(items_arr[idx], titles):<70}\t{item_scores[idx]:+.3f}")
         print(f"  [-] items with the lowest PC{k+1}:")
         for idx in neg_idx:
-            print(f"      {_item_label(items_arr[idx], titles):<70} {item_scores[idx]:+.3f}")
+            print(f"      {_item_label(items_arr[idx], titles):<70}\t{item_scores[idx]:+.3f}")
+
+    if pole_tails:
+        print_pole_tails(basis)
 
     if stability_splits > 0:
         st = split_half_stability(
@@ -290,3 +306,38 @@ def diagnose(
             n_splits=stability_splits, rotate=rotate,
         )
         print_stability(basis.explained, st, rotate)
+
+def print_pole_tails(basis, first: int = 2) -> None:
+    """
+    Empirical tail of every pole of components `first`..K (PC1 is never a
+    hue axis). A pole's coordinate is the whitened score, sign-flipped for
+    the negative pole, so "z >= 2" means the same thing on both poles.
+
+    `norm w` equalizes how easily poles reach a large z: the reciprocal of
+    the pole's top-TAIL_NORM_SHARE boundary, rescaled so the mean over all
+    listed poles is 1. Multiplying a pole's |z| by it makes the same
+    weighted value equally rare on every pole. It depends on the set of
+    listed poles only through that rescaling.
+    """
+    z = basis.scores / basis.pc_std
+    rows = []
+    for k in range(first - 1, z.shape[1]):
+        for pole, sign in (("-", -1.0), ("+", 1.0)):
+            v = sign * z[:, k]
+            shares = " ".join(f"{float((v >= l).mean()):>6.1%}" for l in TAIL_LEVELS)
+            bounds = " ".join(f"{float(np.quantile(v, 1 - p)):>7.2f}" for p in TAIL_TOP_SHARES)
+            scale = 1.0 / max(float(np.quantile(v, 1 - TAIL_NORM_SHARE)), 1e-6)
+            rows.append((k + 1, pole, shares, bounds, scale))
+
+    mean_scale = float(np.mean([r[4] for r in rows])) if rows else 1.0
+
+    levels = " ".join(f"{'>=' + str(l):>6}" for l in TAIL_LEVELS)
+    tops = " ".join(f"{'top' + format(p, '.0%'):>7}" for p in TAIL_TOP_SHARES)
+    width = 24 + 7 * len(TAIL_LEVELS) + 8 * len(TAIL_TOP_SHARES) + 9
+    print(f"\n{'='*60}")
+    print("Pole tails (share of ALL items beyond z, z exceeded by only the top share,")
+    print(f"and the weight 1 / z(top {TAIL_NORM_SHARE:.0%}) rescaled to mean 1 over the listed poles):")
+    print(f"{'component':>10} | pole | {levels} | {tops} | {'norm w':>6}")
+    print("-" * width)
+    for comp, pole, shares, bounds, scale in rows:
+        print(f"{comp:>10} | {pole:>4} | {shares} | {bounds} | {scale / mean_scale:>6.2f}")

@@ -36,6 +36,7 @@ python3 -m hyperwheel-recommender diagnose artifact.npz \
 |`--no-standardize`|off|Disable z-scoring criteria before PCA (on by default)|
 |`--stability-splits`|`0`|Random split-half repetitions for the per-component stability table (0 = skip). Each split fits two bases, which is slow on large catalogs|
 |`--rotate FROM TO`|none|Varimax-rotate the component group `FROM..TO` (1-based, inclusive, `FROM >= 2`, `TO <= --max-components`) before reporting; repeat for several disjoint groups. Applied to both halves of the stability check|
+|`--pole-tails`|off|Print the empirical tail of every pole of components `2..--max-components`: the catalog share beyond fixed whitened-score levels, the level only the top 10% / 5% / 1% of items reach, and `norm w` - the reciprocal of the top-5% level rescaled to mean 1 over the listed poles, which equalizes how easily poles reach a large z|
 
 ## 3. Recommend — real items matching a scheme
 
