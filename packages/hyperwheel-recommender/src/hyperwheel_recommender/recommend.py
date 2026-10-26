@@ -20,7 +20,7 @@ ANGLE_TOL_RAD = np.radians(15.0)  # bucket width for "angularly tied" candidates
 # HARD radius tolerance for Stage B, |log(cand_r / target_r)|. Whitened radius has no
 # fixed absolute scale (it varies per reference and plane), so the gate is a
 # dimensionless symmetric ratio. Public, like ANGLE_TOL_RAD.
-RADIUS_TOL_LOG = np.log(1.2)
+RADIUS_TOL_LOG = np.log(1.5)
 
 _RESULT_COLUMNS = [
     "scheme", "angle_deg", "rank", "item",

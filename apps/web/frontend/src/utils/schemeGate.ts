@@ -17,7 +17,7 @@ export const TOP_K = 6;
 // coordinate (standard deviations from the category mean), so one
 // threshold fits every component. The pool itself is computed for every
 // plane regardless.
-const AXIS_Z_MIN = 0.5;
+const AXIS_Z_MIN = 0.0;
 const MIN_CIRCLES = 1;
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -73,6 +73,11 @@ interface PlaneMatches {
   maxRadius: number;
   angles: { angleDeg: number; scored: ScoredMatch[] }[];
   pcs: [number, number];
+  /** Character weights of the poles the reference points to on the x and y axes. */
+  weights: [number, number];
+  /** Weighted plane score of the reference: the order circles are
+   * deduplicated and displayed in. */
+  rankScore: number;
 }
 
 /** |z| of the weaker axis: a plane is only as meaningful as its weakest axis. */
@@ -186,39 +191,68 @@ function recommendAtAngle(
 }
 
 /**
- * Keeps every item as a match in exactly one place. The owning plane is
- * the one with the higher plane score (the reference is pronounced
- * on both axes there); within that plane, the angle where the item sits
- * closest to the rotated target by the gate ordering key. Remaining ties
- * (equal radius, or the same plane) fall back to the ordering key, then
- * to the plane that comes first in component-pair order.
+ * Keeps every item as a match in exactly one place, filling circles
+ * evenly instead of letting the strongest one absorb everything.
+ *
+ * Circles are visited in their display order (highest rank score first,
+ * the same key buildCircles sorts by). Within a circle, the first TOP_K
+ * matches of each angle are "firm": they are the visible ones, and no
+ * other circle can take them. Matches beyond TOP_K are "soft": they stay
+ * with the circle only until a later circle can show them within its own
+ * TOP_K. An item nobody else can show stays where it was first seen, so
+ * the big wheel still plots every match.
+ *
+ * An item matched at several angles of one plane is kept at the angle
+ * closest to the rotated target (gate ordering key).
  */
 function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
   // Per plane: the matches it lost to another plane, for diagnostics.
   const displaced: DisplacedMatch[][] = planes.map(() => []);
 
   // return displaced;
-    
-  const radius = planes.map((p) => Math.hypot(p.refX, p.refY));
-  const score = planes.map((p) => planeScore(p.refX, p.refY));
-  const best = new Map<number, { plane: number; angle: number; key: MatchKey }>();
-  planes.forEach((p, pi) =>
-    p.angles.forEach((a, ai) =>
+
+  // Array.prototype.sort is stable: equal scores keep component-pair
+  // order, exactly as in buildCircles' final sort.
+  const order = planes.map((_, pi) => pi).sort((a, b) => planes[b].rankScore - planes[a].rankScore);
+
+  interface Owner {
+    plane: number;
+    angle: number;
+    firm: boolean;
+  }
+  const owners = new Map<number, Owner>();
+
+  for (const pi of order) {
+    const plane = planes[pi];
+
+    const bestAngle = new Map<number, { angle: number; key: MatchKey }>();
+    plane.angles.forEach((a, ai) =>
       a.scored.forEach((m) => {
-        const cur = best.get(m.item.item_id);
-        const wins =
-          !cur ||
-          score[pi] > score[cur.plane] ||
-          (score[pi] === score[cur.plane] && compareKeys(m.key, cur.key) < 0);
-        if (wins) best.set(m.item.item_id, { plane: pi, angle: ai, key: m.key });
+        const cur = bestAngle.get(m.item.item_id);
+        if (!cur || compareKeys(m.key, cur.key) < 0) {
+          bestAngle.set(m.item.item_id, { angle: ai, key: m.key });
+        }
       })
-    )
-  );
+    );
+
+    plane.angles.forEach((a, ai) => {
+      // Candidates keep their ranking order; items firmly owned by a
+      // stronger circle are not available here.
+      const open = a.scored.filter(
+        (m) => bestAngle.get(m.item.item_id)!.angle === ai && !owners.get(m.item.item_id)?.firm
+      );
+      open.forEach((m, k) => {
+        const id = m.item.item_id;
+        if (k < TOP_K) owners.set(id, { plane: pi, angle: ai, firm: true });
+        else if (!owners.has(id)) owners.set(id, { plane: pi, angle: ai, firm: false });
+      });
+    });
+  }
 
   planes.forEach((p, pi) =>
     p.angles.forEach((a, ai) => {
       a.scored = a.scored.filter((m) => {
-        const owner = best.get(m.item.item_id)!;
+        const owner = owners.get(m.item.item_id)!;
         if (owner.plane === pi && owner.angle === ai) return true;
         displaced[pi].push({
           item_id: m.item.item_id,
@@ -300,9 +334,13 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         };
       });
     const maxRadius = cands.reduce((m, c) => Math.max(m, c.r), Math.hypot(refX, refY));
+    const wx = poleWeight(axes[i], refX);
+    const wy = poleWeight(axes[j], refY);
 
     planes.push({
       i, j, pcs: [pcA, pcB], refX, refY, cands, maxRadius,
+      weights: [wx, wy],
+      rankScore: weightedPlaneScore(refX, refY, wx, wy),
       angles: schemeAngles.map((angleDeg) => ({
         angleDeg,
         scored: recommendAtAngle(cands, refX, refY, angleDeg, gate),
@@ -310,12 +348,13 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     });
   });
 
+  // (bug): move to after built.sort
   const displaced = dedupeAcrossPlanes(planes);
 
   const built: BuiltCircle[] = [];
 
-  for (const [pi, plane] of planes.entries()) {
-    const { i, j, refX, refY, cands, maxRadius } = plane;
+    for (const [pi, plane] of planes.entries()) {
+    const { i, j, refX, refY, cands, maxRadius, weights: [wx, wy], rankScore } = plane;
 
     const angles: RecAngle[] = plane.angles.map(({ angleDeg, scored }) => {
       const matches = scored.map((m, k) => ({ ...m.item, rank: k + 1 }));
@@ -356,9 +395,6 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     );
 
     const radius = Math.hypot(refX, refY);
-    const wx = poleWeight(axes[i], refX);
-    const wy = poleWeight(axes[j], refY);
-    const rankScore = weightedPlaneScore(refX, refY, wx, wy);
     built.push({
       radius,
       rankScore,
