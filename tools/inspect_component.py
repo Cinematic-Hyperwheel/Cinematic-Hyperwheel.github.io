@@ -215,8 +215,8 @@ def report_items(wide, basis, blocks, k0, names, args) -> None:
                 continue
             print(line(i))
             c = contrib(i)
-            neg = np.argsort(c)[:35]
-            pos = np.argsort(-c)[:35]
+            neg = np.argsort(c)[:args.top_n]
+            pos = np.argsort(-c)[:args.top_n]
             print(f"    sum of positive contributions {c[c > 0].sum():+.2f}, negative {c[c < 0].sum():+.2f}")
             print("    top positive: " + ", ".join(f"{tags[t]}({c[t]:+.2f}, x={X[i, t]:.2f})" for t in pos))
             print("    top negative: " + ", ".join(f"{tags[t]}({c[t]:+.2f}, x={X[i, t]:.2f})" for t in neg))
