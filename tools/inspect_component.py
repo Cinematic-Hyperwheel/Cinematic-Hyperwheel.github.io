@@ -27,12 +27,19 @@ from __future__ import annotations
 import argparse
 import csv
 import itertools
+from pathlib import Path
+import sys
 
 import numpy as np
-
-from hyperwheel_recommender import build_feature_basis, load_artifact, load_pca_cache
+from hyperwheel_recommender import (
+    build_feature_basis,
+    load_artifact,
+    load_pca_cache,
+    rotate_groups,
+)
 from hyperwheel_recommender.diagnose import tag_loadings
-from hyperwheel_recommender.features import FEATURES_PER_TAG as F, feature_map
+from hyperwheel_recommender.features import FEATURES_PER_TAG as F
+from hyperwheel_recommender.features import feature_map
 
 # Relevance quantiles at which each tag's partial response is sampled.
 RESPONSE_QUANTILES = [0.05, 0.5, 0.95, 0.995]
@@ -155,11 +162,12 @@ def report_tags(wide, basis, k0: int, top: int) -> np.ndarray:
     return blocks
 
 
-def report_items(basis, blocks, k0, names, args) -> None:
+def report_items(wide, basis, blocks, k0, names, args) -> None:
     T = len(basis.criteria)
     score = basis.scores[:, k0]
     z = score / basis.pc_std[k0]
     tags = [str(c) for c in basis.criteria]
+    X = wide.to_numpy(dtype=np.float32)
 
     def contrib(i: int) -> np.ndarray:
         # Per-tag share of the item's score; sums to score[i].
@@ -168,7 +176,9 @@ def report_items(basis, blocks, k0, names, args) -> None:
     def line(i: int) -> str:
         c = contrib(i)
         top = np.argsort(-np.abs(c))[:4]
-        why = ", ".join(f"{tags[t]}({c[t]:+.2f})" for t in top)
+        # x is the raw relevance: a contribution reflects how unusual x is
+        # for that tag across the catalog, not how high x is in absolute terms.
+        why = ", ".join(f"{tags[t]}({c[t]:+.2f}, x={X[i, t]:.2f})" for t in top)
         return f"  z={z[i]:+5.2f}  {names(i):<55.55} {why}"
 
     order = np.argsort(score)
@@ -200,7 +210,18 @@ def report_items(basis, blocks, k0, names, args) -> None:
         idx_of = {int(it): i for i, it in enumerate(basis.items)}
         for item_id in args.items:
             i = idx_of.get(item_id)
-            print(line(i) if i is not None else f"  {item_id}: not in the basis")
+            if i is None:
+                print(f"  {item_id}: not in the basis")
+                continue
+            print(line(i))
+            c = contrib(i)
+            neg = np.argsort(c)[:35]
+            pos = np.argsort(-c)[:35]
+            print(f"    sum of positive contributions {c[c > 0].sum():+.2f}, negative {c[c < 0].sum():+.2f}")
+            print("    top positive: " + ", ".join(f"{tags[t]}({c[t]:+.2f}, x={X[i, t]:.2f})" for t in pos))
+            print("    top negative: " + ", ".join(f"{tags[t]}({c[t]:+.2f}, x={X[i, t]:.2f})" for t in neg))
+            raw = np.argsort(-X[i])[:10]
+            print("    top raw relevance: " + ", ".join(f"{tags[t]} {X[i, t]:.2f}" for t in raw))
 
 
 def report_quadratic(basis, k0: int) -> None:
@@ -216,11 +237,13 @@ def report_quadratic(basis, k0: int) -> None:
     print(f"\n== Quadratic check ==\n  R^2 of PC{k0 + 1} explained by quadratic terms of PC{cols[0] + 1}..PC{cols[-1] + 1}: {r2:.3f}")
 
 
-def report_stability(wide, k0: int, n_components: int, standardize: bool, seed: int) -> None:
+def report_stability(wide, k0: int, n_components: int, standardize: bool, seed: int, rotate=None) -> None:
     perm = np.random.default_rng(seed).permutation(len(wide))
     half = len(wide) // 2
     a = build_feature_basis(wide.iloc[perm[:half]], n_components, standardize)
     b = build_feature_basis(wide.iloc[perm[half:]], n_components, standardize)
+    if rotate:
+        a, b = rotate_groups(a, rotate), rotate_groups(b, rotate)
     cos = np.abs(a.U[k0] @ b.U.T)
     lo, hi = max(0, k0 - 5), min(len(cos), k0 + 6)
     window = float(np.sum(cos[lo:hi] ** 2))
@@ -247,13 +270,31 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--clusters", type=int, default=0, help="Cluster each pole into K groups by tag contributions")
     p.add_argument("--rotate-with", type=int, default=None, help="1-based PC to rotate the component with (see report_rotation)")
+    p.add_argument(
+        "--rotate", nargs=2, type=int, metavar=("FROM", "TO"), action="append", default=None,
+        help="Varimax-rotate the group FROM..TO (1-based, inclusive); repeat for several. "
+             "Pass the same groups as rotation_groups in pc_config.json, otherwise the "
+             "component differs from the one the web app serves.",
+    )
 
     args = p.parse_args()
 
     standardize = not args.no_standardize
     wide = load_artifact(args.artifact)
     pre = load_pca_cache(args.cache, wide, args.n_components, standardize) if args.cache else None
+
+    if pre is not None:
+        print(f"[info] PCA cache hit: {args.cache}", file=sys.stderr)
+    else:
+        # A present-but-rejected file means it was built for a different
+        # artifact, n_components or standardize flag, or before a PCA code change.
+        reason = "fingerprint mismatch" if Path(args.cache).exists() else "file not found"
+        print(f"[info] PCA cache miss ({reason}: {args.cache})", file=sys.stderr)
+
     basis = build_feature_basis(wide, args.n_components, standardize, precomputed_pca=pre)
+    rotate = [tuple(g) for g in args.rotate] if args.rotate else None
+    if rotate:
+        basis = rotate_groups(basis, rotate)
 
     k0 = args.component - 1
     if not 0 <= k0 < basis.U.shape[0]:
@@ -265,10 +306,10 @@ def main() -> None:
 
     report_spectrum(basis, k0)
     blocks = report_tags(wide, basis, k0, args.top_tags)
-    report_items(basis, blocks, k0, names, args)
+    report_items(wide, basis, blocks, k0, names, args)
     report_quadratic(basis, k0)
     if args.stability:
-        report_stability(wide, k0, args.n_components, standardize, args.seed)
+        report_stability(wide, k0, args.n_components, standardize, args.seed, rotate)
 
     if args.clusters:
         report_clusters(basis, blocks, k0, names, args.clusters, args.seed)
