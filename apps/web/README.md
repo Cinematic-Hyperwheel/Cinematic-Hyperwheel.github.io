@@ -412,10 +412,14 @@ big wheel plots all matches, and its poster-grid legend shows them as a
 horizontally scrolling row per angle, six tiles per page (arrow buttons,
 or native scroll/swipe). The legend's list layout keeps the top 6.
 
-An item matched on several circles is kept only on the circle where the
-reference radius is larger (within it, at the angle where the item is
-closest to the rotated target); on the other circles it can still appear
-as a star field point. A circle left without matches is omitted.
+An item matched on several circles is kept on one of them. Circles are
+visited in display order (highest rank score first, see below); each
+keeps the first 6 matches of every angle (the ones the lists and legend
+show). Matches beyond those 6 are released to a later circle that can
+show them within its own top 6, so the strongest circle does not absorb
+everything. A surplus match no other circle can show stays where it is
+and is still plotted on the big wheel. On the other circles the item can
+still appear as a star field point. A circle left without matches is omitted.
 
 Circles are ordered by the number of matches at their weakest scheme
 angle (largest first), then by their total number of matches across all
