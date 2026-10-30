@@ -13,6 +13,7 @@ import { HighlightProvider } from "./contexts/HighlightContext";
 import { ActiveCardProvider } from "./contexts/ActiveCardContext";
 import ActiveRecommendationCard from "./components/ActiveRecommendationCard";
 import BrandTitle from "./components/BrandTitle";
+import SchemeSelector from "./components/SchemeSelector";
 import { HoverCircleProvider, useHoverCircle } from "./contexts/HoverCircleContext";
 import {
   MovieHit,
@@ -98,7 +99,7 @@ function AppContent() {
   const [selected, setSelected] = useState<MovieHit | null>(null);
   const [circles, setCircles] = useState<WheelCircle[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [scheme, setScheme] = useState<string>(SCHEMES[2]);
+  const [scheme, setScheme] = useState<string>(SCHEMES[6]);
   // Fetched once per reference; the scheme is applied client-side, so
   // switching it never hits the server.
   const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);
@@ -523,23 +524,7 @@ function AppContent() {
   };
 
   const schemeSelect = (
-    <div className="rec-form">
-      <label className="rec-form__label" htmlFor="scheme">
-        {t("scheme.label")}
-      </label>
-      <select
-        id="scheme"
-        className="rec-form__select"
-        value={scheme}
-        onChange={(e) => handleSchemeChange(e.target.value)}
-      >
-        {SCHEMES.map((s) => (
-          <option key={s} value={s}>
-            {t(`scheme.${s}`)}
-          </option>
-        ))}
-      </select>
-    </div>
+    <SchemeSelector schemes={SCHEMES} value={scheme} onChange={handleSchemeChange} />
   );
 
   return (

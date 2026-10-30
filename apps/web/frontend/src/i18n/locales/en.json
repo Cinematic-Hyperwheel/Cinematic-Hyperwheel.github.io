@@ -20,7 +20,16 @@
     "wide-analogous": "Wide analogous",
     "split-complementary": "Split complementary",
     "square": "Square",
-    "monochromatic": "Monochromatic"
+    "monochromatic": "Monochromatic",
+    "info": {
+      "monochromatic": "The safest pick. Movies that feel closest to your reference: the same mood and the same kind of story.",
+      "analogous": "Same spirit with a slightly different flavor. Great when you want something familiar with a fresh twist.",
+      "wide-analogous": "A more noticeable step away. Still recognizably related, but with a clearly different tone or pace.",
+      "split-complementary": "A contrast that doesn't clash. A different mood from your reference, with enough in common to feel right.",
+      "triadic": "Adventurous picks. Each group goes its own way, so expect variety and a few surprises.",
+      "square": "The widest mix: two sidesteps and a full opposite. Best when you're in the mood to explore.",
+      "complementary": "The opposite of your reference. Expect a sharp change of mood: it can be a hit or a miss."
+    }
   },
   "recommendations": {
     "title": "Recommendations",

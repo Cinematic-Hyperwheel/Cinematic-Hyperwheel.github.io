@@ -10,12 +10,6 @@
   gap: 28px;
 }
 
-.sticky-controls .rec-form {
-  position: static;
-  transform: none;
-  background: transparent;
-}
-
 @media (min-width: 641px) {
   /* Keeps a section's top edge clear of the sticky header (and, in hero
      mode, the sticky scheme-selector row below it) when it's scrolled

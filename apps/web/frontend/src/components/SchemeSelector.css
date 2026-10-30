@@ -1,0 +1,157 @@
+.scheme-select {
+  display: flex;
+  gap: 2px;
+  max-width: 100%;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.scheme-select__btn {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  width: 100px;
+  padding: 6px 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+.scheme-select__btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+.scheme-select__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.scheme-select__btn--active {
+  color: var(--accent);
+  background: rgba(110, 231, 255, 0.1);
+  border-color: rgba(110, 231, 255, 0.35);
+}
+
+/* Colored icons are dimmed at rest so the checked scheme stands out. */
+.scheme-select__btn svg {
+  display: block;
+  opacity: 0.6;
+  filter: saturate(0.7);
+  transition: opacity 120ms ease, filter 120ms ease;
+}
+.scheme-select__btn:hover svg,
+.scheme-select__btn--active svg {
+  opacity: 1;
+  filter: none;
+}
+
+.scheme-select__label {
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* The compact header bar has no room for labels. It also drops the
+   group frame: the buttons' own hover/active highlight is enough there,
+   and the freed space goes to larger icons. The icon size follows the
+   viewport width between a floor that fits narrow desktop windows and a
+   ceiling that keeps the row from dominating the bar. */
+.appheader--compact .scheme-select {
+  --scheme-icon: clamp(26px, 2.8vw, 60px);
+  gap: 2px;
+  padding: 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.appheader--compact .scheme-select__btn {
+  /* icon + 2 * 4px padding + 2 * 1px border */
+  width: calc(var(--scheme-icon) + 10px);
+  padding: 4px;
+}
+.appheader--compact .scheme-select__btn svg {
+  width: var(--scheme-icon);
+  height: var(--scheme-icon);
+}
+.appheader--compact .scheme-select__label {
+  display: none;
+}
+
+/* Seven buttons do not fit a phone; the row scrolls inside its container. */
+@media (max-width: 640px) {
+  .scheme-select__btn {
+    width: 64px;
+  }
+}
+
+/* Hover/focus tip for a scheme button. Rendered in a portal (the row
+   clips its overflow), positioned by SchemeSelector.tsx. */
+.scheme-tip {
+  position: fixed;
+  z-index: 60;
+  padding: 10px 12px 11px;
+  border-radius: 12px;
+  background: rgba(12, 16, 25, 0.97);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(110, 231, 255, 0.06);
+  pointer-events: none;
+  animation: scheme-tip-in 140ms ease;
+}
+/* Arrow pointing at the button, even when the panel is clamped sideways. */
+.scheme-tip::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: var(--arrow-x);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  transform: rotate(45deg);
+  background: rgba(12, 16, 25, 0.97);
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.scheme-tip__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.scheme-tip__name {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.scheme-tip__angles {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.scheme-tip__text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@keyframes scheme-tip-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scheme-tip {
+    animation: none;
+  }
+}

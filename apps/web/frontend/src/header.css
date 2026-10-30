@@ -263,6 +263,16 @@
     gap: 12px;
     flex: 0 0 auto;
   }
+  /* The group holding the scheme selector may shrink below its content
+     width, so a too-narrow bar scrolls the selector instead of pushing
+     the language/about controls out of the viewport. */
+  .appheader--compact .appheader__actions:has(> .appheader__scheme) {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .appheader--compact .appheader__scheme {
+    min-width: 0;
+  }
   .appheader--compact .appheader__lang,
   .appheader--compact .appheader__about {
     position: static;
