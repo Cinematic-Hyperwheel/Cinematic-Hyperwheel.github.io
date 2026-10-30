@@ -42,3 +42,9 @@ export function diskPosition(
   const k = radialFraction(r, maxRadius) / r;
   return { x: zx * k, y: zy * k };
 }
+
+/** Inverse of radialFraction: whitened radius for a fraction of the disc radius. */
+export function radiusFromFraction(f: number, maxRadius: number = DEFAULT_MAX_RADIUS): number {
+  const m = Math.max(maxRadius, 1e-6);
+  return RADIAL_SCALE * Math.expm1(f * Math.log1p(m / RADIAL_SCALE));
+}

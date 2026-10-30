@@ -433,6 +433,14 @@ least one match; each row links out to IMDb and TMDB (direct title-page
 links when the dataset has a matching `imdb_id`/`tmdb_id`, a title search
 otherwise - see "External ids" above).
 
+On the big wheel, each scheme target is ringed by a reticle showing its
+gate area (the angle and radius window of Stage B). Dragging a reticle
+moves the virtual reference the whole scheme is rotated from: the other
+reticles keep their angular offsets and share the radius. Releasing the
+drag recomputes that circle's picks client-side; double-clicking a
+reticle resets it. Circle ordering still uses the real reference, and
+the overrides are cleared when another reference movie is selected.
+
 ### Plane starfield
 
 Besides the scheme's clustered recommendations, each circle carries a

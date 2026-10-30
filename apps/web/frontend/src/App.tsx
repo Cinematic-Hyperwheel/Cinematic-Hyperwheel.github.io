@@ -14,6 +14,7 @@ import { ActiveCardProvider } from "./contexts/ActiveCardContext";
 import ActiveRecommendationCard from "./components/ActiveRecommendationCard";
 import BrandTitle from "./components/BrandTitle";
 import SchemeSelector from "./components/SchemeSelector";
+import type { TargetEditor } from "./components/TargetCrosshairs";
 import { HoverCircleProvider, useHoverCircle } from "./contexts/HoverCircleContext";
 import {
   MovieHit,
@@ -26,6 +27,7 @@ import {
   getNeighbors,
   getWheelCircles,
   toWheelCircle,
+  TargetPoint,
 } from "./api";
 import { buildCircles, withAllMatches } from "./utils/schemeGate";  
 import { DebugProvider } from "./contexts/DebugContext";
@@ -103,15 +105,33 @@ function AppContent() {
   // Fetched once per reference; the scheme is applied client-side, so
   // switching it never hits the server.
   const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);
+  // Dragged virtual references per circle key (see TargetCrosshairs.tsx);
+  // reset whenever a new reference movie is selected.
+  const [targetOverrides, setTargetOverrides] = useState<Record<string, TargetPoint>>({});
   // buildCircles is timed together with its memo so the diagnostics HUD
   // reports the cost of the actual computation, not of a re-render.
   const recsBuild = useMemo(() => {
     if (!neighbors) return null;
     const t0 = performance.now();
-    const circles = buildCircles(neighbors, scheme);
+    const circles = buildCircles(neighbors, scheme, targetOverrides);
     return {
       recs: { item_id: neighbors.item_id, scheme, circles } as RecommendResponse,
       buildMs: performance.now() - t0,
+    };
+  }, [neighbors, scheme, targetOverrides]);
+  const targetEditor = useMemo<TargetEditor | undefined>(() => {
+    const angles = neighbors?.schemes[scheme];
+    if (!neighbors || !angles) return undefined;
+    return {
+      angles,
+      gate: neighbors.gate,
+      onChange: (key, target) =>
+        setTargetOverrides((prev) => {
+          if (target) return { ...prev, [key]: target };
+          if (!(key in prev)) return prev;
+          const { [key]: _removed, ...rest } = prev;
+          return rest;
+        }),
     };
   }, [neighbors, scheme]);
   const recs = recsBuild?.recs ?? null;
@@ -459,6 +479,7 @@ function AppContent() {
     setError(null);
     setRecError(null);
     setNeighbors(null);
+    setTargetOverrides({});
     setActiveCircle(null);
     // A fresh reference means an entirely new Recommendations list -
     // jump back to the top of the page so the list (and the big wheel,
@@ -507,6 +528,7 @@ function AppContent() {
         setSelected(null);
         setCircles([]);
         setNeighbors(null);
+        setTargetOverrides({});
         setRecError(null);
         setError(null);
         setBackdropUrl(null);
@@ -618,6 +640,7 @@ function AppContent() {
                           previewCircle={hoveredWheelCircle}
                           previewOverlays={bigWheelPreviewOverlays}
                           previewStarfield={hoveredStarfield}
+                          targetEditor={targetEditor}
                         />
                       )}
                     </div>

@@ -30,6 +30,12 @@ export interface AxisConfig {
   character_weight?: { negative: number; positive: number };
 }
 
+/** A point in a plane's whitened coordinates. */
+export interface TargetPoint {
+  z_x: number;
+  z_y: number;
+}
+
 export interface WheelCircle {
   primary: boolean;
   axis_x: AxisConfig;
@@ -42,6 +48,9 @@ export interface WheelCircle {
    * for this plane - the radial scale's normalizer (utils/radial.ts).
    * Absent until recommendations are loaded. */
   max_radius?: number;
+  /** Dragged virtual reference the scheme angles are rotated from, when
+   * it differs from the real reference (see TargetCrosshairs.tsx). */
+  target?: TargetPoint;
 }
 
 export interface WheelResponse {
@@ -135,6 +144,7 @@ export interface RecommendCircle {
   starfield: StarfieldItem[];
   max_radius?: number;
   debug?: CircleDebug;
+  target?: TargetPoint;
 }
 
 export interface RecommendResponse {
@@ -163,6 +173,7 @@ export function toWheelCircle(rc: RecommendCircle): WheelCircle | null {
     angle_deg: rc.reference.angle_deg,
     radius: rc.reference.radius,
     max_radius: rc.max_radius,
+    target: rc.target,
   };
 }
 

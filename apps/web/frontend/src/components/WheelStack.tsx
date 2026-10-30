@@ -2,6 +2,7 @@ import { Children, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { useTranslation } from "react-i18next";
 import Wheel, { RING_PAD } from "./Wheel";
 import WheelPointLabels from "./WheelPointLabels";
+import TargetCrosshairs, { type TargetEditor } from "./TargetCrosshairs";
 import { RecAngle, RecItem, RecommendCircle, StarfieldItem, WheelCircle } from "../api";
 import { circleKey } from "../utils/circleKey";
 import { colorOnWheel } from "../utils/color";
@@ -46,6 +47,8 @@ interface Props {
   /** Star field for `previewCircle` - swapped in alongside
    * previewOverlays whenever a hover preview is active. */
   previewStarfield?: StarfieldItem[];
+  /** Enables draggable target reticles on the active circle's disc. */
+  targetEditor?: TargetEditor;
 }
 
 interface DiscLayer {
@@ -756,9 +759,8 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
         >
           {blocks.map((block) => {
             const isActive = block.key === activeKey;
-            const bearing = block.circle.reference
-              ? refCompassBearing(block.circle.reference.z_x, block.circle.reference.z_y)
-              : 0;
+            const anchor = block.circle.target ?? block.circle.reference;
+            const bearing = anchor ? refCompassBearing(anchor.z_x, anchor.z_y) : 0;
 
             return (
               <div
@@ -838,6 +840,7 @@ export default function WheelStack({
   previewOverlays,
   previewStarfield,
   starfield,
+  targetEditor
 }: Props) {
   const [discLayers, setDiscLayers] = useState<DiscLayer[]>([]);
   const nextDiscId = useRef(0);
@@ -953,6 +956,14 @@ export default function WheelStack({
                   starfield={l.starfield}
                   circleKey={l.key}
                 />
+                {targetEditor && l.key === activeKey && (
+                  <TargetCrosshairs
+                    circle={l.circle}
+                    size={l.size}
+                    circleKey={l.key}
+                    editor={targetEditor}
+                  />
+                )}
               </div>
             </div>
           ))}

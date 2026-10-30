@@ -31,6 +31,9 @@
       "complementary": "The opposite of your reference. Expect a sharp change of mood: it can be a hit or a miss."
     }
   },
+  "wheel": {
+    "dragTarget": "Drag to move the target · double-click to reset"
+  },
   "recommendations": {
     "title": "Recommendations",
     "unstackAll": "Unstack",

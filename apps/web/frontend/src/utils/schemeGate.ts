@@ -1,3 +1,6 @@
+
+import { type TargetPoint } from "../api";
+
 import type {
   AxisConfig,
   DisplacedMatch,
@@ -78,6 +81,9 @@ interface PlaneMatches {
   /** Weighted plane score of the reference: the order circles are
    * deduplicated and displayed in. */
   rankScore: number;
+  /** Dragged virtual reference the scheme angles are rotated from, or
+   * null when the reference itself is used. */
+  target: TargetPoint | null;
 }
 
 /** |z| of the weaker axis: a plane is only as meaningful as its weakest axis. */
@@ -279,8 +285,17 @@ function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
  * Circles are ordered by the match count of their weakest scheme angle (descending),
  * then by total matches, then by the reference radius; the first one is primary.
  * Circles whose matches are fully included in another circle's matches are omitted.
+ * 
+ * `targets` maps a circle key (see utils/circleKey.ts) to a virtual
+ * reference that replaces the real one when rotating by the scheme
+ * angles. Circle ordering and cross-circle ranking still use the real
+ * reference.
  */
-export function buildCircles(data: NeighborsResponse, scheme: string): RecommendCircle[] {
+export function buildCircles(
+  data: NeighborsResponse,
+  scheme: string,
+  targets: Record<string, TargetPoint> = {}
+): RecommendCircle[] {
   const schemeAngles = data.schemes[scheme];
   if (!schemeAngles) return [];
   const { pcs, axes, reference, items, gate, planes: planeDefs } = data;
@@ -339,13 +354,17 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
     const wx = poleWeight(axes[i], refX);
     const wy = poleWeight(axes[j], refY);
 
+    const target = targets[`${pcA}-${pcB}`] ?? null;
+    const anchorX = target?.z_x ?? refX;
+    const anchorY = target?.z_y ?? refY;
+
     planes.push({
-      i, j, pcs: [pcA, pcB], refX, refY, cands, maxRadius,
+      i, j, pcs: [pcA, pcB], refX, refY, cands, maxRadius, target,
       weights: [wx, wy],
       rankScore: weightedPlaneScore(refX, refY, wx, wy),
       angles: schemeAngles.map((angleDeg) => ({
         angleDeg,
-        scored: recommendAtAngle(cands, refX, refY, angleDeg, gate),
+        scored: recommendAtAngle(cands, anchorX, anchorY, angleDeg, gate),
       })),
     });
   });
@@ -409,6 +428,7 @@ export function buildCircles(data: NeighborsResponse, scheme: string): Recommend
         axis_x: axes[i],
         axis_y: axes[j],
         max_radius: maxRadius,
+        target: plane.target ?? undefined,
         reference: {
           z_x: refX,
           z_y: refY,

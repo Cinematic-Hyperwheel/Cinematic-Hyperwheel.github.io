@@ -49,7 +49,7 @@ export const WHEEL_GAP = 14;
 // An arbitrary constant, unrelated to any specific rendered size -
 // chosen generously so label measurement stays proportionally accurate
 // whether the wheel ends up displayed smaller or larger than this.
-const GEOMETRY_SIZE = 460;
+export const GEOMETRY_SIZE = 460;
 // Ring geometry for the main (non-compact) wheel: all four pole labels
 // (axis X negative/positive, axis Y negative/positive) sit on a single ring
 // curving around the circle, so the text follows a radius around it instead
@@ -224,16 +224,13 @@ export default function Wheel({
   const glowBase = compact ? 3 : 5;
   const glowPx = glowBase;
 
-  // Recommendation overlay points - one per recommendation item (all top-k
-  // per scheme angle), drawn on the same disc with the same radial scale
-  // as the reference point.
-  // Reference hue in the plane, converted to the disc's "compass" bearing
-  // (0 = top/north, clockwise). angle_deg used by the backend is a RELATIVE
-  // rotation of this hue, so the scheme target bearing =
-  // refCompassBearing + angle_deg - feeding angle_deg straight into
-  // colorOnWheel (which expects an absolute compass bearing) gives wrong hues.
+  // Compass bearing (0 = top, clockwise) of the scheme's anchor in the
+  // plane: the dragged target when there is one, else the reference.
+  // angle_deg is a RELATIVE rotation of this hue, so the scheme target
+  // bearing = anchor bearing + angle_deg.
+  const hueAnchor = circle.target ?? { z_x: circle.z_x, z_y: circle.z_y };
   const refCompassBearing =
-    ((Math.atan2(circle.z_y, circle.z_x) * 180) / Math.PI + 90 + 360) % 360;
+    ((Math.atan2(hueAnchor.z_y, hueAnchor.z_x) * 180) / Math.PI + 90 + 360) % 360;
 
   // Each recommendation point is coloured by the disc's hue at ITS GROUP's
   // scheme target angle (refCompassBearing + scheme angle), so all points of

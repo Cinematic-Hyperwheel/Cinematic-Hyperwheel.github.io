@@ -595,9 +595,8 @@ export default function RecommendationsPanel({
           // useActiveCircleNav). Mobile has no notion of an active circle,
           // so it stays the server-provided "primary" flag instead.
           const isPrimaryStyle = isNarrow ? circle.primary : cKey === activeKey;
-          const bearing = circle.reference
-            ? refCompassBearing(circle.reference.z_x, circle.reference.z_y)
-            : 0;
+          const anchor = circle.target ?? circle.reference;
+          const bearing = anchor ? refCompassBearing(anchor.z_x, anchor.z_y) : 0;
           const wheelCircle = toWheelCircle(circle);
 
           const angleSections = (
