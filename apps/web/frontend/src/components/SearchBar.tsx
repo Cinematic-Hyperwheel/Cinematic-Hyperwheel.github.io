@@ -58,10 +58,9 @@ function SearchIcon() {
   );
 }
 
-// "Surprise me" trigger - a magician's hat with a pair of rabbit ears
-// peeking out and a sparkle, standing in for "pull a random movie out
-// of the catalog" the way a rabbit is pulled out of a hat.
-function MagicHatIcon() {
+// "Surprise me" trigger - a die face (five pips), standing in for
+// "pick a random movie from the catalog".
+function DiceIcon() {
   return (
     <svg
       width="17"
@@ -74,11 +73,24 @@ function MagicHatIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <ellipse cx="12" cy="18.4" rx="8" ry="2.1" />
-      <path d="M6.8 18 L8.2 8.6 A4 3.4 0 0 1 15.8 8.6 L17.2 18" />
-      <path d="M10.2 8.6 C9.4 5.6 9.8 3.4 10.8 2" />
-      <path d="M13.4 8.6 C13.7 5.3 13.3 3.1 12.4 1.7" />
-      <path d="M19 4.2 L19.5 5.7 L21 6.2 L19.5 6.7 L19 8.2 L18.5 6.7 L17 6.2 L18.5 5.7 Z" />
+      <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+      <g fill="currentColor" stroke="none">
+        <circle cx="8.5" cy="8.5" r="1.3" />
+        <circle cx="15.5" cy="8.5" r="1.3" />
+        <circle cx="12" cy="12" r="1.3" />
+        <circle cx="8.5" cy="15.5" r="1.3" />
+        <circle cx="15.5" cy="15.5" r="1.3" />
+      </g>
+    </svg>
+  );
+}
+
+function SparklesIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 4 L12 10 L18 12 L12 14 L10 20 L8 14 L2 12 L8 10 Z" transform="translate(2 0)" />
+      <path d="M19 3 V7" />
+      <path d="M17 5 H21" />
     </svg>
   );
 }
@@ -100,7 +112,7 @@ function RandomMovieButton({ onClick, spinning, label }: RandomMovieButtonProps)
       aria-busy={spinning}
       title={label}
     >
-      <MagicHatIcon />
+      <SparklesIcon />
     </button>
   );
 }
