@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { useTranslation } from "react-i18next";
 import { RecItem, RecommendCircle, toWheelCircle } from "../api";
 import { circleKey } from "../utils/circleKey";
+import { isCircleShown } from "../utils/schemeGate";
 import { colorOnWheel } from "../utils/color";
 import { imdbUrlForItem } from "../utils/imdb";
 import { tmdbUrlForItem } from "../utils/tmdb";
@@ -426,14 +427,10 @@ export default function RecommendationsPanel({
   const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches
   const { hoveredCircleKey, setHoveredCircle } = useHoverCircle();
 
-  // Only circles that actually turned up at least one recommendation
-  // anywhere across their angles are worth showing. Memoized so
-  // useActiveCircleNav only re-runs its own effects when `circles`
-  // itself changes, not on every render.
-  const populated = useMemo(
-    () => circles.filter((c) => c.angles.some((a) => a.items.length > 0)),
-    [circles]
-  );
+  // Circles worth showing: ones with at least one recommendation, or pinned
+  // ones (see isCircleShown). Memoized so useActiveCircleNav only re-runs its
+  // own effects when `circles` itself changes, not on every render.
+  const populated = useMemo(() => circles.filter(isCircleShown), [circles]);
 
   // Reactive version of the MOBILE_BREAKPOINT check (resize/orientation
   // change matter here, unlike the one-off canHover capability check

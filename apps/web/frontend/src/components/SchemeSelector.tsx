@@ -7,7 +7,8 @@ import "./SchemeSelector.css";
 
 interface Props {
   schemes: string[];
-  value: string;
+  /** Selected scheme, or null when none applies (e.g. a customized target). */
+  value: string | null;
   onChange: (scheme: string) => void;
 }
 
@@ -26,8 +27,9 @@ function formatAngles(scheme: string): string {
 }
 
 // Single-select radio group with every scheme visible at once. Only the
-// checked button is in the tab order (roving tabindex); Left/Right move the
-// selection. Up/Down are left alone: the page uses them to step through
+// checked button (the first one when none is checked) is in the tab
+// order (roving tabindex); Left/Right move the selection.
+// Up/Down are left alone: the page uses them to step through
 // circles (see useActiveCircleNav).
 export default function SchemeSelector({ schemes, value, onChange }: Props) {
   const { t } = useTranslation();
@@ -92,7 +94,7 @@ export default function SchemeSelector({ schemes, value, onChange }: Props) {
               // name is stated explicitly rather than derived from content.
               aria-label={label}
               aria-describedby={tip?.scheme === scheme ? tipId : undefined}
-              tabIndex={checked ? 0 : -1}
+              tabIndex={checked || (value === null && i === 0) ? 0 : -1}
               className={"scheme-select__btn" + (checked ? " scheme-select__btn--active" : "")}
               onClick={() => onChange(scheme)}
               onKeyDown={(e) => handleKeyDown(e, i)}

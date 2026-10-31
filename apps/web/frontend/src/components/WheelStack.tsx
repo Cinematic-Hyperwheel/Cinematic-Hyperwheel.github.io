@@ -8,7 +8,7 @@ import { circleKey } from "../utils/circleKey";
 import { colorOnWheel } from "../utils/color";
 import { resolvePoster } from "../utils/poster";
 import { supportsHover } from "../utils/hover";
-import { TOP_K } from "../utils/schemeGate";
+import { TOP_K, isCircleShown } from "../utils/schemeGate";
 import { useHighlight } from "../contexts/HighlightContext";
 import { useActiveCard } from "../contexts/ActiveCardContext";
 import { useHoverCircle } from "../contexts/HoverCircleContext";
@@ -496,13 +496,11 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
 
   const blocks = useMemo(
     () =>
-      circles
-        .map((circle) => ({
-          key: circleKey(circle),
-          circle,
-          angles: circle.angles.filter((a) => a.items.length > 0),
-        }))
-        .filter((block) => block.angles.length > 0),
+      circles.filter(isCircleShown).map((circle) => ({
+        key: circleKey(circle),
+        circle,
+        angles: circle.angles.filter((a) => a.items.length > 0),
+      })),
     [circles]
   );
 
@@ -960,7 +958,6 @@ export default function WheelStack({
                   <TargetCrosshairs
                     circle={l.circle}
                     size={l.size}
-                    circleKey={l.key}
                     editor={targetEditor}
                   />
                 )}

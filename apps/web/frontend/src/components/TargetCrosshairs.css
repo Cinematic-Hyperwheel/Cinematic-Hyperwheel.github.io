@@ -1,0 +1,95 @@
+/* Bright ring along the disc rim that hosts the rulers. */
+.target-ruler__ring {
+  fill: none;
+  stroke: rgba(232, 236, 244, 0.55);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgba(232, 236, 244, 0.6));
+  pointer-events: none;
+}
+
+.target-ruler__outline {
+  stroke: #fff;
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-width 120ms ease;
+}
+.target-ruler__fill {
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-width 120ms ease;
+}
+
+/* The sector, reticle and ruler of one scheme angle react together, so
+   hovering either handle shows which pieces it moves. */
+.target-gizmo__sector {
+  transition: fill-opacity 140ms ease, stroke-width 140ms ease;
+}
+.target-gizmo:hover .target-gizmo__sector,
+.target-gizmo--dragging .target-gizmo__sector {
+  fill-opacity: 0.24;
+  stroke-width: 1.8;
+}
+
+.target-reticle__mark {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 140ms ease;
+}
+.target-gizmo:hover .target-reticle__mark,
+.target-gizmo--dragging .target-reticle__mark {
+  transform: scale(1.18);
+}
+
+.target-gizmo:hover .target-ruler__outline,
+.target-gizmo--dragging .target-ruler__outline {
+  stroke-width: 10;
+}
+.target-gizmo:hover .target-ruler__fill,
+.target-gizmo--dragging .target-ruler__fill {
+  stroke-width: 6;
+}
+
+/* Expanding rings: the "this can be moved" hint. White rather than the
+   handle's own color, which equals the disc color underneath and would
+   blend into it. */
+.target-reticle__halo {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 6px #fff);
+}
+.target-gizmo:hover .target-reticle__halo,
+.target-gizmo--dragging .target-reticle__halo {
+  animation: target-halo 1.2s ease-out infinite;
+}
+.target-gizmo:hover .target-reticle__halo--late,
+.target-gizmo--dragging .target-reticle__halo--late {
+  animation-delay: 0.6s;
+}
+@keyframes target-halo {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .target-gizmo:hover .target-reticle__halo,
+  .target-gizmo--dragging .target-reticle__halo {
+    animation: none;
+    opacity: 0.7;
+    transform: scale(1.5);
+  }
+  .target-gizmo:hover .target-reticle__halo--late,
+  .target-gizmo--dragging .target-reticle__halo--late {
+    opacity: 0;
+  }
+  .target-reticle__mark,
+  .target-gizmo__sector,
+  .target-ruler__outline,
+  .target-ruler__fill {
+    transition: none;
+  }
+}

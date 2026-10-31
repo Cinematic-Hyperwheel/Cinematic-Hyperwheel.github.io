@@ -419,7 +419,10 @@ show). Matches beyond those 6 are released to a later circle that can
 show them within its own top 6, so the strongest circle does not absorb
 everything. A surplus match no other circle can show stays where it is
 and is still plotted on the big wheel. On the other circles the item can
-still appear as a star field point. A circle left without matches is omitted.
+still appear as a star field point. A circle left without matches is omitted,
+except while a dragged target is active: circles that had matches for
+the real reference stay, so dragging the target onto an empty area does
+not make them vanish.
 
 Circles are ordered by the number of matches at their weakest scheme
 angle (largest first), then by their total number of matches across all

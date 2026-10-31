@@ -137,6 +137,7 @@ export interface CircleDebug {
 
 export interface RecommendCircle {
   primary: boolean;
+  pinned?: boolean;
   axis_x: AxisConfig;
   axis_y: AxisConfig;
   reference: RecommendReference | null;

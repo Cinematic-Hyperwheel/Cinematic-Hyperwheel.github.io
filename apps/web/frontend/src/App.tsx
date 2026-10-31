@@ -27,9 +27,8 @@ import {
   getNeighbors,
   getWheelCircles,
   toWheelCircle,
-  TargetPoint,
 } from "./api";
-import { buildCircles, withAllMatches } from "./utils/schemeGate";  
+import { buildCircles, isCircleShown, withAllMatches, type TargetShift } from "./utils/schemeGate";
 import { DebugProvider } from "./contexts/DebugContext";
 import { DebugHud } from "./components/DebugInfo";
 import { buildRecNumbering } from "./utils/debugNumbering";
@@ -105,35 +104,25 @@ function AppContent() {
   // Fetched once per reference; the scheme is applied client-side, so
   // switching it never hits the server.
   const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);
-  // Dragged virtual references per circle key (see TargetCrosshairs.tsx);
-  // reset whenever a new reference movie is selected.
-  const [targetOverrides, setTargetOverrides] = useState<Record<string, TargetPoint>>({});
+  // Dragged scheme anchor shared by every circle (see TargetCrosshairs.tsx);
+  // reset on a new reference movie or scheme selection.
+  const [targetShift, setTargetShift] = useState<TargetShift | null>(null);
   // buildCircles is timed together with its memo so the diagnostics HUD
   // reports the cost of the actual computation, not of a re-render.
   const recsBuild = useMemo(() => {
     if (!neighbors) return null;
     const t0 = performance.now();
-    const circles = buildCircles(neighbors, scheme, targetOverrides);
+    const circles = buildCircles(neighbors, scheme, targetShift);
     return {
       recs: { item_id: neighbors.item_id, scheme, circles } as RecommendResponse,
       buildMs: performance.now() - t0,
     };
-  }, [neighbors, scheme, targetOverrides]);
+  }, [neighbors, scheme, targetShift]);
   const targetEditor = useMemo<TargetEditor | undefined>(() => {
     const angles = neighbors?.schemes[scheme];
     if (!neighbors || !angles) return undefined;
-    return {
-      angles,
-      gate: neighbors.gate,
-      onChange: (key, target) =>
-        setTargetOverrides((prev) => {
-          if (target) return { ...prev, [key]: target };
-          if (!(key in prev)) return prev;
-          const { [key]: _removed, ...rest } = prev;
-          return rest;
-        }),
-    };
-  }, [neighbors, scheme]);
+    return { angles, gate: neighbors.gate, shift: targetShift, onChange: setTargetShift };
+  }, [neighbors, scheme, targetShift]);
   const recs = recsBuild?.recs ?? null;
   // Includes proof-of-work solving when a fresh "heavy" ticket had to be minted.
   const [neighborsMs, setNeighborsMs] = useState<number | null>(null);
@@ -298,20 +287,20 @@ function AppContent() {
   // Recommendations list keep showing the top-K subset.
   const bigWheelOverlays = useMemo(() => withAllMatches(primaryOverlays), [primaryOverlays]);
   const bigWheelPreviewOverlays = useMemo(() => withAllMatches(hoveredOverlays), [hoveredOverlays]);
-  const hasLegend = !isWheelWrapHidden && (primaryOverlays?.some((a) => a.items.length > 0) ?? false);
+  // Circles shown in the lists (see isCircleShown), in the same order
+  // RecommendationsPanel's own scrollspy uses (see useActiveCircleNav) - 
+  // passed to the primary wheel's legend so its
+  // grid layout can fill empty vertical space with preview blocks for
+  // the circles that follow the active one (see WheelLegend in
+  // WheelStack.tsx).
+  const populatedCircles =
+    recs && !recError ? recs.circles.filter(isCircleShown) : [];
+  const hasLegend = !isWheelWrapHidden && populatedCircles.length > 0;
   // True until a reference movie is picked - the very first thing a
   // visitor sees. In this state the header sheds its search bar and the
   // scheme selector entirely; a single, larger search bar takes over as
   // the page's primary call to action (see .wheel-empty-state below).
   const isEmpty = !selected;
-  // Circles that actually have at least one recommendation, in the same
-  // order RecommendationsPanel's own scrollspy uses (see
-  // useActiveCircleNav) - passed to the primary wheel's legend so its
-  // grid layout can fill empty vertical space with preview blocks for
-  // the circles that follow the active one (see WheelLegend in
-  // WheelStack.tsx).
-  const populatedCircles =
-    recs && !recError ? recs.circles.filter((c) => c.angles.some((a) => a.items.length > 0)) : [];
   
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const recNumbering = useMemo(() => buildRecNumbering(populatedCircles), [recs, recError]);
@@ -479,7 +468,7 @@ function AppContent() {
     setError(null);
     setRecError(null);
     setNeighbors(null);
-    setTargetOverrides({});
+    setTargetShift(null);
     setActiveCircle(null);
     // A fresh reference means an entirely new Recommendations list -
     // jump back to the top of the page so the list (and the big wheel,
@@ -528,7 +517,7 @@ function AppContent() {
         setSelected(null);
         setCircles([]);
         setNeighbors(null);
-        setTargetOverrides({});
+        setTargetShift(null);
         setRecError(null);
         setError(null);
         setBackdropUrl(null);
@@ -541,12 +530,19 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Picking a scheme (including the current one) discards any dragged target.
   const handleSchemeChange = (sch: string) => {
+    setTargetShift(null);
     setScheme(sch);
   };
 
+  // While a customized target is active no preset applies, so none is shown as selected.
   const schemeSelect = (
-    <SchemeSelector schemes={SCHEMES} value={scheme} onChange={handleSchemeChange} />
+    <SchemeSelector
+      schemes={SCHEMES}
+      value={targetShift ? null : scheme}
+      onChange={handleSchemeChange}
+    />
   );
 
   return (

@@ -1,5 +1,5 @@
 
-import { type TargetPoint } from "../api";
+import { circleKey } from "./circleKey";
 
 import type {
   AxisConfig,
@@ -10,6 +10,7 @@ import type {
   RecItem,
   RecommendCircle,
   StarfieldItem,
+  TargetPoint,
 } from "../api";
 
 // Recommendations shown per scheme angle (and the legend's page size).
@@ -25,6 +26,34 @@ const MIN_CIRCLES = 1;
 
 const RAD_TO_DEG = 180 / Math.PI;
 const TWO_PI = Math.PI * 2;
+
+/**
+ * Global edit of the scheme's anchor, shared by every circle: the reference
+ * of each plane is rotated by `dTheta` (radians) and its radius multiplied
+ * by `scale` before the scheme angles are applied.
+ */
+export interface TargetShift {
+  dTheta: number;
+  scale: number;
+}
+
+/** Applies a shift to a point in a plane's whitened coordinates. */
+export function shiftPoint(p: TargetPoint, shift: TargetShift): TargetPoint {
+  const c = Math.cos(shift.dTheta);
+  const s = Math.sin(shift.dTheta);
+  return {
+    z_x: shift.scale * (c * p.z_x - s * p.z_y),
+    z_y: shift.scale * (s * p.z_x + c * p.z_y),
+  };
+}
+
+/**
+ * Whether a circle belongs in the lists and the legend: it has at least one
+ * recommendation, or it is pinned (see buildCircles).
+ */
+export function isCircleShown(circle: RecommendCircle): boolean {
+  return !!circle.pinned || circle.angles.some((a) => a.items.length > 0);
+}
 
 interface Candidate {
   item: NeighborItem;
@@ -286,15 +315,16 @@ function dedupeAcrossPlanes(planes: PlaneMatches[]): DisplacedMatch[][] {
  * then by total matches, then by the reference radius; the first one is primary.
  * Circles whose matches are fully included in another circle's matches are omitted.
  * 
- * `targets` maps a circle key (see utils/circleKey.ts) to a virtual
- * reference that replaces the real one when rotating by the scheme
- * angles. Circle ordering and cross-circle ranking still use the real
- * reference.
+ * `shift`, when set, replaces the reference of every plane with its shifted
+ * copy when rotating by the scheme angles (see TargetCrosshairs.tsx). Circle
+ * ordering and cross-circle ranking still use the real reference. Circles
+ * that have matches for the real reference are pinned, so a shift that lands
+ * on an empty area does not make them disappear.
  */
 export function buildCircles(
   data: NeighborsResponse,
   scheme: string,
-  targets: Record<string, TargetPoint> = {}
+  shift: TargetShift | null = null
 ): RecommendCircle[] {
   const schemeAngles = data.schemes[scheme];
   if (!schemeAngles) return [];
@@ -354,7 +384,7 @@ export function buildCircles(
     const wx = poleWeight(axes[i], refX);
     const wy = poleWeight(axes[j], refY);
 
-    const target = targets[`${pcA}-${pcB}`] ?? null;
+    const target = shift ? shiftPoint({ z_x: refX, z_y: refY }, shift) : null;
     const anchorX = target?.z_x ?? refX;
     const anchorY = target?.z_y ?? refY;
 
@@ -456,6 +486,14 @@ export function buildCircles(
   );
 
   const circles = built.map((b) => b.circle);
+  if (shift) {
+    const shown = new Set(
+      buildCircles(data, scheme, null).filter(isCircleShown).map((c) => circleKey(c))
+    );
+    circles.forEach((c) => {
+      c.pinned = shown.has(circleKey(c));
+    });
+  }
   circles.forEach((c, k) => {
     c.primary = k === 0;
   });

@@ -32,7 +32,8 @@
     }
   },
   "wheel": {
-    "dragTarget": "Drag to move the target · double-click to reset"
+    "dragTarget": "Drag to move the target · double-click to reset",
+    "dragRuler": "Drag along the rim to rotate the scheme · double-click to reset"
   },
   "recommendations": {
     "title": "Recommendations",
