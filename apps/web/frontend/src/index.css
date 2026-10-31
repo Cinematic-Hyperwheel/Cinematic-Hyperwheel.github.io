@@ -517,6 +517,13 @@ body {
   fill: var(--accent);
   font-weight: 700;
 }
+.wheel__ring-scrim {
+  fill: none;
+  stroke: rgba(6, 8, 14, 0.6);
+  stroke-width: 22;
+  stroke-linecap: round;
+  pointer-events: none;
+}
 .wheel__rec-point {
   stroke: #fff;
   stroke-width: 2;

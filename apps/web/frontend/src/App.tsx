@@ -35,13 +35,13 @@ import { buildRecNumbering } from "./utils/debugNumbering";
 
 
 const SCHEMES = [
-  "complementary",
-  "triadic",
+  "monochromatic",
   "analogous",
   "wide-analogous",
-  "split-complementary",
   "square",
-  "monochromatic",
+  "triadic",
+  "split-complementary",
+  "complementary",
 ];
 
 function findRecCircle(circle: WheelCircle, recs: RecommendResponse | null): RecommendCircle | undefined {
@@ -100,7 +100,7 @@ function AppContent() {
   const [selected, setSelected] = useState<MovieHit | null>(null);
   const [circles, setCircles] = useState<WheelCircle[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [scheme, setScheme] = useState<string>(SCHEMES[6]);
+  const [scheme, setScheme] = useState<string>("monochromatic");
   // Fetched once per reference; the scheme is applied client-side, so
   // switching it never hits the server.
   const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);

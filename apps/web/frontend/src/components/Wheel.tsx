@@ -12,6 +12,9 @@ interface Props {
   starfield?: StarfieldItem[];
 }
 
+// Ring label font size on the main (non-compact) wheel, in frozen
+// SVG units; compact wheels keep a smaller one.
+const RING_FONT_PX = 11;
 // below this disc size, skip the four pole-label strings around the disc
 // (no room to render them legibly) - full labels are still available as
 // a native tooltip on hover. Also the threshold WheelPointLabels.tsx
@@ -167,7 +170,7 @@ export default function Wheel({
   // left / positive right, axis Y negative top / positive bottom. On the
   // compact (secondary) wheels the ring uses a shorter radius and shortened
   // labels (first "/" segment) so they fit the small disc.
-  const ringR = gHalfBox + (compact ? 8 : 16);
+  const ringR = gHalfBox + (compact ? 8 : 18);
   const pid = `${uid}-${circle.axis_x.pc}-${circle.axis_y.pc}`;
   const idXNeg = `ring-${pid}-xneg`;
   const idXPos = `ring-${pid}-xpos`;
@@ -186,7 +189,8 @@ export default function Wheel({
 
   // Size each label's host arc from its measured width so long labels are
   // never clipped at the arc ends (fixed tiny arcs used to cut text off).
-  const fontPx = 9;
+  const fontPx = compact ? 9 : RING_FONT_PX;
+  const ringTextStyle = { fontSize: fontPx };
   // Arcs are sized to the FULL label so the hovered (expanded) text fits.
   const hTop = labelArcHalf(ringR, labelsY.negative, fontPx);
   const hBottom = labelArcHalf(ringR, labelsY.positive, fontPx);
@@ -198,6 +202,16 @@ export default function Wheel({
   // Top (negative) reads left->right, bottom (positive) left->right.
   const dYNeg = ringArcPath(gCenter, ringR, -HALF_PI - hTop, -HALF_PI + hTop, 1);
   const dYPos = ringArcPath(gCenter, ringR + 6, HALF_PI + hBottom, HALF_PI - hBottom, 0);
+  // Soft dark band behind the top label so it stays readable over a
+  // bright or busy backdrop. Offset outward by roughly half the glyph height.
+  const idScrimBlur = `ring-${pid}-scrim-blur`;
+  const dYNegScrim = ringArcPath(
+    gCenter,
+    ringR + fontPx * 0.4,
+    -HALF_PI - hTop * 1.1,
+    -HALF_PI + hTop * 1.1,
+    1
+  );
 
   // +x (right) = axis_x positive pole, +y (down) = axis_y positive pole -
   // screen y grows downward, so +z_y maps to +y directly.
@@ -326,9 +340,16 @@ export default function Wheel({
               <path id={idYPos} d={dYPos} />
               <path id={idXNeg} d={dXNeg} />
               <path id={idXPos} d={dXPos} />
+              <filter id={idScrimBlur} filterUnits="userSpaceOnUse" x="0" y="0" width={gWrap} height={gWrap}>
+                <feGaussianBlur stdDeviation="6" />
+              </filter>
             </defs>
+            {!compact && (
+              <path d={dYNegScrim} className="wheel__ring-scrim" filter={`url(#${idScrimBlur})`} />
+            )}
             <text
               className={"wheel__ring-text" + (activeLabel === "yneg" ? " wheel__ring-text--active" : "")}
+              style={ringTextStyle}
               onMouseEnter={() => setActiveLabel("yneg")}
               onMouseLeave={() => setActiveLabel(null)}
             >
@@ -338,6 +359,7 @@ export default function Wheel({
             </text>
             <text
               className={"wheel__ring-text" + (activeLabel === "ypos" ? " wheel__ring-text--active" : "")}
+              style={ringTextStyle}
               onMouseEnter={() => setActiveLabel("ypos")}
               onMouseLeave={() => setActiveLabel(null)}
             >
@@ -347,6 +369,7 @@ export default function Wheel({
             </text>
             <text
               className={"wheel__ring-text" + (activeLabel === "xneg" ? " wheel__ring-text--active" : "")}
+              style={ringTextStyle}
               onMouseEnter={() => setActiveLabel("xneg")}
               onMouseLeave={() => setActiveLabel(null)}
             >
@@ -356,6 +379,7 @@ export default function Wheel({
             </text>
             <text
               className={"wheel__ring-text" + (activeLabel === "xpos" ? " wheel__ring-text--active" : "")}
+              style={ringTextStyle}
               onMouseEnter={() => setActiveLabel("xpos")}
               onMouseLeave={() => setActiveLabel(null)}
             >
