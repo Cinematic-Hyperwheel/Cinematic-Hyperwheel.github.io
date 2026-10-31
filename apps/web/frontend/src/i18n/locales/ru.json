@@ -50,7 +50,8 @@
     "previous": "Предыдущий",
     "next": "Следующий",
     "legendViewGrid": "Плитка",
-    "legendViewList": "Список"
+    "legendViewList": "Список",
+    "emptyArea": "В этой области ничего нет"
   },
   "errors": {
     "wheelLookup": "Не удалось получить координаты фильма в PCA-пространстве."

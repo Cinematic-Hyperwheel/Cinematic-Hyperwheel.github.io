@@ -50,7 +50,8 @@
     "previous": "Previous",
     "next": "Next",
     "legendViewGrid": "Grid view",
-    "legendViewList": "List view"
+    "legendViewList": "List view",
+    "emptyArea": "Nothing in this area"
   },
   "errors": {
     "wheelLookup": "Could not fetch the movie's coordinates in PCA space."

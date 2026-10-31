@@ -405,6 +405,51 @@ const LegendRow = memo(function LegendRow({
   );
 });
 
+// Stand-in for a scheme angle with no matches while a dragged target is
+// active, so the user sees which target's area is empty instead of a
+// blank block. Grid layout draws it as an empty poster tile (same size as
+// the real ones); the list layout uses a compact row.
+function LegendEmpty({ angleLabel, swatch, grid }: { angleLabel: string; swatch: string; grid: boolean }) {
+  const { t } = useTranslation();
+  const label = t("recommendations.emptyArea");
+
+  if (!grid) {
+    return (
+      <div className="wheel-legend__empty-row">
+        <span className="wheel-legend__tile-badge wheel-legend__empty-badge" style={{ borderColor: swatch, color: swatch }}>
+          {angleLabel}
+        </span>
+        <span className="wheel-legend__empty-text">{label}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wheel-legend__tile" role="group" aria-label={label} title={label}>
+      <div className="wheel-legend__empty-card">
+        <span className="wheel-legend__tile-badge" style={{ borderColor: swatch, color: swatch }}>
+          {angleLabel}
+        </span>
+        <svg
+          className="wheel-legend__empty-icon"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="8.5" />
+          <line x1="6" y1="18" x2="18" y2="6" />
+        </svg>
+        <span className="wheel-legend__empty-text">{label}</span>
+      </div>
+    </div>
+  );
+}
+
 interface WheelLegendProps {
   /** Every populated circle, in the Recommendations list's own order -
    * one block per entry, all mounted at once. */
@@ -499,7 +544,9 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
       circles.filter(isCircleShown).map((circle) => ({
         key: circleKey(circle),
         circle,
-        angles: circle.angles.filter((a) => a.items.length > 0),
+        // With a dragged target every angle stays, so an empty area is
+        // reported (LegendEmpty) rather than silently dropped.
+        angles: circle.target ? circle.angles : circle.angles.filter((a) => a.items.length > 0),
       })),
     [circles]
   );
@@ -697,6 +744,21 @@ function WheelLegend({ circles, activeKey, layout, onToggleLayout, height }: Whe
       const isGrid = layout === "grid";
       // The grid pages through every gate match; the list keeps the top-K subset.
       const shown = isGrid ? angle.matches : angle.items;
+
+      if (shown.length === 0) {
+        const empty = <LegendEmpty angleLabel={angleText} swatch={swatch} grid={isGrid} />;
+        return (
+          <div className={"rec-angle" + (isGrid ? " rec-angle--grid" : "")} key={angle.angle_deg}>
+            {isGrid ? (
+              <LegendTileStrip pageSize={TOP_K} onScroll={closeOpenCard}>
+                {empty}
+              </LegendTileStrip>
+            ) : (
+              empty
+            )}
+          </div>
+        );
+      }
 
       const entries = shown.map((item, index) => {
         const isHighlighted = highlighted?.circleKey === blockKey && highlighted.itemId === item.item_id;
