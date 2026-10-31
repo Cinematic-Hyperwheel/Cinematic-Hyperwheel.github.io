@@ -107,6 +107,10 @@ function AppContent() {
   // Dragged scheme anchor shared by every circle (see TargetCrosshairs.tsx);
   // reset on a new reference movie or scheme selection.
   const [targetShift, setTargetShift] = useState<TargetShift | null>(null);
+  // Bumped when the circle list is rebuilt for a different scheme, so the
+  // Recommendations panel resets its active circle (a dragged target
+  // keeps it).
+  const [listEpoch, setListEpoch] = useState(0);
   // buildCircles is timed together with its memo so the diagnostics HUD
   // reports the cost of the actual computation, not of a re-render.
   const recsBuild = useMemo(() => {
@@ -533,6 +537,7 @@ function AppContent() {
   // Picking a scheme (including the current one) discards any dragged target.
   const handleSchemeChange = (sch: string) => {
     setTargetShift(null);
+    setListEpoch((e) => e + 1);
     setScheme(sch);
   };
 
@@ -615,6 +620,7 @@ function AppContent() {
                       circles={recs.circles}
                       onActiveCircleChange={setActiveCircle}
                       compactHeader={headerMode === "compact"}
+                      resetToken={listEpoch}
                     />
                   </aside>
                 )}

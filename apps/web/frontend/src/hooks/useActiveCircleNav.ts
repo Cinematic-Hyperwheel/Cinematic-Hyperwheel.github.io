@@ -49,6 +49,11 @@ interface UseActiveCircleNavOptions {
    * drives the big central wheel in App.tsx. Only meaningful on
    * desktop, where that wheel actually exists. */
   onActiveCircleChange?: (circle: RecommendCircle | null) => void;
+  /** Changing this value resets the active circle to the first one.
+   * Without a change, a new `populated` list keeps the current active
+   * circle as long as it is still present (e.g. a dragged target
+   * recomputes every circle but must not move the selection). */
+  resetToken?: number;
 }
 
 interface UseActiveCircleNavResult {
@@ -123,6 +128,7 @@ export function useActiveCircleNav({
   listRef,
   headerCompact,
   onActiveCircleChange,
+  resetToken = 0,
 }: UseActiveCircleNavOptions): UseActiveCircleNavResult {
   // sectionRefs: DOM node for each rendered .rec-circle section, keyed by
   // circleKey (see utils/circleKey.ts) - populated via the ref callback
@@ -231,17 +237,24 @@ export function useActiveCircleNav({
     };
   }, [recomputeReserve, listRef]);
 
-  // Defaults the active circle to the first one whenever the populated
-  // list changes (new reference movie or scheme). useLayoutEffect so
-  // this is settled before paint - no one-frame flash of "no circle
-  // active".
+  // Picks the active circle whenever the populated list changes. The
+  // current one is kept while it still exists, unless `resetToken`
+  // changed (a new scheme). useLayoutEffect so this is settled before
+  // paint - no one-frame flash of "no circle active".
+  const lastResetTokenRef = useRef(resetToken);
   useLayoutEffect(() => {
     if (isNarrow || populated.length === 0) {
       setActiveKey(null);
       return;
     }
-    setActiveKey(circleKey(populated[0]));
-  }, [populated, isNarrow]);
+    const reset = lastResetTokenRef.current !== resetToken;
+    lastResetTokenRef.current = resetToken;
+    setActiveKey((prev) =>
+      !reset && prev && populated.some((c) => circleKey(c) === prev)
+        ? prev
+        : circleKey(populated[0])
+    );
+  }, [populated, isNarrow, resetToken]);
 
   // Marks `key` active and scrolls its section into view if it isn't
   // already fully visible (e.g. it was scrolled past, or sits further

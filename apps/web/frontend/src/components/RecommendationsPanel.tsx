@@ -43,6 +43,9 @@ interface Props {
    * (see useActiveCircleNav) listens page-wide or only over this list.
    */
   compactHeader?: boolean;
+  /** Forwarded to useActiveCircleNav: changing it resets the active
+   * circle to the first one. */
+  resetToken?: number;
 }
 
 // Compact label for a scheme angle, shown inside the angle badge on the
@@ -419,6 +422,7 @@ export default function RecommendationsPanel({
   tmdbUrlFor = tmdbUrlForItem,
   onActiveCircleChange,
   compactHeader = false,
+  resetToken,
 }: Props) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -453,6 +457,7 @@ export default function RecommendationsPanel({
     listRef,
     headerCompact: compactHeader,
     onActiveCircleChange,
+    resetToken,
   });
 
   // Briefly flashes the just-activated circle's own wheel (desktop
